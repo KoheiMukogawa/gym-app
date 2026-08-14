@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { toMessage } from './errors'
 
 describe('toMessage', () => {
@@ -20,5 +20,15 @@ describe('toMessage', () => {
   it('falls back to a generic message for unknown errors', () => {
     expect(toMessage(new Error('boom')))
       .toBe('エラーが発生しました。もう一度お試しください。')
+  })
+
+  it('maps a unique constraint violation even when navigator.onLine is false', () => {
+    const spy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    try {
+      expect(toMessage({ code: '23505', message: 'duplicate key value' }))
+        .toBe('同じ名前の種目がすでに登録されています。')
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
