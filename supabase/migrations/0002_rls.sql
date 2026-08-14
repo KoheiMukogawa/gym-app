@@ -15,7 +15,7 @@ create policy "exercises_select" on public.exercises
 create policy "exercises_insert_own" on public.exercises
   for insert to authenticated with check (created_by = auth.uid() and is_preset = false);
 create policy "exercises_update_own" on public.exercises
-  for update to authenticated using (created_by = auth.uid()) with check (created_by = auth.uid());
+  for update to authenticated using (created_by = auth.uid()) with check (created_by = auth.uid() and is_preset = false);
 create policy "exercises_delete_own" on public.exercises
   for delete to authenticated using (created_by = auth.uid());
 

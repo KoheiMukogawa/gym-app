@@ -31,8 +31,36 @@ Supabaseダッシュボードの左メニューから **SQL Editor** を開き�
 3. `supabase/migrations/0003_seed_exercises.sql` を貼り付けて実行する。
    - プリセット種目55件（`is_preset = true`, `created_by = null`）が `exercises` テーブルに投入される。
 
-途中でエラーが出た場合は、直前のステップが正しく完了しているか（テーブルやenum型が実際に作成されているか）を
-Table Editor で確認してからやり直す。
+**`0002_rls.sql` はSQL Editor上で1つのトランザクションとして実行される。途中の文が1つでも失敗すると、
+このファイル内の変更は（成功したように見えた文も含めて）すべてロールバックされる。** つまり途中でエラーが
+出た場合、RLSはどのテーブルでも有効化されておらず、ポリシーも1つも作られていない。Table Editorでテーブルや
+enum型が存在するように見えても、それだけでは0002が成功した証拠にはならない（テーブル自体は0001で作成済みの
+ため）。0002が成功したかどうかは、後述のStep 7の `rowsecurity` 確認クエリで必ず確認すること。
+
+もっとも発生しやすいエラーは、`create trigger on_auth_user_created after insert on auth.users ...`
+（トリガーが `auth.users` テーブルに対する所有権を要求するため）で出る **`must be owner of relation users`**
+である。対処方法:
+
+1. まず、Supabaseダッシュボードの **SQL Editor** から実行しているか確認する（SQL Editorは `postgres`
+   ロールで実行されるため、通常はここで実行すれば成功する）。ローカルの `psql` や別のクライアントから
+   `anon`/`authenticated` ロールで接続して実行するとこのエラーになる。
+2. SQL Editorから実行してもなお `must be owner of relation users` が出る場合は、このトリガー部分
+   （`create function public.handle_new_user()` ～ `create trigger on_auth_user_created ...` の一続き）だけを
+   コメントアウトまたは削除してから `0002_rls.sql` を再実行する。この場合、`profiles` 行の自動作成が
+   行われなくなるため、Step 5でメンバーのアカウントを作成するたびに、以下のSQLを **SQL Editor** で
+   手動実行して `profiles` 行を作成する（`<user-id>` はStep 5で作成したユーザーのUUID、`<表示名>` は
+   `display_name` に設定したい値に置き換える）。
+
+   ```sql
+   insert into public.profiles (id, display_name) values ('<user-id>', '<表示名>');
+   ```
+
+   `<user-id>` は **Authentication** → **Users** の該当ユーザーの詳細画面（UUID列）から確認できる。
+
+**Step 7の `rowsecurity` 確認クエリがすべて `true` になることを確認してから、次のStep 5（メンバーの
+アカウント作成）やアプリの接続設定（Step 6）に進むこと。** RLSが無効な状態でメンバーのアカウントを作った
+り、アプリを接続したりすると、全メンバーが互いのデータを自由に書き換えられる無防備な状態のまま運用が
+始まってしまう。
 
 ## Step 3: メール確認を無効にする
 

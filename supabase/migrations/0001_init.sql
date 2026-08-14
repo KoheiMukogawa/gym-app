@@ -13,7 +13,8 @@ create table public.exercises (
   muscle_group public.muscle_group not null,
   is_preset boolean not null default false,
   created_by uuid references public.profiles(id) on delete set null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  check ((is_preset and created_by is null) or (not is_preset and created_by is not null))
 );
 
 create unique index exercises_name_normalized_key on public.exercises (name_normalized);
