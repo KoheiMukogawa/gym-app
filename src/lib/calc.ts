@@ -1,6 +1,8 @@
 import type { SetWithDate, WorkoutSet } from './types'
 
 export const WEIGHT_STEP = 2.5
+export const MIN_WEIGHT = 0
+export const MIN_REPS = 1
 export const DEFAULT_WEIGHT = 20
 export const DEFAULT_REPS = 10
 
@@ -49,9 +51,9 @@ export function maxWeightByDate(sets: SetWithDate[]): { date: string; max_weight
 export function adjustWeight(current: number, direction: 1 | -1): number {
   const next = current + WEIGHT_STEP * direction
   // 0.1 + 2.5 のような加算で生じる誤差を落とす
-  return Math.max(0, Math.round(next * 10) / 10)
+  return Math.max(MIN_WEIGHT, Math.round(next * 10) / 10)
 }
 
 export function adjustReps(current: number, direction: 1 | -1): number {
-  return Math.max(1, current + direction)
+  return Math.max(MIN_REPS, current + direction)
 }

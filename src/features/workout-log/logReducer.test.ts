@@ -58,6 +58,19 @@ describe('logReducer', () => {
     ])
   })
 
+  it('carries forward the last logged values when re-selecting an exercise, ignoring new prefill', () => {
+    let state = withExercise()
+    state = logReducer(state, { type: 'complete-set' })
+    // Now re-select bench with a different prefill - should use the logged values, not this prefill
+    state = logReducer(state, {
+      type: 'select-exercise',
+      exerciseId: 'bench',
+      prefill: { weight_kg: 75, reps: 5 },
+    })
+    expect(state.weight_kg).toBe(80)
+    expect(state.reps).toBe(8)
+  })
+
   it('adjusts weight and reps by the configured step', () => {
     let state = withExercise()
     state = logReducer(state, { type: 'adjust-weight', direction: 1 })

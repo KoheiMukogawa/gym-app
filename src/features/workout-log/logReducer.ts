@@ -1,4 +1,4 @@
-import { adjustReps, adjustWeight, DEFAULT_REPS, DEFAULT_WEIGHT } from '../../lib/calc'
+import { adjustReps, adjustWeight, DEFAULT_REPS, DEFAULT_WEIGHT, MIN_REPS, MIN_WEIGHT } from '../../lib/calc'
 
 export type LoggedSet = {
   exercise_id: string
@@ -49,9 +49,9 @@ export function logReducer(state: LogState, action: LogAction): LogState {
     case 'adjust-reps':
       return { ...state, reps: adjustReps(state.reps, action.direction) }
     case 'set-weight':
-      return { ...state, weight_kg: Math.max(0, action.value) }
+      return { ...state, weight_kg: Math.max(MIN_WEIGHT, action.value) }
     case 'set-reps':
-      return { ...state, reps: Math.max(1, Math.round(action.value)) }
+      return { ...state, reps: Math.max(MIN_REPS, Math.round(action.value)) }
     case 'complete-set': {
       const set = nextSet(state)
       if (set === null) return state
