@@ -18,7 +18,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const loadProfile = useCallback(async (id: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single()
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single()
+    if (error) {
+      // profiles の行が無いままログインできてしまう状態は、原因の手がかりが残らないと追えない。
+      // docs/setup-supabase.md のトリガー手動フォールバックを取りこぼすと実際に起きる。
+      console.error(`profiles の取得に失敗しました (user: ${id})`, error)
+      setProfile(null)
+      return
+    }
     setProfile((data as Profile) ?? null)
   }, [])
 
@@ -27,12 +34,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [userId, loadProfile])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      const id = data.session?.user.id ?? null
-      setUserId(id)
-      if (id) loadProfile(id).finally(() => setLoading(false))
-      else setLoading(false)
-    })
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        const id = data.session?.user.id ?? null
+        setUserId(id)
+        if (id) loadProfile(id).finally(() => setLoading(false))
+        else setLoading(false)
+      })
+      .catch((error: unknown) => {
+        // getSession は内部でストレージのロックを取りに行き、取得できないと例外を投げる
+        // （複数タブで開いたときに起きる）。ここで握ると loading が false にならず、
+        // RequireAuth がスピナーを回したまま復帰しなくなる。
+        console.error('セッションの取得に失敗しました', error)
+        setUserId(null)
+        setLoading(false)
+      })
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       const id = session?.user.id ?? null
