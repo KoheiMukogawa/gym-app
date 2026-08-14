@@ -59,4 +59,25 @@ describe('NumberStepper', () => {
 
     expect(onEnter).not.toHaveBeenCalled()
   })
+
+  it('commits again after a second edit session', async () => {
+    const onEnter = vi.fn()
+    render(
+      <NumberStepper label="重量" value={80} unit="kg" onStep={vi.fn()} onEnter={onEnter} />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: '重量を直接入力' }))
+    const firstInput = screen.getByRole('spinbutton', { name: '重量' })
+    await userEvent.clear(firstInput)
+    await userEvent.type(firstInput, '85')
+    await userEvent.tab()
+    expect(onEnter).toHaveBeenNthCalledWith(1, 85)
+
+    await userEvent.click(screen.getByRole('button', { name: '重量を直接入力' }))
+    const secondInput = screen.getByRole('spinbutton', { name: '重量' })
+    await userEvent.clear(secondInput)
+    await userEvent.type(secondInput, '90')
+    await userEvent.tab()
+    expect(onEnter).toHaveBeenNthCalledWith(2, 90)
+  })
 })

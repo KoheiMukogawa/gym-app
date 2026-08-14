@@ -16,9 +16,16 @@ const SIZES = {
   lg: 'min-h-16 text-xl px-6',
 } as const
 
-export function Button({ variant = 'primary', size = 'md', className = '', ...rest }: Props) {
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  type = 'button',
+  className = '',
+  ...rest
+}: Props) {
   return (
     <button
+      type={type}
       {...rest}
       className={`w-full rounded-xl font-semibold tracking-wide transition-[filter] duration-75 disabled:opacity-40 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
     />

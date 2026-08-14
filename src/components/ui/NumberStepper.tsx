@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 type Props = {
   label: string
@@ -11,8 +11,15 @@ type Props = {
 export function NumberStepper({ label, value, unit, onStep, onEnter }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const committedRef = useRef(false)
 
   function commit() {
+    // Enter fires commit() via onKeyDown, then setEditing(false) unmounts the
+    // focused input. Real browsers blur/focusout a focused element that gets
+    // removed from the DOM, which would call commit() a second time. Guard
+    // so at most one commit happens per edit session.
+    if (committedRef.current) return
+    committedRef.current = true
     const parsed = Number(draft)
     if (draft.trim() !== '' && Number.isFinite(parsed)) {
       onEnter(parsed)
@@ -53,6 +60,7 @@ export function NumberStepper({ label, value, unit, onStep, onEnter }: Props) {
             aria-label={`${label}を直接入力`}
             onClick={() => {
               setDraft(String(value))
+              committedRef.current = false
               setEditing(true)
             }}
             className="text-5xl font-bold tabular-nums"
