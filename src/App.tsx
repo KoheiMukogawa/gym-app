@@ -6,6 +6,7 @@ import { AppShell } from './components/AppShell'
 import { ToastProvider } from './components/ui/Toast'
 import { LogPage } from './features/workout-log/LogPage'
 import { FeedPage } from './features/feed/FeedPage'
+import { HistoryPage } from './features/history/HistoryPage'
 
 export default function App() {
   return (
@@ -17,7 +18,7 @@ export default function App() {
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
                 <Route path="/" element={<FeedPage />} />
-                <Route path="/history" element={<div className="p-4">履歴</div>} />
+                <Route path="/history" element={<HistoryPage />} />
                 <Route path="/members" element={<div className="p-4">メンバー</div>} />
                 <Route path="/settings" element={<div className="p-4">設定</div>} />
                 <Route path="/exercises/:exerciseId" element={<div className="p-4">種目詳細</div>} />

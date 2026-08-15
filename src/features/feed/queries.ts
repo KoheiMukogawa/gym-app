@@ -8,7 +8,7 @@ export type FeedItem = {
   sets: { exercise_id: string; exercise_name: string; weight_kg: number; reps: number }[]
 }
 
-type WorkoutRow = {
+export type WorkoutRow = {
   id: string
   user_id: string
   performed_at: string
@@ -22,19 +22,17 @@ type WorkoutRow = {
   }[]
 }
 
-export async function fetchFeed(limit = 30): Promise<FeedItem[]> {
-  const { data, error } = await supabase
-    .from('workouts')
-    .select(`
-      id, user_id, performed_at,
-      profiles ( display_name ),
-      workout_sets ( exercise_id, weight_kg, reps, set_index, exercises ( name ) )
-    `)
-    .order('performed_at', { ascending: false })
-    .limit(limit)
-  if (error) throw error
+// fetchFeed（全員分）と fetchUserWorkouts（本人分、history/queries.ts）は select する
+// 列と行の整形ロジックが完全に同一で、絞り込み条件（user_id）だけが異なる。
+// 二重にメンテするとどちらかだけ直して食い違う恐れがあるため、ここで共有する。
+export const WORKOUT_SELECT = `
+  id, user_id, performed_at,
+  profiles ( display_name ),
+  workout_sets ( exercise_id, weight_kg, reps, set_index, exercises ( name ) )
+`
 
-  return ((data ?? []) as unknown as WorkoutRow[])
+export function mapWorkoutRows(rows: WorkoutRow[]): FeedItem[] {
+  return rows
     .filter((w) => w.workout_sets.length > 0)
     .map((w) => ({
       workout_id: w.id,
@@ -50,4 +48,15 @@ export async function fetchFeed(limit = 30): Promise<FeedItem[]> {
           reps: s.reps,
         })),
     }))
+}
+
+export async function fetchFeed(limit = 30): Promise<FeedItem[]> {
+  const { data, error } = await supabase
+    .from('workouts')
+    .select(WORKOUT_SELECT)
+    .order('performed_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+
+  return mapWorkoutRows((data ?? []) as unknown as WorkoutRow[])
 }
