@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { normalizeExerciseName } from '../../lib/calc'
+import { toMessage } from '../../lib/errors'
 import { MUSCLE_GROUP_LABELS, type Exercise, type MuscleGroup } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 
@@ -17,6 +18,7 @@ export function ExercisePicker({ exercises, recentIds, onSelect, onCreate }: Pro
   const [creatingName, setCreatingName] = useState<string | null>(null)
   const [group, setGroup] = useState<MuscleGroup>('chest')
   const [saving, setSaving] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const q = normalizeExerciseName(query)
@@ -32,6 +34,8 @@ export function ExercisePicker({ exercises, recentIds, onSelect, onCreate }: Pro
         .filter((e) => filtered.includes(e)),
     [recentIds, exercises, filtered],
   )
+
+  const others = useMemo(() => filtered.filter((e) => !recent.includes(e)), [filtered, recent])
 
   if (creatingName !== null) {
     return (
@@ -54,15 +58,23 @@ export function ExercisePicker({ exercises, recentIds, onSelect, onCreate }: Pro
             ))}
           </div>
         </div>
+        {createError && (
+          <p role="alert" className="text-sm text-accent">
+            {createError}
+          </p>
+        )}
         <Button
           size="lg"
           disabled={saving}
           onClick={async () => {
+            setCreateError(null)
             setSaving(true)
             try {
               await onCreate(creatingName, group)
               setCreatingName(null)
               setQuery('')
+            } catch (error) {
+              setCreateError(toMessage(error))
             } finally {
               setSaving(false)
             }
@@ -70,7 +82,13 @@ export function ExercisePicker({ exercises, recentIds, onSelect, onCreate }: Pro
         >
           追加する
         </Button>
-        <Button variant="ghost" onClick={() => setCreatingName(null)}>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setCreatingName(null)
+            setCreateError(null)
+          }}
+        >
           やめる
         </Button>
       </div>
@@ -100,14 +118,16 @@ export function ExercisePicker({ exercises, recentIds, onSelect, onCreate }: Pro
         </section>
       )}
 
-      <section>
-        <h3 className="mb-2 text-xs text-muted">すべての種目</h3>
-        <ul className="flex flex-col gap-2">
-          {filtered.map((e) => (
-            <ExerciseRow key={e.id} exercise={e} onSelect={onSelect} />
-          ))}
-        </ul>
-      </section>
+      {others.length > 0 && (
+        <section>
+          <h3 className="mb-2 text-xs text-muted">すべての種目</h3>
+          <ul className="flex flex-col gap-2">
+            {others.map((e) => (
+              <ExerciseRow key={e.id} exercise={e} onSelect={onSelect} />
+            ))}
+          </ul>
+        </section>
+      )}
 
       {query.trim() !== '' && (
         <Button variant="ghost" onClick={() => setCreatingName(query.trim())}>

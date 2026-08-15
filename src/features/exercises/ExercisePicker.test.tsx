@@ -80,4 +80,52 @@ describe('ExercisePicker', () => {
 
     expect(onCreate).toHaveBeenCalledWith('ヒップアブダクション', 'legs')
   })
+
+  it('does not render a recent exercise twice when it also matches the current view', () => {
+    render(
+      <ExercisePicker
+        exercises={EXERCISES}
+        recentIds={['squat']}
+        onSelect={vi.fn()}
+        onCreate={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /スクワット/ })).toBeInTheDocument()
+  })
+
+  it('shows an inline error and keeps the create screen when onCreate rejects', async () => {
+    const onCreate = vi.fn().mockRejectedValue({ code: '23505' })
+    render(
+      <ExercisePicker exercises={EXERCISES} recentIds={[]} onSelect={vi.fn()} onCreate={onCreate} />,
+    )
+    await userEvent.type(screen.getByRole('searchbox', { name: '種目を検索' }), 'ヒップアブダクション')
+    await userEvent.click(screen.getByRole('button', { name: '「ヒップアブダクション」を追加' }))
+    await userEvent.click(screen.getByRole('button', { name: '脚' }))
+    await userEvent.click(screen.getByRole('button', { name: '追加する' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '同じ名前の種目がすでに登録されています。',
+    )
+    expect(screen.getByText('「ヒップアブダクション」を追加')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '追加する' })).toBeEnabled()
+  })
+
+  it('clears a previous error once a retry succeeds', async () => {
+    const onCreate = vi
+      .fn()
+      .mockRejectedValueOnce({ code: '23505' })
+      .mockResolvedValueOnce(undefined)
+    render(
+      <ExercisePicker exercises={EXERCISES} recentIds={[]} onSelect={vi.fn()} onCreate={onCreate} />,
+    )
+    await userEvent.type(screen.getByRole('searchbox', { name: '種目を検索' }), 'ヒップアブダクション')
+    await userEvent.click(screen.getByRole('button', { name: '「ヒップアブダクション」を追加' }))
+    await userEvent.click(screen.getByRole('button', { name: '脚' }))
+    await userEvent.click(screen.getByRole('button', { name: '追加する' }))
+    await screen.findByRole('alert')
+
+    await userEvent.click(screen.getByRole('button', { name: '追加する' }))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })
