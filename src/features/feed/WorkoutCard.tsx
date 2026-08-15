@@ -30,10 +30,13 @@ export function WorkoutCard({ item }: { item: FeedItem }) {
         <span className="text-xs text-muted">{formatDate(item.performed_at)}</span>
       </header>
 
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col">
         {[...byExercise.entries()].map(([id, e]) => (
-          <li key={id} className="flex items-baseline justify-between text-sm">
-            <Link to={`/exercises/${id}`} className="underline-offset-4 hover:underline">
+          <li key={id} className="flex min-h-14 items-center justify-between text-sm">
+            <Link
+              to={`/exercises/${id}`}
+              className="flex min-h-14 flex-1 items-center underline-offset-4 hover:underline"
+            >
               {e.name}
             </Link>
             <span className="tabular-nums text-muted">

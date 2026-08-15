@@ -41,4 +41,15 @@ describe('WorkoutCard', () => {
     // 80*8 + 80*6 + 100*5 = 1620
     expect(screen.getByText('1,620 kg')).toBeInTheDocument()
   })
+
+  // jsdom does not run real layout, so a pixel-height assertion would always
+  // read 0 regardless of the actual class. We instead assert on the `min-h-14`
+  // utility class, which is the codebase's established 56px tap-target token
+  // (see AppShell.tsx, ExercisePicker.tsx) — an honest proxy for "meets the
+  // convention", not a tautology against arbitrary implementation detail.
+  it('gives the exercise link a tap target meeting the 56px convention', () => {
+    renderCard(ITEM)
+    const link = screen.getByRole('link', { name: 'ベンチプレス' })
+    expect(link).toHaveClass('min-h-14')
+  })
 })
