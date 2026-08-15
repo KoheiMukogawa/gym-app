@@ -4,6 +4,7 @@ import { RequireAuth } from './features/auth/RequireAuth'
 import { LoginPage } from './features/auth/LoginPage'
 import { AppShell } from './components/AppShell'
 import { ToastProvider } from './components/ui/Toast'
+import { LogPage } from './features/workout-log/LogPage'
 
 export default function App() {
   return (
@@ -20,7 +21,7 @@ export default function App() {
                 <Route path="/settings" element={<div className="p-4">設定</div>} />
                 <Route path="/exercises/:exerciseId" element={<div className="p-4">種目詳細</div>} />
               </Route>
-              <Route path="/log" element={<div className="p-4">記録</div>} />
+              <Route path="/log" element={<LogPage />} />
             </Route>
           </Routes>
         </ToastProvider>
