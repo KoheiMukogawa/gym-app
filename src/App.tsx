@@ -8,6 +8,8 @@ import { LogPage } from './features/workout-log/LogPage'
 import { FeedPage } from './features/feed/FeedPage'
 import { HistoryPage } from './features/history/HistoryPage'
 import { ExerciseDetailPage } from './features/exercises/ExerciseDetailPage'
+import { MembersPage } from './features/history/MembersPage'
+import { MemberDetailPage } from './features/history/MemberDetailPage'
 
 export default function App() {
   return (
@@ -20,7 +22,8 @@ export default function App() {
               <Route element={<AppShell />}>
                 <Route path="/" element={<FeedPage />} />
                 <Route path="/history" element={<HistoryPage />} />
-                <Route path="/members" element={<div className="p-4">メンバー</div>} />
+                <Route path="/members" element={<MembersPage />} />
+                <Route path="/members/:userId" element={<MemberDetailPage />} />
                 <Route path="/settings" element={<div className="p-4">設定</div>} />
                 <Route path="/exercises/:exerciseId" element={<ExerciseDetailPage />} />
               </Route>
