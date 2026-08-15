@@ -230,6 +230,110 @@ describe('LogPage', () => {
     await waitFor(() => expect(saveSet).toHaveBeenLastCalledWith('w2', expect.anything()))
   })
 
+  it('recovers via the toast\'s 再試行 (not just the row button) after a reset caused by a failed save', async () => {
+    // Important 1 (round 3) の回帰テスト。トーストの再試行は、失敗発生時点の
+    // persist クロージャを保持し続ける。workoutId を state ではなく ref から
+    // 読むようになっていないと、リセット後もこの古いクロージャは削除済みの
+    // ワークアウト id を使い続け、再試行のたびに同じ失敗を繰り返す。
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValueOnce({ id: 'w1' }).mockResolvedValueOnce({ id: 'w2' })
+    saveSet
+      .mockResolvedValueOnce(undefined) // セット A は w1 に保存される
+      .mockRejectedValueOnce({ message: 'boom' }) // セット B は失敗する
+      .mockResolvedValueOnce(undefined) // 再試行後のセット B
+    deleteWorkoutIfEmpty.mockResolvedValue(true) // A を取り消した後、w1 は空になる
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+
+    // セット A を記録・保存する
+    await userEvent.click(button)
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
+
+    // セット A を取り消す（DB 上の w1 が空になる）
+    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
+    await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
+
+    // セット B を記録 → 保存が失敗し、w1 は空だったため削除され workoutId がリセットされる
+    await userEvent.click(button)
+    await waitFor(() => expect(deleteWorkoutIfEmpty).toHaveBeenCalledWith('w1'))
+
+    // 行の「未保存」ボタンではなく、トーストの「再試行」を押す
+    const toastRetry = await screen.findByRole('button', { name: '再試行' })
+    await userEvent.click(toastRetry)
+
+    await waitFor(() => expect(createWorkout).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(saveSet).toHaveBeenLastCalledWith('w2', expect.anything()))
+  })
+
+  it('does not resurrect a saved status for a set abandoned while a stacked retry (row button + still-visible toast) is racing', async () => {
+    // Important 2 (round 3) の回帰テスト。同じ id に対して二つの再試行の入り口
+    // （行の「未保存」ボタンと、まだ画面に残っているトースト）が同時に存在しうる。
+    // abandonedIdsRef のチェックが読んだ時点で印を消してしまうと、片方の
+    // チェックがもう片方の判断を狂わせる。
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+    const deferred: { resolve?: () => void } = {}
+    saveSet
+      .mockRejectedValueOnce({ message: 'boom' }) // 最初の保存が失敗 → トースト表示
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            deferred.resolve = resolve
+          }),
+      ) // 行ボタンからの再試行は保留にする
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+    await userEvent.click(button)
+
+    // 行の「未保存」を押す（この再試行はまだ保留のまま = deferred）
+    const rowRetry = await screen.findByRole('button', { name: /未保存/ })
+    await userEvent.click(rowRetry)
+
+    // 保留のうちに取り消す
+    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
+    expect(screen.getByText('まだ記録がありません')).toBeInTheDocument()
+    expect(deleteSet).not.toHaveBeenCalled()
+
+    // まだ画面に残っているトーストの「再試行」を押す（同じセットへのもう一つの入り口）
+    const toastRetry = screen.getByRole('button', { name: '再試行' })
+    await userEvent.click(toastRetry)
+
+    // 行ボタンからの再試行（保留にしていたほう）がいまさら成功する
+    deferred.resolve?.()
+
+    await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(loadDraft(USER)?.status ?? {}).toEqual({}))
+  })
+
+  it('keeps the same workout when a later save fails but the workout already has other saved sets', async () => {
+    // deleted === false の分岐のためのテスト（round 2 の deviation の正当性の裏付け）。
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+    saveSet
+      .mockResolvedValueOnce(undefined) // セット A -> w1 に保存される
+      .mockRejectedValueOnce({ message: 'boom' }) // セット B -> 失敗
+      .mockResolvedValueOnce(undefined) // 再試行されたセット B -> 同じ w1 に保存されるべき
+    deleteWorkoutIfEmpty.mockResolvedValue(false) // w1 にはまだ A があるので削除されない
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+    await userEvent.click(button) // セット A
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
+
+    await userEvent.click(button) // セット B、失敗する
+    await screen.findByRole('button', { name: /未保存/ })
+    await waitFor(() => expect(deleteWorkoutIfEmpty).toHaveBeenCalledWith('w1'))
+
+    await userEvent.click(screen.getByRole('button', { name: /未保存/ })) // 行から再試行
+
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(3))
+    expect(createWorkout).toHaveBeenCalledTimes(1)
+    const workoutIdsUsed = saveSet.mock.calls.map((call) => call[0] as string)
+    expect(workoutIdsUsed).toEqual(['w1', 'w1', 'w1'])
+  })
+
   it('issues a compensating deleteSet when a pending set is undone before its save resolves', async () => {
     seedDraftWithExercise()
     createWorkout.mockResolvedValue({ id: 'w1' })
@@ -274,9 +378,22 @@ describe('LogPage', () => {
     expect(screen.getByRole('button', { name: /未保存/ })).toBeInTheDocument()
   })
 
-  it('does not double-delete when the undo control is tapped twice quickly', async () => {
+  it('does not double-delete when the undo control is tapped twice quickly, dropping exactly one row', async () => {
+    // 1件だけだと undo-last-set は2回叩いても sets.slice(0, -1) が両方とも []
+    // になり、「2行落ちて1件しか消えていない」というバグを観測できない。
+    // 2件以上仕込んで、残りがちょうど1件であることを確認する。
     seedDraftWithExercise()
     createWorkout.mockResolvedValue({ id: 'w1' })
+    saveSet.mockResolvedValue(undefined)
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+    await userEvent.click(button) // セット1
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
+    await userEvent.click(button) // セット2
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(2))
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+
     const deferred: { resolve?: () => void } = {}
     deleteSet.mockImplementation(
       () =>
@@ -285,18 +402,68 @@ describe('LogPage', () => {
         }),
     )
 
-    renderLogPage()
-    const button = await screen.findByRole('button', { name: /セット完了/ })
-    await userEvent.click(button)
-    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
-
     await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
     // 進行中は取り消し中…に変わり、無効化されているので2回目のタップは効かない
     await userEvent.click(screen.getByRole('button', { name: '取り消し中…' }))
 
     deferred.resolve?.()
-    await waitFor(() => expect(screen.getByText('まだ記録がありません')).toBeInTheDocument())
 
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
     expect(deleteSet).toHaveBeenCalledTimes(1)
+  })
+
+  it('finishes without asking when there are no unsaved sets', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+    await userEvent.click(button)
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
+
+    await userEvent.click(screen.getByRole('button', { name: '終了' }))
+
+    expect(confirmSpy).not.toHaveBeenCalled()
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/'))
+    confirmSpy.mockRestore()
+  })
+
+  it('asks for confirmation naming the count before discarding unsaved sets, and does nothing if cancelled', async () => {
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+    saveSet.mockRejectedValue({ message: 'boom' })
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+    await userEvent.click(button)
+    await screen.findByRole('button', { name: /未保存/ })
+
+    await userEvent.click(screen.getByRole('button', { name: '終了' }))
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('1件'))
+    expect(navigate).not.toHaveBeenCalled()
+    expect(loadDraft(USER)).not.toBeNull()
+    confirmSpy.mockRestore()
+  })
+
+  it('discards the draft and navigates away once the user confirms losing unsaved sets', async () => {
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+    saveSet.mockRejectedValue({ message: 'boom' })
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+    await userEvent.click(button)
+    await screen.findByRole('button', { name: /未保存/ })
+
+    await userEvent.click(screen.getByRole('button', { name: '終了' }))
+
+    expect(confirmSpy).toHaveBeenCalled()
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/'))
+    expect(loadDraft(USER)).toBeNull()
+    confirmSpy.mockRestore()
   })
 })

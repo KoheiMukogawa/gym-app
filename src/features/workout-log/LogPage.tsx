@@ -59,7 +59,7 @@ export function LogPage() {
   const [draft] = useState(() => (userId ? loadDraft(userId) : null))
 
   const [state, dispatch] = useReducer(logReducer, draft?.state ?? initialLogState)
-  const [workoutId, setWorkoutId] = useState<string | null>(draft?.workoutId ?? null)
+  const [workoutId, setWorkoutIdState] = useState<string | null>(draft?.workoutId ?? null)
   // 復元した pending は「保存できたかどうか分からない」状態なので、failed として
   // 提示し直す。23505 の扱いにより再試行は安全にべき等なので、実際には保存できて
   // いたセットも再試行するだけで済み、本当に失われたセットは再試行の手段を持てる。
@@ -84,6 +84,17 @@ export function LogPage() {
   // ワークアウト作成の二重発行を防ぐための、進行中の作成 Promise。
   // 1件目の呼び出しがこれを埋め、以降の呼び出しは同じ Promise を待つだけにする。
   const workoutCreationRef = useRef<Promise<string> | null>(null)
+  // workoutId の「今の値」を常に指すミラー。persist は state ではなくこれを読む。
+  // トーストの「再試行」ボタンは、失敗が起きた時点の persist クロージャを
+  // 保持し続ける（Toast は自己消滅するだけで置き換わらない）。そのクロージャの
+  // workoutId は state から読むと作成時点の値に固定されたままになり、後で
+  // ワークアウトがリセットされても追随しない。ref なら、どのクロージャから
+  // 読んでも常に最新の値になる。setWorkoutId 経由でのみ更新すること。
+  const workoutIdRef = useRef<string | null>(workoutId)
+  function setWorkoutId(id: string | null) {
+    workoutIdRef.current = id
+    setWorkoutIdState(id)
+  }
   // 現在進行中の保存（作成＋セット保存）を追跡する。終了処理がこれの完了を
   // 待ってからワークアウトの掃除に入ることで、保存中のワークアウトを
   // 削除してしまう競合を防ぐ。
@@ -92,6 +103,11 @@ export function LogPage() {
   // 取り消し済みだが、保存処理がまだ進行中（またはこれから再試行される）かもしれない
   // セット id の集合。persist 側はこれを見て、既に取り消されたセットを新たに
   // 保存してしまったり、保存済みのまま置き去りにしたりしないようにする。
+  // マウント中は書き込み専用（一度入れたら消さない）：同じ id に対して複数の
+  // 再試行の入り口（行の未保存ボタンと、画面に残ったトーストなど）が同時に
+  // 存在しうるため、片方が読んだ時点で消してしまうと、もう片方が「取り消されて
+  // いない」と誤認してしまう。id は UUID で使い回されないので、消さなくても
+  // 安全（このマウント中に取り消した件数分しか増えない）。
   const abandonedIdsRef = useRef<Set<string>>(new Set())
 
   // 認証切れやリロードで画面が失われても記録を復元できるよう、変更のたびに退避する。
@@ -146,15 +162,20 @@ export function LogPage() {
 
       // 送信前に既に取り消されていた（例: 再試行トーストが表示されている間に
       // 「取り消す」を押した）場合は、何もせず終える。表示にも影響を与えない。
+      // ここでは印を消さない — 同じ id に対して別の再試行（行のボタンや、
+      // まだ画面に残っている別のトースト）が並行して進行中かもしれず、
+      // 片方が読んだ時点で消してしまうと、もう片方が判断を誤る。
       if (abandonedIdsRef.current.has(set.id)) {
-        abandonedIdsRef.current.delete(set.id)
         return Promise.resolve()
       }
 
       setStatusById((prev) => ({ ...prev, [set.id]: 'pending' }))
 
       const task = (async () => {
-        let wid = workoutId
+        // workoutId は state ではなく ref から読む。この関数オブジェクト自体は
+        // 過去のレンダー（例: 失敗トーストが捕まえた古い persist）から
+        // 再利用されることがあるが、ref は常に最新の値を指す。
+        let wid = workoutIdRef.current
         try {
           if (wid === null) {
             if (workoutCreationRef.current === null) {
@@ -176,7 +197,6 @@ export function LogPage() {
           if (abandonedIdsRef.current.has(set.id)) {
             // 保存が完了するまでの間に取り消されていた。取り消しの意図を
             // 裏切らないよう、コミットされてしまった行を消して帳尻を合わせる。
-            abandonedIdsRef.current.delete(set.id)
             try {
               await deleteSet(set.id)
             } catch (compensationError) {
@@ -193,7 +213,6 @@ export function LogPage() {
         } catch (e) {
           if (abandonedIdsRef.current.has(set.id)) {
             // 取り消し済みのセットは、保存に失敗しても表示すべき行がもう無い
-            abandonedIdsRef.current.delete(set.id)
             return
           }
           setStatusById((prev) => ({ ...prev, [set.id]: 'failed' }))
@@ -208,7 +227,9 @@ export function LogPage() {
                 // ワークアウトは実際に消えたので、次の保存は作り直す必要がある。
                 // ここをリセットし忘れると、以降のすべての保存が既に存在しない
                 // ワークアウトに向けて送られ続け、外部キー違反や RLS 拒否で
-                // 永久に失敗し続けてしまう。
+                // 永久に失敗し続けてしまう。setWorkoutId は ref も同時に更新する
+                // ので、この後どの persist クロージャから再試行されても正しく
+                // 「作り直しが必要」と判断できる。
                 setWorkoutId(null)
                 workoutCreationRef.current = null
               }
@@ -224,7 +245,7 @@ export function LogPage() {
       task.finally(() => pendingSavesRef.current.delete(task))
       return task
     },
-    [userId, show, workoutId],
+    [userId, show],
   )
 
   function handleCompleteSet() {
@@ -289,27 +310,51 @@ export function LogPage() {
 
   async function handleFinish() {
     if (!userId) return
+
+    // 未保存（保存に失敗した、または保存が確定していない）セットを残したまま
+    // 下書きを消してしまうと、その場に立ち会っていない限り気づく手段が無い。
+    // 件数を明示して確認する。
+    const unsavedCount = state.sets.filter((s) => {
+      const st = statusById[s.id] ?? 'saved'
+      return st === 'failed' || st === 'pending'
+    }).length
+    if (unsavedCount > 0) {
+      const proceed = window.confirm(
+        `未保存のセットが${unsavedCount}件あります。このまま終了するとその記録は失われます。終了しますか？`,
+      )
+      if (!proceed) return
+    }
+
     setFinishing(true)
     try {
-      // 保存が進行中のまま空ワークアウト判定に入ると、書き込み中のワークアウトを
-      // 消してしまう競合が起きる。すべての進行中の保存が収まるのを待つ。
-      // ただし通信が詰まって戻ってこない場合に画面が「終了中…」のまま
-      // 動かなくならないよう、上限時間で切り上げる（掃除は試みたうえで進む）。
-      if (pendingSavesRef.current.size > 0) {
-        await withTimeout(Promise.allSettled(Array.from(pendingSavesRef.current)), 10_000)
-      }
-      // workoutId (state) は待機中に更新された可能性があるため、進行中/完了済みの
-      // 作成 Promise があればその確定値を使う。無ければ state の値をそのまま使う。
-      const wid = workoutCreationRef.current
-        ? await workoutCreationRef.current.catch(() => null)
-        : workoutId
-      if (wid !== null) {
-        try {
-          await deleteWorkoutIfEmpty(wid)
-        } catch (e) {
-          console.error(`空ワークアウトの削除に失敗しました (workout: ${wid})`, e)
-        }
-      }
+      // 保存待ち・後片付けの一連の流れ全体に上限時間を設ける。通信が詰まって
+      // 戻ってこない場合に画面が「終了中…」のまま動かなくなるのを防ぐため。
+      // タイムアウトしても、下書きはローカルに残っているので再訪すれば復帰できる
+      // （＝ここで固まり続けるより、進んでしまうほうが安全）。
+      await withTimeout(
+        (async () => {
+          // 保存が進行中のまま空ワークアウト判定に入ると、書き込み中の
+          // ワークアウトを消してしまう競合が起きる。すべての進行中の保存が
+          // 収まるのを待つ。
+          if (pendingSavesRef.current.size > 0) {
+            await Promise.allSettled(Array.from(pendingSavesRef.current))
+          }
+          // workoutId (state) は待機中に更新された可能性があるため、進行中/
+          // 完了済みの作成 Promise があればその確定値を使う。無ければ ref の
+          // 値をそのまま使う。
+          const wid = workoutCreationRef.current
+            ? await workoutCreationRef.current.catch(() => null)
+            : workoutIdRef.current
+          if (wid !== null) {
+            try {
+              await deleteWorkoutIfEmpty(wid)
+            } catch (e) {
+              console.error(`空ワークアウトの削除に失敗しました (workout: ${wid})`, e)
+            }
+          }
+        })(),
+        10_000,
+      )
       clearDraft(userId)
       navigate('/')
     } finally {
