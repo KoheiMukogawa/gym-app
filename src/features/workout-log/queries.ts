@@ -36,8 +36,14 @@ export async function deleteSet(setId: string): Promise<void> {
   if (error) throw error
 }
 
-/** セットが1件も保存されなかったワークアウトを消す。空の記録をフィードに残さないため。 */
-export async function deleteWorkoutIfEmpty(workoutId: string): Promise<void> {
+/**
+ * セットが1件も保存されなかったワークアウトを消す。空の記録をフィードに残さないため。
+ * 実際に削除したかどうかを呼び出し側に返す。呼び出し側（LogPage）はこれを使って、
+ * 削除が起きたときだけ「ワークアウトはもう存在しない」前提の状態（workoutId など）を
+ * リセットする。削除しなかった（中身があった）のに呼び出し側がリセットしてしまうと、
+ * 次のセットが別の新しいワークアウトに分裂して保存されてしまう。
+ */
+export async function deleteWorkoutIfEmpty(workoutId: string): Promise<boolean> {
   const { count, error } = await supabase
     .from('workout_sets')
     .select('id', { count: 'exact', head: true })
@@ -46,14 +52,16 @@ export async function deleteWorkoutIfEmpty(workoutId: string): Promise<void> {
   // 件数が取得できない（null）場合、中身があるかどうか分からない。
   // 分からないときに削除してしまうと、実際にはセットが入っているワークアウトを
   // 消しかねないので、何もしない。
-  if (count === null) return
+  if (count === null) return false
   if (count === 0) {
     const { error: deleteError } = await supabase.from('workouts').delete().eq('id', workoutId)
     if (deleteError) {
       console.error(`空ワークアウトの削除に失敗しました (workout: ${workoutId})`, deleteError)
       throw deleteError
     }
+    return true
   }
+  return false
 }
 
 /** 前回値プリフィル用に、そのユーザーのセット履歴を新しい順で返す。 */

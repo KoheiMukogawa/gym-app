@@ -7,9 +7,10 @@ type Props = {
   status: Record<string, SetStatus>
   onUndo: () => void
   onRetry: (setId: string) => void
+  undoing: boolean
 }
 
-export function SetList({ sets, exerciseNames, status, onUndo, onRetry }: Props) {
+export function SetList({ sets, exerciseNames, status, onUndo, onRetry, undoing }: Props) {
   if (sets.length === 0) {
     return <p className="py-8 text-center text-sm text-muted">まだ記録がありません</p>
   }
@@ -56,9 +57,10 @@ export function SetList({ sets, exerciseNames, status, onUndo, onRetry }: Props)
       <button
         type="button"
         onClick={onUndo}
-        className="mt-3 min-h-14 w-full text-sm text-muted"
+        disabled={undoing}
+        className="mt-3 min-h-14 w-full text-sm text-muted disabled:opacity-40"
       >
-        直前のセットを取り消す
+        {undoing ? '取り消し中…' : '直前のセットを取り消す'}
       </button>
     </div>
   )

@@ -7,7 +7,16 @@ const NAMES = { bench: 'ベンチプレス', squat: 'スクワット' }
 
 describe('SetList', () => {
   it('shows an empty message when nothing is recorded', () => {
-    render(<SetList sets={[]} exerciseNames={NAMES} status={{}} onUndo={vi.fn()} onRetry={vi.fn()} />)
+    render(
+      <SetList
+        sets={[]}
+        exerciseNames={NAMES}
+        status={{}}
+        onUndo={vi.fn()}
+        onRetry={vi.fn()}
+        undoing={false}
+      />,
+    )
     expect(screen.getByText('まだ記録がありません')).toBeInTheDocument()
   })
 
@@ -22,6 +31,7 @@ describe('SetList', () => {
         status={{ s1: 'saved', s2: 'saved' }}
         onUndo={vi.fn()}
         onRetry={vi.fn()}
+        undoing={false}
       />,
     )
     const items = screen.getAllByRole('listitem')
@@ -38,6 +48,7 @@ describe('SetList', () => {
         status={{ s1: 'saved' }}
         onUndo={onUndo}
         onRetry={vi.fn()}
+        undoing={false}
       />,
     )
     await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
@@ -52,6 +63,7 @@ describe('SetList', () => {
         status={{ s1: 'pending' }}
         onUndo={vi.fn()}
         onRetry={vi.fn()}
+        undoing={false}
       />,
     )
     expect(screen.getByRole('listitem')).toHaveClass('opacity-50')
@@ -67,11 +79,27 @@ describe('SetList', () => {
         status={{ s1: 'failed' }}
         onUndo={vi.fn()}
         onRetry={onRetry}
+        undoing={false}
       />,
     )
     const retryButton = screen.getByRole('button', { name: /未保存/ })
     expect(screen.getByRole('listitem')).not.toHaveClass('opacity-50')
     await userEvent.click(retryButton)
     expect(onRetry).toHaveBeenCalledWith('s1')
+  })
+
+  it('disables the undo control and shows an in-progress label while undoing', () => {
+    render(
+      <SetList
+        sets={[{ id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 }]}
+        exerciseNames={NAMES}
+        status={{ s1: 'saved' }}
+        onUndo={vi.fn()}
+        onRetry={vi.fn()}
+        undoing={true}
+      />,
+    )
+    const undoButton = screen.getByRole('button', { name: '取り消し中…' })
+    expect(undoButton).toBeDisabled()
   })
 })

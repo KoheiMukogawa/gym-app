@@ -1,6 +1,9 @@
 import type { LogState } from './logReducer'
 
 const KEY_PREFIX = 'gym-app.draft.'
+// ユーザー単位の名前空間化（Important 5）より前に使っていたキー。
+// 残っていても二度と読まれないので、気づいたときに掃除する。
+const LEGACY_KEY = 'gym-app.draft'
 
 export type SetStatus = 'pending' | 'saved' | 'failed'
 
@@ -22,7 +25,10 @@ function keyFor(userId: string): string {
 }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10)
+  // toISOString は UTC 基準の日付になり、JST (UTC+9) では朝9時ごろに日付が
+  // ずれてしまう（同じ現地日でも下書きが「別の日」に見えて破棄される）。
+  // sv-SE ロケールは YYYY-MM-DD 形式で、現地時刻の暦日を返す。
+  return new Date().toLocaleDateString('sv-SE')
 }
 
 function isSetStatus(value: unknown): value is SetStatus {
@@ -60,6 +66,11 @@ export function saveDraft(userId: string, draft: Draft): void {
 }
 
 export function loadDraft(userId: string): Draft | null {
+  try {
+    localStorage.removeItem(LEGACY_KEY)
+  } catch {
+    // 掃除に失敗しても記録の妨げにはならないため無視する
+  }
   let raw: string | null
   try {
     raw = localStorage.getItem(keyFor(userId))

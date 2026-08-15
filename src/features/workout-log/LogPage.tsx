@@ -29,6 +29,26 @@ function OfflineBanner() {
   )
 }
 
+/**
+ * 待ちきりで画面がずっと「終了中…」のままにならないよう、上限時間で打ち切る。
+ * 打ち切っても後始末（deleteWorkoutIfEmpty）は試みる。
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve('timeout'), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve('timeout')
+      },
+    )
+  })
+}
+
 export function LogPage() {
   const { userId } = useSession()
   const navigate = useNavigate()
@@ -40,7 +60,17 @@ export function LogPage() {
 
   const [state, dispatch] = useReducer(logReducer, draft?.state ?? initialLogState)
   const [workoutId, setWorkoutId] = useState<string | null>(draft?.workoutId ?? null)
-  const [statusById, setStatusById] = useState<Record<string, SetStatus>>(draft?.status ?? {})
+  // 復元した pending は「保存できたかどうか分からない」状態なので、failed として
+  // 提示し直す。23505 の扱いにより再試行は安全にべき等なので、実際には保存できて
+  // いたセットも再試行するだけで済み、本当に失われたセットは再試行の手段を持てる。
+  const [statusById, setStatusById] = useState<Record<string, SetStatus>>(() => {
+    const initial = draft?.status ?? {}
+    const demoted: Record<string, SetStatus> = {}
+    for (const [id, st] of Object.entries(initial)) {
+      demoted[id] = st === 'pending' ? 'failed' : st
+    }
+    return demoted
+  })
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [recentIds, setRecentIds] = useState<string[]>([])
   const [history, setHistory] = useState<Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[]>([])
@@ -49,6 +79,7 @@ export function LogPage() {
   const [justSaved, setJustSaved] = useState(false)
   const [offline, setOffline] = useState(isOffline())
   const [finishing, setFinishing] = useState(false)
+  const [undoing, setUndoing] = useState(false)
 
   // ワークアウト作成の二重発行を防ぐための、進行中の作成 Promise。
   // 1件目の呼び出しがこれを埋め、以降の呼び出しは同じ Promise を待つだけにする。
@@ -58,6 +89,10 @@ export function LogPage() {
   // 削除してしまう競合を防ぐ。
   const pendingSavesRef = useRef<Set<Promise<void>>>(new Set())
   const justSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 取り消し済みだが、保存処理がまだ進行中（またはこれから再試行される）かもしれない
+  // セット id の集合。persist 側はこれを見て、既に取り消されたセットを新たに
+  // 保存してしまったり、保存済みのまま置き去りにしたりしないようにする。
+  const abandonedIdsRef = useRef<Set<string>>(new Set())
 
   // 認証切れやリロードで画面が失われても記録を復元できるよう、変更のたびに退避する。
   // workoutId は state 化したので、作成直後の値も取りこぼさずに書き込まれる。
@@ -108,6 +143,14 @@ export function LogPage() {
   const persist = useCallback(
     (set: LoggedSet): Promise<void> => {
       if (!userId) throw new Error('サインインしていません')
+
+      // 送信前に既に取り消されていた（例: 再試行トーストが表示されている間に
+      // 「取り消す」を押した）場合は、何もせず終える。表示にも影響を与えない。
+      if (abandonedIdsRef.current.has(set.id)) {
+        abandonedIdsRef.current.delete(set.id)
+        return Promise.resolve()
+      }
+
       setStatusById((prev) => ({ ...prev, [set.id]: 'pending' }))
 
       const task = (async () => {
@@ -129,9 +172,30 @@ export function LogPage() {
             wid = await workoutCreationRef.current
           }
           await saveSet(wid, set)
+
+          if (abandonedIdsRef.current.has(set.id)) {
+            // 保存が完了するまでの間に取り消されていた。取り消しの意図を
+            // 裏切らないよう、コミットされてしまった行を消して帳尻を合わせる。
+            abandonedIdsRef.current.delete(set.id)
+            try {
+              await deleteSet(set.id)
+            } catch (compensationError) {
+              console.error(
+                `取り消し済みセットの補償削除に失敗しました (set: ${set.id})`,
+                compensationError,
+              )
+            }
+            return
+          }
+
           setStatusById((prev) => ({ ...prev, [set.id]: 'saved' }))
           showJustSaved()
         } catch (e) {
+          if (abandonedIdsRef.current.has(set.id)) {
+            // 取り消し済みのセットは、保存に失敗しても表示すべき行がもう無い
+            abandonedIdsRef.current.delete(set.id)
+            return
+          }
           setStatusById((prev) => ({ ...prev, [set.id]: 'failed' }))
           // このセットの保存に失敗した時点で他に進行中の保存がなければ、
           // ワークアウトはまだ空である可能性が高い。終了を待たず掃除する。
@@ -139,7 +203,15 @@ export function LogPage() {
           // サイズが1（自分だけ）のときだけ安全に判断できる。
           if (wid !== null && pendingSavesRef.current.size <= 1) {
             try {
-              await deleteWorkoutIfEmpty(wid)
+              const deleted = await deleteWorkoutIfEmpty(wid)
+              if (deleted) {
+                // ワークアウトは実際に消えたので、次の保存は作り直す必要がある。
+                // ここをリセットし忘れると、以降のすべての保存が既に存在しない
+                // ワークアウトに向けて送られ続け、外部キー違反や RLS 拒否で
+                // 永久に失敗し続けてしまう。
+                setWorkoutId(null)
+                workoutCreationRef.current = null
+              }
             } catch (cleanupError) {
               console.error(`空ワークアウトの削除に失敗しました (workout: ${wid})`, cleanupError)
             }
@@ -170,26 +242,36 @@ export function LogPage() {
   }
 
   async function handleUndo() {
+    if (undoing) return
     const last = state.sets[state.sets.length - 1]
     if (!last) return
-    const st = statusById[last.id] ?? 'saved'
-    if (st === 'saved') {
-      try {
-        await deleteSet(last.id)
-      } catch (e) {
-        // 削除できなかった場合は行を残し、記録が消えたように見せない
-        show(toMessage(e))
-        return
+    setUndoing(true)
+    try {
+      abandonedIdsRef.current.add(last.id)
+      const st = statusById[last.id] ?? 'saved'
+      if (st === 'saved') {
+        try {
+          await deleteSet(last.id)
+        } catch (e) {
+          // 削除できなかった場合は行を残し、記録が消えたように見せない。
+          // まだ本当には取り消されていないので、abandoned の印も取り消す。
+          abandonedIdsRef.current.delete(last.id)
+          show(toMessage(e))
+          return
+        }
       }
+      // pending / failed のセットは DB にまだコミットされていない（か既に
+      // 掃除済みの）ので、ローカルの表示から外すだけでよい。まだ進行中の
+      // 保存があれば、上の abandonedIdsRef への追加が persist 側で処理する。
+      dispatch({ type: 'undo-last-set' })
+      setStatusById((prev) => {
+        const next = { ...prev }
+        delete next[last.id]
+        return next
+      })
+    } finally {
+      setUndoing(false)
     }
-    // pending / failed のセットは DB にまだコミットされていない（か既に
-    // 掃除済みの）ので、ローカルの表示から外すだけでよい。
-    dispatch({ type: 'undo-last-set' })
-    setStatusById((prev) => {
-      const next = { ...prev }
-      delete next[last.id]
-      return next
-    })
   }
 
   // エラーはここで握りつぶさず ExercisePicker に伝播させる。ExercisePicker は
@@ -211,8 +293,10 @@ export function LogPage() {
     try {
       // 保存が進行中のまま空ワークアウト判定に入ると、書き込み中のワークアウトを
       // 消してしまう競合が起きる。すべての進行中の保存が収まるのを待つ。
+      // ただし通信が詰まって戻ってこない場合に画面が「終了中…」のまま
+      // 動かなくならないよう、上限時間で切り上げる（掃除は試みたうえで進む）。
       if (pendingSavesRef.current.size > 0) {
-        await Promise.allSettled(Array.from(pendingSavesRef.current))
+        await withTimeout(Promise.allSettled(Array.from(pendingSavesRef.current)), 10_000)
       }
       // workoutId (state) は待機中に更新された可能性があるため、進行中/完了済みの
       // 作成 Promise があればその確定値を使う。無ければ state の値をそのまま使う。
@@ -294,6 +378,7 @@ export function LogPage() {
           status={statusById}
           onUndo={() => void handleUndo()}
           onRetry={handleRetry}
+          undoing={undoing}
         />
       </div>
 
@@ -314,7 +399,7 @@ export function LogPage() {
             onEnter={(value) => dispatch({ type: 'set-reps', value })}
           />
         </div>
-        <Button size="lg" onClick={handleCompleteSet} disabled={offline}>
+        <Button size="lg" onClick={handleCompleteSet} disabled={offline || finishing}>
           {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
         </Button>
       </div>
