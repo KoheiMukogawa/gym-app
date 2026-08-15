@@ -14,12 +14,25 @@ export async function createWorkout(userId: string): Promise<Workout> {
 
 export async function saveSet(workoutId: string, set: LoggedSet): Promise<void> {
   const { error } = await supabase.from('workout_sets').insert({
+    id: set.id,
     workout_id: workoutId,
     exercise_id: set.exercise_id,
     set_index: set.set_index,
     weight_kg: set.weight_kg,
     reps: set.reps,
   })
+  if (error) {
+    // id は画面側が生成したもの。主キー重複（23505）は「直前の試行は
+    // ネットワーク的に失敗して見えたが実際にはコミットされていた」ことを
+    // 意味するので、再試行を安全にべき等にするためここは成功として扱う。
+    if (error.code === '23505') return
+    throw error
+  }
+}
+
+/** セット本体を削除する。取り消し（undo）が保存済みのセットに対して行われたときに使う。 */
+export async function deleteSet(setId: string): Promise<void> {
+  const { error } = await supabase.from('workout_sets').delete().eq('id', setId)
   if (error) throw error
 }
 
@@ -30,8 +43,16 @@ export async function deleteWorkoutIfEmpty(workoutId: string): Promise<void> {
     .select('id', { count: 'exact', head: true })
     .eq('workout_id', workoutId)
   if (error) throw error
-  if ((count ?? 0) === 0) {
-    await supabase.from('workouts').delete().eq('id', workoutId)
+  // 件数が取得できない（null）場合、中身があるかどうか分からない。
+  // 分からないときに削除してしまうと、実際にはセットが入っているワークアウトを
+  // 消しかねないので、何もしない。
+  if (count === null) return
+  if (count === 0) {
+    const { error: deleteError } = await supabase.from('workouts').delete().eq('id', workoutId)
+    if (deleteError) {
+      console.error(`空ワークアウトの削除に失敗しました (workout: ${workoutId})`, deleteError)
+      throw deleteError
+    }
   }
 }
 
