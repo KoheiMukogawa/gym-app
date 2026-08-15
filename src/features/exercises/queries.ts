@@ -49,14 +49,17 @@ export async function fetchRecentExerciseIds(userId: string, limit = 8): Promise
   return seen
 }
 
-export async function fetchExercise(exerciseId: string): Promise<Exercise> {
+/** 種目を1件取得する。存在しない ID（削除済み・不正なディープリンクなど）では
+ * 例外を投げず null を返す。呼び出し側が「取得失敗（再試行可）」と
+ * 「そもそも存在しない（再試行不可）」を区別できるようにするため。 */
+export async function fetchExercise(exerciseId: string): Promise<Exercise | null> {
   const { data, error } = await supabase
     .from('exercises')
     .select('*')
     .eq('id', exerciseId)
-    .single()
+    .maybeSingle()
   if (error) throw error
-  return data as Exercise
+  return data as Exercise | null
 }
 
 /** ある種目における、そのユーザーの全セットを古い順で返す。 */

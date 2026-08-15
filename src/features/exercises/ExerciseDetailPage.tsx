@@ -81,7 +81,7 @@ export function ExerciseDetailPage() {
   return (
     <div className="flex flex-col gap-6 p-4">
       <header>
-        <Link to="/" className="text-xs text-muted">
+        <Link to="/" className="flex min-h-14 w-fit items-center text-xs text-muted">
           ← ホーム
         </Link>
         <h1 className="mt-2 text-2xl font-bold">{exercise.name}</h1>

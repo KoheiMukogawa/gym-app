@@ -126,4 +126,33 @@ describe('ExerciseDetailPage error handling', () => {
     expect(fetchExerciseSets).toHaveBeenCalledWith(EXERCISE_ID, USER)
     expect(fetchExercise).toHaveBeenCalledWith(EXERCISE_ID)
   })
+
+  // Coverage (page half of the Important-1 regression net; the query-layer half
+  // lives in queries.test.ts, which is what actually proves the .single() ->
+  // .maybeSingle() fix, since mocking './queries' here bypasses that code
+  // entirely). A missing exercise is permanent — this must render the
+  // not-found copy and must NOT offer a 再試行 control, since retrying a
+  // genuinely-deleted exercise can never succeed.
+  it('shows the not-found message (no retry control) when fetchExercise resolves null', async () => {
+    fetchExercise.mockResolvedValueOnce(null)
+    fetchExerciseSets.mockResolvedValueOnce([])
+    renderExerciseDetailPage()
+
+    expect(await screen.findByText('種目が見つかりませんでした')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '再試行' })).not.toBeInTheDocument()
+  })
+
+  // Coverage: the mirror image of the test above — a transient failure (fetch
+  // rejects) must land in the retryable error state, not the permanent
+  // not-found copy. This restates the intent of the existing
+  // "shows a retryable error state..." test above under the same two-state
+  // framing the review asked for.
+  it('shows the retryable error state (no not-found copy) when fetchExercise rejects', async () => {
+    fetchExercise.mockRejectedValueOnce(new Error('network error'))
+    fetchExerciseSets.mockResolvedValueOnce([])
+    renderExerciseDetailPage()
+
+    expect(await screen.findByRole('button', { name: '再試行' })).toBeInTheDocument()
+    expect(screen.queryByText('種目が見つかりませんでした')).not.toBeInTheDocument()
+  })
 })
