@@ -10,6 +10,7 @@ import { HistoryPage } from './features/history/HistoryPage'
 import { ExerciseDetailPage } from './features/exercises/ExerciseDetailPage'
 import { MembersPage } from './features/history/MembersPage'
 import { MemberDetailPage } from './features/history/MemberDetailPage'
+import { SettingsPage } from './features/settings/SettingsPage'
 
 export default function App() {
   return (
@@ -24,7 +25,7 @@ export default function App() {
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/members" element={<MembersPage />} />
                 <Route path="/members/:userId" element={<MemberDetailPage />} />
-                <Route path="/settings" element={<div className="p-4">設定</div>} />
+                <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/exercises/:exerciseId" element={<ExerciseDetailPage />} />
               </Route>
               <Route path="/log" element={<LogPage />} />
