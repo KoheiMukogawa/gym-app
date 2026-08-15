@@ -133,6 +133,20 @@ describe('HistoryPage error handling', () => {
 // clock times between 00:00 and 08:59 the following day. Both cases below sit in
 // that window, at its early and late edge, so together they exercise the whole
 // divergent range rather than a single lucky instant.
+// HistoryPage computes `now = new Date()` from the real system clock to decide
+// which month the calendar renders, and MonthCalendar's aria-label
+// (`${month}月${day}日 ...`) carries no year. So besides the timezone, the wall
+// clock's *date* is a second real input this path depends on: hardcoding
+// '8月14日' only holds up while the suite happens to run in August. Pin the
+// system time alongside the timezone so the test is decoupled from whenever it
+// actually runs, not just from the machine's zone.
+//
+// `toFake: ['Date']` fakes only the Date constructor, not setTimeout/
+// setInterval/MutationObserver — Testing Library's findBy* queries poll on
+// real timers, and faking those too would make `await findByLabelText(...)`
+// hang forever with nothing to advance the fake clock.
+const NOW_INSTANT = '2026-08-14T03:00:00Z' // 2026-08-14 12:00 JST — safely mid-day, safely August in both zones
+
 describe('HistoryPage calendar — marks the local (JST) day, not the UTC day', () => {
   const originalTZ = process.env.TZ
 
@@ -140,6 +154,8 @@ describe('HistoryPage calendar — marks the local (JST) day, not the UTC day', 
     // Must run before any Date is constructed in the test — process.env.TZ is
     // only honored by Node's Date/Intl machinery at construction time.
     process.env.TZ = 'Asia/Tokyo'
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(NOW_INSTANT))
     vi.clearAllMocks()
     useSession.mockReturnValue({
       userId: USER,
@@ -151,6 +167,9 @@ describe('HistoryPage calendar — marks the local (JST) day, not the UTC day', 
   })
 
   afterEach(() => {
+    // So fake timers from this block never leak into other tests in this file
+    // or the wider suite.
+    vi.useRealTimers()
     // Not `process.env.TZ = originalTZ` — when TZ was unset beforehand,
     // `originalTZ` is `undefined`, and assigning `undefined` to a process.env
     // property coerces it to the literal string "undefined", not "unset".
