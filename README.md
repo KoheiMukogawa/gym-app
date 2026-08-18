@@ -1,32 +1,38 @@
-# React + TypeScript + Vite
+# ジム記録
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+10人以下のグループで使う、ダークテーマの筋トレ記録PWAです。セット記録、グループフィード、個人履歴、種目ごとの重量推移、メンバー履歴に対応しています。
 
-Currently, two official plugins are available:
+## セットアップ
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. `npm install`
+2. [Supabaseセットアップ](docs/setup-supabase.md)に従ってプロジェクトとデータベースを準備する
+3. `.env.example` を `.env.local` にコピーし、SupabaseのURLとanon keyを記入する
+4. `npm run dev`
 
-## React Compiler
+## コマンド
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| コマンド | 内容 |
+|---|---|
+| `npm run dev` | 開発サーバーを起動 |
+| `npm run build` | 型検査と本番ビルド |
+| `npm run preview` | 本番ビルドをローカルで確認 |
+| `npm test` | ユニット・コンポーネントテスト |
+| `npm run test:watch` | テストを監視モードで実行 |
+| `npm run test:e2e` | 中核導線のE2Eテスト（Playwright） |
 
-## Expanding the Oxlint configuration
+## E2Eテスト
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+1. Supabaseに動作確認用のアカウントを1つ作る
+2. `.env.e2e.example` を `.env.e2e` にコピーし、そのアカウントのメールアドレスとパスワードを記入する
+3. `set -a && source .env.e2e && set +a && npm run test:e2e`
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+`.env.e2e` が無い場合、E2Eテストはスキップされます。
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## デプロイ
+
+Vercelに `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を設定してデプロイします。デプロイ後は、Supabase AuthenticationのSite URLにも公開URLを登録してください。`vercel.json` がSPAの各URLへの直接アクセスを `index.html` にフォールバックします。
+
+## 設計資料
+
+- [設計書](docs/superpowers/specs/2026-08-14-gym-app-design.md)
+- [実装計画](docs/superpowers/plans/2026-08-14-gym-app.md)
