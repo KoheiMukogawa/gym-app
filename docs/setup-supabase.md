@@ -139,3 +139,21 @@ Supabaseダッシュボードの **SQL Editor** で以下のクエリを順に�
   期待値: 作成したメンバーの人数分の行があり、`display_name` がそれぞれ設定した名前になっている
 
 上記すべてにチェックが付けば、データベース側のセットアップは完了です。
+
+## RLS検証結果（2026-08-20）
+
+E2E用アカウントのJWTでSupabase REST APIを直接叩き、他メンバーのデータを改変できないことを確認した。
+SQL Editorでの `set local role` による疑似検証ではなく、アプリと同じ経路（PostgREST + anon key + ユーザーJWT）で検証している。
+
+| 検証内容 | 結果 |
+|---|---|
+| 他ユーザーのワークアウトへの `workout_sets` INSERT | `HTTP 403` / `42501: new row violates row-level security policy for table "workout_sets"` |
+| 他ユーザーの `workouts` の DELETE | `HTTP 200`・**0行削除**（エラーにはならないが削除されない） |
+| 他ユーザーの `profiles.display_name` の UPDATE | `HTTP 200`・**0行更新** |
+| 他ユーザーのワークアウトの SELECT | 取得できる（グループ内で共有する仕様のため意図どおり） |
+
+削除・更新がエラーではなく0行で返るのは、RLSが行を可視範囲から除外するPostgreSQLの仕様どおりの挙動である。
+検証後、対象の他ユーザーのワークアウトと表示名がいずれも変更されていないことも確認済み。
+
+再検証する場合は `.env.e2e` に認証情報を用意し、E2Eアカウントのアクセストークンを取得したうえで
+`/rest/v1/workout_sets` への他ユーザー宛INSERTが403になることを確認すればよい。
