@@ -8,6 +8,11 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # src/lib/supabase.ts はビルド/インポート時に値が「存在すること」だけを検証しており、
+    # 単体テストは実際の Supabase 接続を行わない。そのためダミー値で十分。
+    env:
+      VITE_SUPABASE_URL: https://example.supabase.co
+      VITE_SUPABASE_ANON_KEY: dummy-anon-key-for-ci
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
