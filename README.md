@@ -1,6 +1,28 @@
 # ジム記録
 
+[![ci](https://github.com/KoheiMukogawa/gym-app/actions/workflows/ci.yml/badge.svg)](https://github.com/KoheiMukogawa/gym-app/actions/workflows/ci.yml)
+
 10人以下のグループで使う、ダークテーマの筋トレ記録PWAです。セット記録、グループフィード、個人履歴、種目ごとの重量推移、メンバー履歴に対応しています。
+
+![ログイン画面](docs/screenshot.png)
+
+## 解いた問題
+
+10人以下の少人数グループで筋トレの記録を共有したい。既存の記録アプリは個人利用向け（他人の記録が見えない）か、逆にSNS寄りで通知やタイムラインが重く、少人数の身内利用には過剰。「誰が・いつ・何をやったか」を淡々と共有できるだけの、軽いフィードが欲しかった。
+
+## 設計判断
+
+### なぜ Supabase か
+
+グループ全員が互いの記録を見られるが、自分の記録しか書き換えられない、という権限モデルが要件の中心にある。`supabase/migrations/0002_rls.sql` の Row Level Security ポリシーがこれをそのまま表現している。たとえば `workouts_select` は `to authenticated using (true)`（認証済みなら誰でも閲覧可）だが、`workouts_update_own` は `using (user_id = auth.uid())`（本人のみ更新可）。`workout_sets` はセット自体に `user_id` を持たないため、親 `workouts` の所有者を `exists` で辿って判定している。これをバックエンドを自作して実装する代わりに、DB層のポリシーとして宣言するだけで済ませた。認証（Supabase Auth）とデータアクセス制御が同じ基盤で完結するため、この規模のアプリにサーバーサイドのAPI層を書く理由がなくなる。
+
+### なぜ PWA か
+
+ジムでスマホから使うことを想定しており、ホーム画面に置いて起動できる必要はあるが、10人以下の身内利用でストア審査を通す理由はない。`vite.config.ts` の `VitePWA` 設定は `display: 'standalone'` でアプリらしい見た目にしつつ、`workbox.runtimeCaching: []` かつ `navigateFallbackDenylist: [/^\/api/]` としてAPIレスポンスは一切キャッシュしない（コード中のコメントの通り「古い記録を成功結果として見せない」ため）。プリキャッシュするのはアプリシェル（`globPatterns: ['**/*.{js,css,html,png,svg,woff2}']`）だけで、記録データそのものはオフラインでも古い状態を正として見せない設計にしている。
+
+### なぜ E2E を Playwright で中核導線だけに絞ったか
+
+`tests/e2e/log-workout.spec.ts` は `describe('中核の記録導線', ...)` の中に1テストしかない。ログイン→トレーニング開始→種目検索→セット記録→フィードへの反映→終了、という一本の流れだけを検証している。このアプリの価値は「記録が確実に残ってグループに見えること」に尽きるため、その導線が壊れていないことだけを機械的に担保すればよく、全画面・全操作を網羅するE2Eは費用対効果が合わないと判断した。`E2E_EMAIL`/`E2E_PASSWORD` が未設定なら `test.skip` で自動的にスキップされる（CIでは秘密情報を要求しない）。単体・コンポーネントテストは別途 `npm test`（148件、Vitest）でカバーしている。
 
 ## セットアップ
 
