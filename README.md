@@ -20,6 +20,9 @@
 | `npm run test:watch` | テストを監視モードで実行 |
 | `npm run test:e2e` | 中核導線のE2Eテスト（Playwright） |
 
+テストを動かすには `.env.test.example` を `.env.test` にコピーし、
+テスト用 Supabase プロジェクトの URL と anon key を記入します。
+
 ## E2Eテスト
 
 1. Supabaseに動作確認用のアカウントを1つ作る
