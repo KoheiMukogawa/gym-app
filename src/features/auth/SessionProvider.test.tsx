@@ -1,27 +1,42 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { SessionProvider, useSession } from './SessionProvider'
 
-const { getSession, onAuthStateChange, single } = vi.hoisted(() => ({
+const { getSession, onAuthStateChange, single, signOut } = vi.hoisted(() => ({
   getSession: vi.fn(),
   onAuthStateChange: vi.fn(),
   single: vi.fn(),
+  signOut: vi.fn(),
 }))
 
 vi.mock('../../lib/supabase', () => ({
   supabase: {
-    auth: { getSession, onAuthStateChange, signOut: vi.fn() },
+    auth: { getSession, onAuthStateChange, signOut },
     from: () => ({ select: () => ({ eq: () => ({ single }) }) }),
   },
 }))
 
 function Probe() {
-  const { userId, profile, loading } = useSession()
+  const { userId, profile, loading, signOut, refreshProfile } = useSession()
+  const [result, setResult] = useState('')
+  async function run(action: () => Promise<void>) {
+    try {
+      await action()
+      setResult('success')
+    } catch {
+      setResult('error')
+    }
+  }
   return (
     <>
       <span data-testid="loading">{String(loading)}</span>
       <span data-testid="userId">{userId ?? 'null'}</span>
       <span data-testid="profile">{profile?.display_name ?? 'null'}</span>
+      <button onClick={() => void run(signOut)}>logout</button>
+      <button onClick={() => void run(refreshProfile)}>refresh</button>
+      <span data-testid="result">{result}</span>
     </>
   )
 }
@@ -93,5 +108,38 @@ describe('SessionProvider', () => {
     await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
     expect(screen.getByTestId('userId')).toHaveTextContent('null')
     expect(single).not.toHaveBeenCalled()
+  })
+
+  it('propagates returned sign-out errors and allows a successful retry', async () => {
+    getSession.mockResolvedValue({ data: { session: null } })
+    signOut.mockResolvedValueOnce({ error: { message: 'network error' } })
+      .mockResolvedValueOnce({ error: null })
+    renderProvider()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'logout' }))
+    expect(screen.getByTestId('result')).toHaveTextContent('error')
+    await user.click(screen.getByRole('button', { name: 'logout' }))
+    expect(screen.getByTestId('result')).toHaveTextContent('success')
+  })
+
+  it('propagates refresh errors instead of reporting a successful save', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } } })
+    single.mockResolvedValueOnce({ data: { display_name: 'たろう' }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'network error' } })
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('profile')).toHaveTextContent('たろう'))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'refresh' }))
+    expect(screen.getByTestId('result')).toHaveTextContent('error')
+    expect(screen.getByTestId('profile')).toHaveTextContent('null')
+  })
+
+  it('settles initial loading when the profile request rejects', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } } })
+    single.mockRejectedValueOnce(new Error('network error'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
+    expect(screen.getByTestId('userId')).toHaveTextContent('user-1')
+    expect(screen.getByTestId('profile')).toHaveTextContent('null')
+    expect(errorSpy).toHaveBeenCalled()
   })
 })
