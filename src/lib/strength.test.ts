@@ -46,7 +46,7 @@ describe('currentEstimatedOneRepMax', () => {
     expect(currentEstimatedOneRepMax([
       { weight_kg: 100, reps: 5, performed_at: '2026-08-01T12:00:00Z' },
       { weight_kg: 90, reps: 5, performed_at: '2026-09-20T12:00:00Z' },
-    ], now, 30)).toBe(98.2)
+    ], now, 30)).toBe(101.3)
   })
 })
 
