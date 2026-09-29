@@ -111,6 +111,8 @@ strength_goals テーブルを追加する。
    - 1RM PR
    - 直近30日 e1RM
    - All-time e1RM
+   - Rep PR（3/5/8/10回）
+   - 日ごとの e1RM 推移
 4. 目標一覧
 5. 目標追加フォーム
 
