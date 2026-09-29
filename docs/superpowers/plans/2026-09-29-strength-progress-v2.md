@@ -40,8 +40,8 @@
 ## Phase 5 — 導入確認
 
 - [ ] Supabase に `0004_strength_goals.sql` を適用
-- [ ] `npm test`
-- [ ] `npm run build`
+- [x] `npm test`（GitHub Actionsで成功）
+- [x] `npm run build`（GitHub Actionsで成功）
 - [ ] 実データで Big3 の数値を確認
 - [ ] スマートフォンで Strength 画面を確認
 
