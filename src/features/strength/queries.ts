@@ -3,6 +3,8 @@ import {
   bestEstimatedOneRepMax,
   bestSingle,
   currentEstimatedOneRepMax,
+  estimatedOneRepMaxByDate,
+  repPersonalBest,
   strengthTotal,
   type DatedStrengthSet,
 } from '../../lib/strength'
@@ -22,6 +24,8 @@ export type LiftSnapshot = {
   pr1rm: number | null
   allTimeE1rm: number | null
   currentE1rm: number | null
+  repPRs: Record<3 | 5 | 8 | 10, number | null>
+  e1rmPoints: { date: string; e1rm: number }[]
 }
 
 export type StrengthSnapshot = {
@@ -50,6 +54,8 @@ function emptyLift(key: LiftKey): LiftSnapshot {
     pr1rm: null,
     allTimeE1rm: null,
     currentE1rm: null,
+    repPRs: { 3: null, 5: null, 8: null, 10: null },
+    e1rmPoints: [],
   }
 }
 
@@ -111,6 +117,13 @@ export async function fetchStrengthSnapshot(userId: string): Promise<StrengthSna
       pr1rm: bestSingle(sets),
       allTimeE1rm: bestEstimatedOneRepMax(sets),
       currentE1rm: currentEstimatedOneRepMax(sets),
+      repPRs: {
+        3: repPersonalBest(sets, 3),
+        5: repPersonalBest(sets, 5),
+        8: repPersonalBest(sets, 8),
+        10: repPersonalBest(sets, 10),
+      },
+      e1rmPoints: estimatedOneRepMaxByDate(sets),
     }
   }
 
