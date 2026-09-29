@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
@@ -27,6 +28,8 @@ function formatDate(date: string): string {
   return parsed.toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+const REP_TARGETS = [3, 5, 8, 10] as const
+
 function LiftCard({ lift }: { lift: LiftSnapshot }) {
   const content = (
     <div className="rounded-xl border border-border bg-surface p-4">
@@ -39,6 +42,66 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
         <Metric label="30日 e1RM" value={formatKg(lift.currentE1rm)} />
         <Metric label="最高 e1RM" value={formatKg(lift.allTimeE1rm)} />
       </div>
+
+      <div className="mt-4 border-t border-border pt-3">
+        <div className="mb-2 text-xs text-muted">Rep PR</div>
+        <div className="grid grid-cols-4 gap-2 text-center">
+          {REP_TARGETS.map((reps) => (
+            <div key={reps}>
+              <div className="text-xs text-muted">{reps}回</div>
+              <div className="font-semibold tabular-nums">
+                {formatKg(lift.repPRs[reps])}
+                {lift.repPRs[reps] !== null && <span className="ml-0.5 text-[10px] font-normal text-muted">kg</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {lift.e1rmPoints.length >= 2 && (
+        <div className="mt-4 border-t border-border pt-3">
+          <div className="mb-2 text-xs text-muted">e1RMの推移</div>
+          <div className="h-28 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={lift.e1rmPoints} margin={{ top: 4, right: 4, bottom: 0, left: -24 }}>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: '#8A8A93', fontSize: 10 }}
+                  tickFormatter={(date: string) => date.slice(5).replace('-', '/')}
+                  axisLine={false}
+                  tickLine={false}
+                  minTickGap={24}
+                />
+                <YAxis
+                  tick={{ fill: '#8A8A93', fontSize: 10 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={44}
+                  domain={['dataMin - 5', 'dataMax + 5']}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: '#17171A',
+                    border: '1px solid #2A2A2F',
+                    borderRadius: 12,
+                    color: '#F5F5F5',
+                  }}
+                  formatter={(value) => [`${value} kg`, 'e1RM']}
+                  labelFormatter={(date) => String(date)}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="e1rm"
+                  stroke="#E8412F"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   )
 
