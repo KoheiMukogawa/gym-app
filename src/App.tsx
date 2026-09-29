@@ -11,6 +11,7 @@ import { ExerciseDetailPage } from './features/exercises/ExerciseDetailPage'
 import { MembersPage } from './features/history/MembersPage'
 import { MemberDetailPage } from './features/history/MemberDetailPage'
 import { SettingsPage } from './features/settings/SettingsPage'
+import { StrengthPage } from './features/strength/StrengthPage'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
                 <Route path="/" element={<FeedPage />} />
+                <Route path="/strength" element={<StrengthPage />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/members" element={<MembersPage />} />
                 <Route path="/members/:userId" element={<MemberDetailPage />} />
