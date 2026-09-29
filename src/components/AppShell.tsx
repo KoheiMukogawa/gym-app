@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 
 const TABS = [
   { to: '/', label: 'ホーム' },
+  { to: '/strength', label: 'Big3' },
   { to: '/history', label: '履歴' },
   { to: '/members', label: 'メンバー' },
   { to: '/settings', label: '設定' },
