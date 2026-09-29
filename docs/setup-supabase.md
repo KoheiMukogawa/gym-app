@@ -8,6 +8,7 @@ Supabaseを使ったことがない人でも上から順に実行すれば完了
 - `supabase/migrations/0001_init.sql` — テーブル定義
 - `supabase/migrations/0002_rls.sql` — Row Level Security ポリシーとプロフィール自動作成トリガー
 - `supabase/migrations/0003_seed_exercises.sql` — プリセット種目55件の投入
+- `supabase/migrations/0004_strength_goals.sql` — Big3 Total目標テーブルとRLS
 
 ## Step 1: Supabaseプロジェクトを作成する
 
@@ -19,7 +20,7 @@ Supabaseを使ったことがない人でも上から順に実行すれば完了
 
 ## Step 2: マイグレーションSQLを適用する
 
-Supabaseダッシュボードの左メニューから **SQL Editor** を開き、以下の3ファイルの中身を
+Supabaseダッシュボードの左メニューから **SQL Editor** を開き、以下の4ファイルの中身を
 **この順番で** 1つずつ貼り付けて実行する（「Run」ボタン）。
 
 1. `supabase/migrations/0001_init.sql` を貼り付けて実行する。
@@ -30,6 +31,10 @@ Supabaseダッシュボードの左メニューから **SQL Editor** を開き�
      (`on_auth_user_created` / `handle_new_user`) も作成される。
 3. `supabase/migrations/0003_seed_exercises.sql` を貼り付けて実行する。
    - プリセット種目55件（`is_preset = true`, `created_by = null`）が `exercises` テーブルに投入される。
+4. `supabase/migrations/0004_strength_goals.sql` を貼り付けて実行する。
+   - `strength_goals` テーブルが作成され、目標は本人だけが参照・作成・更新・削除できるRLSが設定される。
+
+既存の本番プロジェクトで `0001`〜`0003` が適用済みの場合は、`0004_strength_goals.sql` だけを追加実行すればよい。
 
 **`0002_rls.sql` はSQL Editor上で1つのトランザクションとして実行される。途中の文が1つでも失敗すると、
 このファイル内の変更は（成功したように見えた文も含めて）すべてロールバックされる。** つまり途中でエラーが
@@ -120,15 +125,15 @@ Supabaseダッシュボードの **SQL Editor** で以下のクエリを順に�
 
   期待値: `55`
 
-- [ ] 4テーブルすべてでRow Level Securityが有効になっている
+- [ ] 5テーブルすべてでRow Level Securityが有効になっている
 
   ```sql
   select tablename, rowsecurity from pg_tables
   where schemaname = 'public'
-    and tablename in ('profiles', 'exercises', 'workouts', 'workout_sets');
+    and tablename in ('profiles', 'exercises', 'workouts', 'workout_sets', 'strength_goals');
   ```
 
-  期待値: 4行すべて `rowsecurity = true`
+  期待値: 5行すべて `rowsecurity = true`
 
 - [ ] （任意）Step 5で作成したユーザーの数だけ `profiles` に行ができていることを確認する
 
