@@ -1,42 +1,39 @@
 import { supabase } from '../../lib/supabase'
+import { fetchExercises } from '../exercises/queries'
 import {
-  bestEstimatedOneRepMax,
-  bestSingle,
-  currentEstimatedOneRepMax,
-  estimatedOneRepMaxByDate,
-  repPersonalBest,
-  strengthTotal,
-  type DatedStrengthSet,
-} from '../../lib/strength'
+  buildStrengthSnapshot,
+  resolveBig3Exercises,
+  type Big3ExerciseMapping,
+  type LiftKey,
+  type StrengthSnapshot,
+} from './strengthSnapshot'
 
-export type LiftKey = 'squat' | 'bench' | 'deadlift'
+export type { LiftSnapshot, StrengthSnapshot } from './strengthSnapshot'
 
-const LIFT_DEFS: Record<LiftKey, { label: string; normalizedName: string }> = {
-  squat: { label: 'スクワット', normalizedName: 'スクワット' },
-  bench: { label: 'ベンチプレス', normalizedName: 'ベンチプレス' },
-  deadlift: { label: 'デッドリフト', normalizedName: 'デッドリフト' },
+export async function fetchBig3ExerciseMappings(userId: string): Promise<Big3ExerciseMapping[]> {
+  const { data, error } = await supabase
+    .from('big3_exercise_mappings')
+    .select('user_id, lift_type, exercise_id')
+    .eq('user_id', userId)
+  if (error) throw error
+  return (data ?? []) as Big3ExerciseMapping[]
 }
 
-export type LiftSnapshot = {
-  key: LiftKey
-  label: string
-  exerciseId: string | null
-  pr1rm: number | null
-  allTimeE1rm: number | null
-  currentE1rm: number | null
-  repPRs: Record<3 | 5 | 8 | 10, number | null>
-  e1rmPoints: { date: string; e1rm: number }[]
-}
-
-export type StrengthSnapshot = {
-  lifts: Record<LiftKey, LiftSnapshot>
-  prTotal: number | null
-  currentEstimatedTotal: number | null
-}
-
-type ExerciseRow = {
-  id: string
-  name_normalized: string
+/** null removes the explicit mapping and restores the preset fallback. */
+export async function saveBig3ExerciseMapping(
+  userId: string,
+  liftType: LiftKey,
+  exerciseId: string | null,
+): Promise<void> {
+  const { error } = exerciseId === null
+    ? await supabase.from('big3_exercise_mappings').delete()
+      .eq('user_id', userId).eq('lift_type', liftType)
+    : await supabase.from('big3_exercise_mappings').upsert({
+      user_id: userId,
+      lift_type: liftType,
+      exercise_id: exerciseId,
+    }, { onConflict: 'user_id,lift_type' })
+  if (error) throw error
 }
 
 type StrengthSetRow = {
@@ -46,92 +43,40 @@ type StrengthSetRow = {
   workouts: { performed_at: string }
 }
 
-function emptyLift(key: LiftKey): LiftSnapshot {
-  return {
-    key,
-    label: LIFT_DEFS[key].label,
-    exerciseId: null,
-    pr1rm: null,
-    allTimeE1rm: null,
-    currentE1rm: null,
-    repPRs: { 3: null, 5: null, 8: null, 10: null },
-    e1rmPoints: [],
-  }
-}
-
 export async function fetchStrengthSnapshot(userId: string): Promise<StrengthSnapshot> {
-  const liftKeys = Object.keys(LIFT_DEFS) as LiftKey[]
-  const normalizedNames = liftKeys.map((key) => LIFT_DEFS[key].normalizedName)
+  const [exercises, mappings] = await Promise.all([
+    fetchExercises(),
+    fetchBig3ExerciseMappings(userId),
+  ])
+  const resolved = resolveBig3Exercises(exercises, mappings)
+  const exerciseIds = [...new Set(Object.values(resolved)
+    .flatMap((exercise) => exercise ? [exercise.id] : []))]
+  const rows: StrengthSetRow[] = []
 
-  const { data: exerciseData, error: exerciseError } = await supabase
-    .from('exercises')
-    .select('id, name_normalized')
-    .in('name_normalized', normalizedNames)
-
-  if (exerciseError) throw exerciseError
-
-  const exercises = (exerciseData ?? []) as ExerciseRow[]
-  const exerciseByLift = new Map<LiftKey, ExerciseRow>()
-
-  for (const key of liftKeys) {
-    const exercise = exercises.find((row) => row.name_normalized === LIFT_DEFS[key].normalizedName)
-    if (exercise) exerciseByLift.set(key, exercise)
-  }
-
-  const exerciseIds = exercises.map((row) => row.id)
-  let rows: StrengthSetRow[] = []
-
+  // Fetch the complete history, including PRs beyond PostgREST's first page.
   if (exerciseIds.length > 0) {
-    const { data: setData, error: setError } = await supabase
-      .from('workout_sets')
-      .select('exercise_id, weight_kg, reps, workouts!inner(user_id, performed_at)')
-      .in('exercise_id', exerciseIds)
-      .eq('workouts.user_id', userId)
-
-    if (setError) throw setError
-    rows = (setData ?? []) as unknown as StrengthSetRow[]
-  }
-
-  const lifts = {
-    squat: emptyLift('squat'),
-    bench: emptyLift('bench'),
-    deadlift: emptyLift('deadlift'),
-  } satisfies Record<LiftKey, LiftSnapshot>
-
-  for (const key of liftKeys) {
-    const exercise = exerciseByLift.get(key)
-    if (!exercise) continue
-
-    const sets: DatedStrengthSet[] = rows
-      .filter((row) => row.exercise_id === exercise.id)
-      .map((row) => ({
-        weight_kg: row.weight_kg,
-        reps: row.reps,
-        performed_at: row.workouts.performed_at,
-      }))
-
-    lifts[key] = {
-      key,
-      label: LIFT_DEFS[key].label,
-      exerciseId: exercise.id,
-      pr1rm: bestSingle(sets),
-      allTimeE1rm: bestEstimatedOneRepMax(sets),
-      currentE1rm: currentEstimatedOneRepMax(sets),
-      repPRs: {
-        3: repPersonalBest(sets, 3),
-        5: repPersonalBest(sets, 5),
-        8: repPersonalBest(sets, 8),
-        10: repPersonalBest(sets, 10),
-      },
-      e1rmPoints: estimatedOneRepMaxByDate(sets),
+    const pageSize = 1000
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from('workout_sets')
+        .select('exercise_id, weight_kg, reps, workouts!inner(user_id, performed_at)')
+        .in('exercise_id', exerciseIds)
+        .eq('workouts.user_id', userId)
+        .order('id', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+      if (error) throw error
+      const page = (data ?? []) as unknown as StrengthSetRow[]
+      rows.push(...page)
+      if (page.length < pageSize) break
     }
   }
 
-  return {
-    lifts,
-    prTotal: strengthTotal(liftKeys.map((key) => lifts[key].pr1rm)),
-    currentEstimatedTotal: strengthTotal(liftKeys.map((key) => lifts[key].currentE1rm)),
-  }
+  return buildStrengthSnapshot(exercises, mappings, rows.map((row) => ({
+    exercise_id: row.exercise_id,
+    weight_kg: row.weight_kg,
+    reps: row.reps,
+    performed_at: row.workouts.performed_at,
+  })))
 }
 
 export type StrengthGoal = {

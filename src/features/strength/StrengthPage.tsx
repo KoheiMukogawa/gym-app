@@ -6,12 +6,16 @@ import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { toMessage } from '../../lib/errors'
+import type { Exercise } from '../../lib/types'
 import { useSession } from '../auth/SessionProvider'
+import { fetchExercises } from '../exercises/queries'
+import { LIFT_KEYS, LIFT_LABELS, type LiftKey } from './strengthSnapshot'
 import {
   createStrengthGoal,
   deleteStrengthGoal,
   fetchStrengthGoals,
   fetchStrengthSnapshot,
+  saveBig3ExerciseMapping,
   type LiftSnapshot,
   type StrengthGoal,
   type StrengthSnapshot,
@@ -34,7 +38,10 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
   const content = (
     <div className="rounded-xl border border-border bg-surface p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="font-semibold">{lift.label}</h2>
+        <div className="min-w-0">
+          <h2 className="font-semibold">{lift.label}</h2>
+          <p className="break-words text-xs text-muted">{lift.exerciseName ?? '対象種目が見つかりません'}</p>
+        </div>
         {lift.exerciseId && <span className="text-xs text-muted">詳細 →</span>}
       </div>
       <div className="grid grid-cols-3 gap-2 text-center">
@@ -126,6 +133,9 @@ export function StrengthPage() {
   const { show } = useToast()
   const [snapshot, setSnapshot] = useState<StrengthSnapshot | null>(null)
   const [goals, setGoals] = useState<StrengthGoal[]>([])
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [savingMapping, setSavingMapping] = useState<LiftKey | null>(null)
+  const [mappingError, setMappingError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -137,10 +147,11 @@ export function StrengthPage() {
     if (!userId) return
     setLoading(true)
     setError(null)
-    Promise.all([fetchStrengthSnapshot(userId), fetchStrengthGoals(userId)])
-      .then(([nextSnapshot, nextGoals]) => {
+    Promise.all([fetchStrengthSnapshot(userId), fetchStrengthGoals(userId), fetchExercises()])
+      .then(([nextSnapshot, nextGoals, nextExercises]) => {
         setSnapshot(nextSnapshot)
         setGoals(nextGoals)
+        setExercises(nextExercises)
       })
       .catch((e: unknown) => {
         const message = toMessage(e)
@@ -159,6 +170,32 @@ export function StrengthPage() {
     const current = snapshot?.prTotal ?? 0
     return goals.find((goal) => goal.target_total_kg > current) ?? goals[goals.length - 1]
   }, [goals, snapshot])
+
+  async function handleMappingChange(key: LiftKey, exerciseId: string) {
+    if (!userId || savingMapping) return
+    setSavingMapping(key)
+    setMappingError(null)
+    try {
+      await saveBig3ExerciseMapping(userId, key, exerciseId || null)
+    } catch (e) {
+      const message = toMessage(e)
+      setMappingError(message)
+      show(message)
+      setSavingMapping(null)
+      return
+    }
+    try {
+      setSnapshot(await fetchStrengthSnapshot(userId))
+      show('Big3の対象種目を変更しました')
+    } catch (e) {
+      // The write succeeded: hide stale metrics until a successful retry.
+      const message = toMessage(e)
+      setError(message)
+      show(message)
+    } finally {
+      setSavingMapping(null)
+    }
+  }
 
   async function handleAddGoal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -279,6 +316,37 @@ export function StrengthPage() {
         e1RMは1〜10回のセットをBrzycki式で換算した成長トレンド用の指標です。
         実際にその重量が1回挙がることを保証する値ではありません。
       </p>
+
+      <section className="rounded-xl border border-border bg-surface p-4" aria-labelledby="big3-mapping-heading">
+        <h2 id="big3-mapping-heading" className="text-lg font-semibold">Big3の対象種目</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted">
+          各種目の集計に使う種目を選んでください。変更は自動保存され、過去の記録から再計算します。
+        </p>
+        <div className="mt-3 flex flex-col gap-3">
+          {LIFT_KEYS.map((key) => {
+            const selectedId = snapshot.lifts[key].mappedExerciseId ?? ''
+            return (
+              <label key={key} className="text-sm">
+                <span className="mb-1 block">{LIFT_LABELS[key]}の対象種目</span>
+                <select
+                  value={selectedId}
+                  disabled={savingMapping !== null}
+                  onChange={(event) => void handleMappingChange(key, event.target.value)}
+                  className="min-h-14 w-full min-w-0 rounded-lg border border-border bg-bg px-3 outline-none focus:border-accent disabled:opacity-40"
+                >
+                  <option value="">標準を使う（{LIFT_LABELS[key]}）</option>
+                  {selectedId && !exercises.some((exercise) => exercise.id === selectedId) && (
+                    <option value={selectedId}>選択した種目が見つかりません</option>
+                  )}
+                  {exercises.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}</option>)}
+                </select>
+              </label>
+            )
+          })}
+        </div>
+        {savingMapping && <p role="status" className="mt-2 text-sm text-muted">保存・再計算中…</p>}
+        {mappingError && <p role="alert" className="mt-2 text-sm text-accent">{mappingError}</p>}
+      </section>
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">Total目標</h2>
