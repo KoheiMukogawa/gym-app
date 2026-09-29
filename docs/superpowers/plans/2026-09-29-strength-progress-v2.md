@@ -39,7 +39,7 @@
 
 ## Phase 5 — 導入確認
 
-- [ ] Supabase に `0004_strength_goals.sql` を適用
+- [x] Supabase に `0004_strength_goals.sql` を適用（2026-09-29、gym-app）
 - [x] `npm test`（GitHub Actionsで成功）
 - [x] `npm run build`（GitHub Actionsで成功）
 - [ ] 実データで Big3 の数値を確認
@@ -58,7 +58,8 @@
 - [x] `npm test`: 28ファイル / 183テスト成功（Node 24）
 - [x] `npm run build`: 成功（Node 24、既存のバンドルサイズ警告のみ）
 - [x] 制約・upsert・2ユーザー間RLSのSQLテストを追加し、PGliteの一時DBで実行
-- [ ] 本番Supabaseに `0005_big3_exercise_mappings.sql` を適用
+- [x] 本番Supabaseに `0005_big3_exercise_mappings.sql` を適用（2026-09-29、gym-app）
+- [x] 本番DBのカタログで両テーブルのRLS、本人限定4ポリシー、PK/FK/CHECK、authenticatedのCRUD権限を確認（実アカウントのREST/API操作は未確認）
 - [ ] 実アカウントで設定の保存・再読み込み・コンベンショナルデッドリフトの集計を確認
 
 ## v2.1 候補
