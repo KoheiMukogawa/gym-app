@@ -57,3 +57,33 @@ export function strengthTotal(values: Array<number | null>): number | null {
   if (values.some((value) => value === null)) return null
   return round1((values as number[]).reduce((sum, value) => sum + value, 0))
 }
+
+
+export function repPersonalBest(sets: StrengthSet[], targetReps: number): number | null {
+  if (!Number.isInteger(targetReps) || targetReps < 1) return null
+  const candidates = sets
+    .filter((set) => set.reps >= targetReps)
+    .map((set) => set.weight_kg)
+  return candidates.length === 0 ? null : Math.max(...candidates)
+}
+
+export function estimatedOneRepMaxByDate(
+  sets: DatedStrengthSet[],
+): { date: string; e1rm: number }[] {
+  const byDate = new Map<string, number>()
+
+  for (const set of sets) {
+    const estimate = estimateOneRepMax(set.weight_kg, set.reps)
+    if (estimate === null) continue
+
+    const date = set.performed_at.slice(0, 10)
+    const current = byDate.get(date)
+    if (current === undefined || estimate > current) {
+      byDate.set(date, estimate)
+    }
+  }
+
+  return [...byDate.entries()]
+    .map(([date, e1rm]) => ({ date, e1rm }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
