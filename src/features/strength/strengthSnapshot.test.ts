@@ -11,9 +11,9 @@ const exercises: StrengthExercise[] = [
   { id: 'squat', name: 'スクワット', name_normalized: 'スクワット', is_preset: true },
   { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', is_preset: true },
   { id: 'deadlift', name: 'デッドリフト', name_normalized: 'デッドリフト', is_preset: true },
-  { id: 'narrow', name: 'ナロウデッド', name_normalized: 'ナロウデッド', is_preset: false },
+  { id: 'conventional', name: 'コンベンショナルデッドリフト', name_normalized: 'コンベンショナルデッドリフト', is_preset: false },
 ]
-const mappings: Big3ExerciseMapping[] = [{ user_id: 'u1', lift_type: 'deadlift', exercise_id: 'narrow' }]
+const mappings: Big3ExerciseMapping[] = [{ user_id: 'u1', lift_type: 'deadlift', exercise_id: 'conventional' }]
 const now = new Date('2026-09-29T12:00:00Z')
 const set = (exercise_id: string, weight_kg: number, reps = 1, performed_at = '2026-09-20T12:00:00Z'): StrengthSet =>
   ({ exercise_id, weight_kg, reps, performed_at })
@@ -29,9 +29,9 @@ describe('resolveBig3Exercises', () => {
   })
 
   it('uses the explicit ID even after renaming, without guessing from exercise names', () => {
-    const renamed = exercises.map((exercise) => exercise.id === 'narrow'
+    const renamed = exercises.map((exercise) => exercise.id === 'conventional'
       ? { ...exercise, name: '任意の種目', name_normalized: '任意の種目' } : exercise)
-    expect(resolveBig3Exercises(renamed, mappings).deadlift?.id).toBe('narrow')
+    expect(resolveBig3Exercises(renamed, mappings).deadlift?.id).toBe('conventional')
   })
 
   it('does not use a custom exercise as a preset or infer a variation', () => {
@@ -48,16 +48,16 @@ describe('buildStrengthSnapshot', () => {
   const rows = [
     set('squat', 180), set('bench', 100), set('deadlift', 300),
     set('deadlift', 290, 10), // Must never leak into mapped PRs or trends.
-    set('narrow', 220, 1, '2026-08-01T12:00:00Z'),
-    set('narrow', 180), set('narrow', 170, 3), set('narrow', 160, 5),
-    set('narrow', 150, 8), set('narrow', 140, 10),
+    set('conventional', 220, 1, '2026-08-01T12:00:00Z'),
+    set('conventional', 180), set('conventional', 170, 3), set('conventional', 160, 5),
+    set('conventional', 150, 8), set('conventional', 140, 10),
   ]
 
   it('uses mapped history for every metric, trend and both totals', () => {
     const snapshot = buildStrengthSnapshot(exercises, mappings, rows, now)
     expect(snapshot.lifts.deadlift).toEqual({
-      key: 'deadlift', label: 'デッドリフト', exerciseId: 'narrow', exerciseName: 'ナロウデッド',
-      mappedExerciseId: 'narrow', pr1rm: 220, allTimeE1rm: 220, currentE1rm: 186.7,
+      key: 'deadlift', label: 'デッドリフト', exerciseId: 'conventional', exerciseName: 'コンベンショナルデッドリフト',
+      mappedExerciseId: 'conventional', pr1rm: 220, allTimeE1rm: 220, currentE1rm: 186.7,
       repPRs: { 3: 170, 5: 160, 8: 150, 10: 140 },
       e1rmPoints: [{ date: '2026-08-01', e1rm: 220 }, { date: '2026-09-20', e1rm: 186.7 }],
     })
@@ -75,7 +75,7 @@ describe('buildStrengthSnapshot', () => {
 
   it('keeps a mapped exercise with no history empty even if the preset has history', () => {
     const snapshot = buildStrengthSnapshot(exercises, mappings, [set('deadlift', 300)], now)
-    expect(snapshot.lifts.deadlift.exerciseId).toBe('narrow')
+    expect(snapshot.lifts.deadlift.exerciseId).toBe('conventional')
     expect(snapshot.lifts.deadlift.pr1rm).toBeNull()
     expect(snapshot.lifts.deadlift.allTimeE1rm).toBeNull()
     expect(snapshot.lifts.deadlift.currentE1rm).toBeNull()
@@ -88,7 +88,7 @@ describe('buildStrengthSnapshot', () => {
   it('returns missing metrics for unavailable presets and explicit exercises', () => {
     const snapshot = buildStrengthSnapshot([], mappings, rows, now)
     expect(snapshot.lifts.deadlift.exerciseId).toBeNull()
-    expect(snapshot.lifts.deadlift.mappedExerciseId).toBe('narrow')
+    expect(snapshot.lifts.deadlift.mappedExerciseId).toBe('conventional')
     expect(snapshot.lifts.squat.pr1rm).toBeNull()
     expect(snapshot.prTotal).toBeNull()
     expect(snapshot.currentEstimatedTotal).toBeNull()

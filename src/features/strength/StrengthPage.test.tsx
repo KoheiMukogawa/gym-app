@@ -20,16 +20,16 @@ const exercises = [
   { id: 'squat', name: 'スクワット', name_normalized: 'スクワット', is_preset: true },
   { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', is_preset: true },
   { id: 'deadlift', name: 'デッドリフト', name_normalized: 'デッドリフト', is_preset: true },
-  { id: 'narrow', name: 'ナロウデッド', name_normalized: 'ナロウデッド', is_preset: false },
+  { id: 'conventional', name: 'コンベンショナルデッドリフト', name_normalized: 'コンベンショナルデッドリフト', is_preset: false },
 ]
 const rows = [
   { exercise_id: 'squat', weight_kg: 180, reps: 1 },
   { exercise_id: 'bench', weight_kg: 100, reps: 1 },
   { exercise_id: 'deadlift', weight_kg: 200, reps: 1 },
-  { exercise_id: 'narrow', weight_kg: 220, reps: 1 },
+  { exercise_id: 'conventional', weight_kg: 220, reps: 1 },
 ].map((row) => ({ ...row, performed_at: '2026-01-01T12:00:00Z' }))
 const initial = buildStrengthSnapshot(exercises, [], rows)
-const mapped = buildStrengthSnapshot(exercises, [{ user_id: 'u1', lift_type: 'deadlift', exercise_id: 'narrow' }], rows)
+const mapped = buildStrengthSnapshot(exercises, [{ user_id: 'u1', lift_type: 'deadlift', exercise_id: 'conventional' }], rows)
 
 function renderPage() {
   return render(<MemoryRouter><ToastProvider><StrengthPage /></ToastProvider></MemoryRouter>)
@@ -61,12 +61,12 @@ describe('StrengthPage exercise mappings', () => {
     const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
     expect(screen.getByText('480')).toBeInTheDocument()
     fetchStrengthSnapshot.mockResolvedValue(mapped)
-    await user.selectOptions(selector, 'narrow')
-    expect(saveBig3ExerciseMapping).toHaveBeenCalledWith('u1', 'deadlift', 'narrow')
-    await waitFor(() => expect(selector).toHaveValue('narrow'))
+    await user.selectOptions(selector, 'conventional')
+    expect(saveBig3ExerciseMapping).toHaveBeenCalledWith('u1', 'deadlift', 'conventional')
+    await waitFor(() => expect(selector).toHaveValue('conventional'))
     expect(screen.getByText('500')).toBeInTheDocument()
     expect(screen.queryByText('480')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /デッドリフト ナロウデッド/ })).toHaveAttribute('href', '/exercises/narrow')
+    expect(screen.getByRole('link', { name: /デッドリフト コンベンショナルデッドリフト/ })).toHaveAttribute('href', '/exercises/conventional')
   })
 
   it('restores preset calculations when the user selects the default option', async () => {
@@ -74,7 +74,7 @@ describe('StrengthPage exercise mappings', () => {
     fetchStrengthSnapshot.mockResolvedValueOnce(mapped)
     renderPage()
     const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
-    expect(selector).toHaveValue('narrow')
+    expect(selector).toHaveValue('conventional')
     await user.selectOptions(selector, '')
     expect(saveBig3ExerciseMapping).toHaveBeenCalledWith('u1', 'deadlift', null)
     await waitFor(() => expect(selector).toHaveValue(''))
@@ -86,15 +86,15 @@ describe('StrengthPage exercise mappings', () => {
     saveBig3ExerciseMapping.mockRejectedValueOnce(new Error('network error'))
     renderPage()
     const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
-    await user.selectOptions(selector, 'narrow')
+    await user.selectOptions(selector, 'conventional')
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(selector).toHaveValue('')
     expect(selector).toBeEnabled()
     expect(screen.getByText('480')).toBeInTheDocument()
     expect(fetchStrengthSnapshot).toHaveBeenCalledOnce()
     fetchStrengthSnapshot.mockResolvedValue(mapped)
-    await user.selectOptions(selector, 'narrow')
-    await waitFor(() => expect(selector).toHaveValue('narrow'))
+    await user.selectOptions(selector, 'conventional')
+    await waitFor(() => expect(selector).toHaveValue('conventional'))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -104,7 +104,7 @@ describe('StrengthPage exercise mappings', () => {
     saveBig3ExerciseMapping.mockReturnValue(new Promise<void>((resolve) => { finish = resolve }))
     renderPage()
     const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
-    await user.selectOptions(selector, 'narrow')
+    await user.selectOptions(selector, 'conventional')
     for (const control of screen.getAllByRole('combobox')) expect(control).toBeDisabled()
     expect(screen.getByText('保存・再計算中…')).toBeInTheDocument()
     fetchStrengthSnapshot.mockResolvedValue(mapped)
@@ -117,12 +117,12 @@ describe('StrengthPage exercise mappings', () => {
     renderPage()
     const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
     fetchStrengthSnapshot.mockRejectedValueOnce(new Error('refresh failed'))
-    await user.selectOptions(selector, 'narrow')
+    await user.selectOptions(selector, 'conventional')
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.queryByText('480')).not.toBeInTheDocument()
     fetchStrengthSnapshot.mockResolvedValue(mapped)
     await user.click(screen.getByRole('button', { name: '再試行' }))
-    expect(await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })).toHaveValue('narrow')
+    expect(await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })).toHaveValue('conventional')
     expect(screen.getByText('500')).toBeInTheDocument()
     expect(saveBig3ExerciseMapping).toHaveBeenCalledOnce()
   })

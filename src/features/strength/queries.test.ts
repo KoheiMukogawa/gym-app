@@ -30,7 +30,7 @@ beforeEach(() => {
   setResult.mockReturnValue({ data: [], error: null })
   fetchExercises.mockResolvedValue([
     { id: 'preset', name: 'デッドリフト', name_normalized: 'デッドリフト', is_preset: true },
-    { id: 'narrow', name: 'ナロウデッド', name_normalized: 'ナロウデッド', is_preset: false },
+    { id: 'conventional', name: 'コンベンショナルデッドリフト', name_normalized: 'コンベンショナルデッドリフト', is_preset: false },
   ])
 })
 
@@ -41,9 +41,9 @@ describe('mapping persistence', () => {
   })
 
   it('upserts on the user/lift key so changing an exercise replaces that mapping', async () => {
-    await saveBig3ExerciseMapping('u1', 'deadlift', 'narrow')
+    await saveBig3ExerciseMapping('u1', 'deadlift', 'conventional')
     expect(mappingsQuery.upsert).toHaveBeenCalledWith(
-      { user_id: 'u1', lift_type: 'deadlift', exercise_id: 'narrow' },
+      { user_id: 'u1', lift_type: 'deadlift', exercise_id: 'conventional' },
       { onConflict: 'user_id,lift_type' },
     )
   })
@@ -58,17 +58,17 @@ describe('mapping persistence', () => {
   it('propagates mapping read and write failures', async () => {
     mappingResult.mockReturnValue({ data: null, error: { message: 'network error' } })
     await expect(fetchBig3ExerciseMappings('u1')).rejects.toMatchObject({ message: 'network error' })
-    await expect(saveBig3ExerciseMapping('u1', 'deadlift', 'narrow')).rejects.toMatchObject({ message: 'network error' })
+    await expect(saveBig3ExerciseMapping('u1', 'deadlift', 'conventional')).rejects.toMatchObject({ message: 'network error' })
     await expect(saveBig3ExerciseMapping('u1', 'deadlift', null)).rejects.toMatchObject({ message: 'network error' })
   })
 })
 
 describe('fetchStrengthSnapshot', () => {
   it('filters history by the resolved exercises and owner', async () => {
-    mappingResult.mockReturnValue({ data: [{ user_id: 'u1', lift_type: 'deadlift', exercise_id: 'narrow' }], error: null })
-    setResult.mockReturnValue({ data: [{ exercise_id: 'narrow', weight_kg: 200, reps: 1, workouts: { performed_at: new Date().toISOString() } }], error: null })
+    mappingResult.mockReturnValue({ data: [{ user_id: 'u1', lift_type: 'deadlift', exercise_id: 'conventional' }], error: null })
+    setResult.mockReturnValue({ data: [{ exercise_id: 'conventional', weight_kg: 200, reps: 1, workouts: { performed_at: new Date().toISOString() } }], error: null })
     const snapshot = await fetchStrengthSnapshot('u1')
-    expect(setsQuery.in).toHaveBeenCalledWith('exercise_id', ['narrow'])
+    expect(setsQuery.in).toHaveBeenCalledWith('exercise_id', ['conventional'])
     expect(setsQuery.eq).toHaveBeenCalledWith('workouts.user_id', 'u1')
     expect(snapshot.lifts.deadlift.pr1rm).toBe(200)
   })
@@ -86,9 +86,9 @@ describe('fetchStrengthSnapshot', () => {
   })
 
   it('deduplicates exercise IDs when an exercise is selected for multiple lifts', async () => {
-    mappingResult.mockReturnValue({ data: ['squat', 'bench', 'deadlift'].map((lift_type) => ({ user_id: 'u1', lift_type, exercise_id: 'narrow' })), error: null })
+    mappingResult.mockReturnValue({ data: ['squat', 'bench', 'deadlift'].map((lift_type) => ({ user_id: 'u1', lift_type, exercise_id: 'conventional' })), error: null })
     await fetchStrengthSnapshot('u1')
-    expect(setsQuery.in).toHaveBeenCalledWith('exercise_id', ['narrow'])
+    expect(setsQuery.in).toHaveBeenCalledWith('exercise_id', ['conventional'])
   })
 
   it('includes PRs beyond the first page of history', async () => {
