@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { SortableList } from '../../components/SortableList'
 import { toMessage } from '../../lib/errors'
@@ -23,7 +23,7 @@ export function RoutinePanel({ userId, exercises, onExerciseCreated, onStart, on
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  useEffect(() => { onEditingChange?.(editing !== null) }, [editing, onEditingChange])
+  useLayoutEffect(() => { onEditingChange?.(editing !== null) }, [editing, onEditingChange])
   const load = useCallback(async () => {
     setLoading(true); setLoadError(null)
     try { setItems(await fetchRoutines(userId)) }
