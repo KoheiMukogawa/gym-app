@@ -83,7 +83,7 @@ describe('WorkoutEditorPage', () => {
     const user = setup('/history/new')
     const date = await screen.findByLabelText('トレーニング日')
     await user.clear(date); await user.type(date, '2020-02-03')
-    await user.click(screen.getByRole('button', { name: /ベンチプレス/ }))
+    await user.click(screen.getByRole('button', { name: 'ベンチプレス' }))
     expect(api.createDatedWorkout).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'セットを追加' }))
     await screen.findByRole('alert')

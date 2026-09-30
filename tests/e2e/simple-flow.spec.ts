@@ -1,4 +1,19 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Locator } from '@playwright/test'
+
+async function holdDrag(page: Page, source: Locator, target: Locator, cancel = false) {
+  await expect(source).toBeEnabled()
+  await source.scrollIntoViewIfNeeded()
+  const from = (await source.boundingBox())!
+  const to = (await target.boundingBox())!
+  const cdp = await page.context().newCDPSession(page)
+  const x = from.x + from.width / 2
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: from.y + from.height / 2 }] })
+  await page.waitForTimeout(400)
+  await expect(source).toHaveAttribute('aria-pressed', 'true')
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: to.y + to.height / 2 }] })
+  await cdp.send('Input.dispatchTouchEvent', { type: cancel ? 'touchCancel' : 'touchEnd', touchPoints: [] })
+  await cdp.detach()
+}
 
 const USER = '11111111-1111-4111-8111-111111111111'
 type SetRow = { id: string; workout_id: string; exercise_id: string; weight_kg: number; reps: number; set_index: number; created_at: string }
@@ -10,10 +25,12 @@ async function mockApi(page: Page) {
     { id: 'machine', name: 'チェストプレス', name_normalized: 'チェストプレス', muscle_group: 'chest', is_preset: true, created_by: null },
     { id: 'fly', name: 'ダンベルフライ', name_normalized: 'ダンベルフライ', muscle_group: 'chest', is_preset: true, created_by: null },
     { id: 'squat', name: 'スクワット', name_normalized: 'スクワット', muscle_group: 'legs', is_preset: true, created_by: null },
+    { id: 'deadlift', name: 'デッドリフト', name_normalized: 'デッドリフト', muscle_group: 'back', is_preset: true, created_by: null },
     { id: 'legpress', name: 'レッグプレス', name_normalized: 'レッグプレス', muscle_group: 'legs', is_preset: true, created_by: null },
   ] as Array<{ id: string; name: string; name_normalized: string; muscle_group: string; is_preset: boolean; created_by: string | null }>
   const workouts: WorkoutRow[] = []
   const sets: SetRow[] = []
+  const goals: Array<{ id: string; user_id: string; label: string; target_date: string; target_total_kg: number; created_at: string }> = []
   const routines: Array<{id: string; user_id: string; name: string; exercise_ids: string[]}> = []
   let preference: { user_id: string; exercise_order: string[] } | null = null
   const session = {
@@ -34,6 +51,15 @@ async function mockApi(page: Page) {
     if (table === 'user') return respond(session.user)
     if (table === 'logout') return respond({})
     if (table === 'profiles') return respond({ id: USER, display_name: 'テストユーザー' })
+    if (table === 'strength_goals') {
+      if (method === 'POST') {
+        const existing = goals.find((g) => g.id === body.id)
+        if (existing) Object.assign(existing, body)
+        else goals.push({ ...body, created_at: new Date().toISOString() })
+        return respond(goals.find((g) => g.id === body.id))
+      }
+      return respond(goals)
+    }
     if (table === 'exercise_preferences') {
       if (method === 'POST') preference = body
       return respond(preference)
@@ -101,7 +127,7 @@ async function mockApi(page: Page) {
         return respond(null)
       }
       if (method === 'HEAD') return route.fulfill({ status: 200, headers: { 'content-range': '0-0/' + match.length }, body: '' })
-      return respond([...match].reverse())
+      return respond([...match].reverse().map((s) => ({ ...s, workouts: { performed_at: workouts.find((w) => w.id === s.workout_id)?.performed_at ?? new Date().toISOString() } })))
     }
     return respond([])
   })
@@ -110,7 +136,7 @@ async function mockApi(page: Page) {
   await page.getByLabel('パスワード').fill('mock-password')
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
   await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
-  return { sets, workouts, exercises, routines }
+  return { sets, workouts, exercises, routines, goals }
 }
 
 test('mobile: direct logging, body groups, past dates, editing and deletion', async ({ page }) => {
@@ -183,29 +209,39 @@ test('personal exercise creation stays in the chosen body group', async ({ page 
   await page.getByRole('button', { name: '終了', exact: true }).click()
   await page.getByRole('link', { name: '記録', exact: true }).click()
   await page.getByRole('button', { name: '肩', exact: true }).click()
-  await expect(page.getByRole('region', { name: '肩の種目' }).getByRole('button', { name: /ケーブルサイドレイズ/ })).toBeVisible()
+  await expect(page.getByRole('region', { name: '肩の種目' }).getByRole('button', { name: 'ケーブルサイドレイズ 自分の種目', exact: true })).toBeVisible()
 })
 
 test('routines and catalog order persist; history switches edit targets without cancel', async ({ page }) => {
+  test.setTimeout(90_000)
   const data = await mockApi(page)
   await expect(page.getByText('最近使った種目')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '体幹', exact: true })).toHaveCount(0)
-  await page.getByRole('button', { name: '並び替え', exact: true }).click()
-  await page.getByRole('button', { name: 'チェストプレスを上へ', exact: true }).click()
-  await page.getByRole('button', { name: '並び順を保存', exact: true }).click()
-  await expect(page.getByRole('button', { name: '並び順を保存', exact: true })).toHaveCount(0)
+  await holdDrag(page, page.getByRole('button', { name: 'チェストプレスを長押しして並び替え', exact: true }), page.getByRole('button', { name: 'ベンチプレスを長押しして並び替え', exact: true }), true)
+  await expect(page.getByRole('region', { name: '胸の種目', exact: true }).getByRole('button').first()).toHaveText('ベンチプレス')
+  await holdDrag(page, page.getByRole('button', { name: 'チェストプレスを長押しして並び替え', exact: true }), page.getByRole('button', { name: 'ベンチプレスを長押しして並び替え', exact: true }))
+  await expect(page.getByRole('region', { name: '胸の種目', exact: true }).getByRole('button').first()).toHaveText('チェストプレス')
+  await expect(page.getByRole('button', { name: 'チェストプレスを長押しして並び替え', exact: true })).toBeEnabled()
   await page.reload()
-  await expect(page.getByRole('region', { name: '胸の種目', exact: true }).getByRole('button').nth(1)).toHaveText(/チェストプレス/)
+  await expect(page.getByRole('region', { name: '胸の種目', exact: true }).getByRole('button').first()).toHaveText('チェストプレス')
   await page.getByRole('button', { name: '＋ 作る', exact: true }).click()
   await page.getByLabel('ルーティン名').fill('胸の日')
   await page.getByRole('button', { name: '＋ ルーティンに種目を追加', exact: true }).click()
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
   await page.getByRole('button', { name: '＋ ルーティンに種目を追加', exact: true }).click()
   await page.getByRole('button', { name: 'チェストプレス', exact: true }).click()
-  await page.getByRole('button', { name: 'チェストプレスを上へ', exact: true }).click()
+  await holdDrag(page, page.getByRole('button', { name: 'チェストプレスを長押しして並び替え', exact: true }), page.getByRole('button', { name: 'ベンチプレスを長押しして並び替え', exact: true }))
   await page.getByRole('button', { name: 'ルーティンを保存', exact: true }).click()
   await expect(page.getByRole('button', { name: '胸の日を開始', exact: true })).toBeVisible()
   expect(data.routines[0].exercise_ids).toEqual(['machine', 'bench'])
+  await page.reload()
+  await page.getByRole('button', { name: '胸の日を編集', exact: true }).click()
+  await page.getByRole('button', { name: 'チェストプレスを長押しして並び替え', exact: true }).focus()
+  await page.keyboard.press('ArrowDown')
+  await expect.poll(() => data.routines[0].exercise_ids).toEqual(['bench', 'machine'])
+  await holdDrag(page, page.getByRole('button', { name: 'チェストプレスを長押しして並び替え', exact: true }), page.getByRole('button', { name: 'ベンチプレスを長押しして並び替え', exact: true }))
+  await expect.poll(() => data.routines[0].exercise_ids).toEqual(['machine', 'bench'])
+  await page.getByRole('button', { name: '閉じる', exact: true }).click()
   await page.reload()
   await page.getByRole('button', { name: '胸の日を開始', exact: true }).click()
   await page.getByRole('spinbutton', { name: '重量', exact: true }).fill('40')
@@ -234,4 +270,36 @@ test('routines and catalog order persist; history switches edit targets without 
   await expect.poll(() => data.sets[1].reps).toBe(12)
   await page.screenshot({ path: 'test-results/history-switch-mobile.png', fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('Big3 score has one editable goal and the logo returns home', async ({ page }) => {
+  const data = await mockApi(page)
+  const now = new Date().toISOString()
+  data.workouts.push({ id: 'w-score', user_id: USER, performed_at: now, created_at: now })
+  for (const [exercise_id, weight_kg] of [['squat', 180], ['bench', 100], ['deadlift', 200]] as const) {
+    data.sets.push({ id: 's-' + exercise_id, exercise_id, weight_kg, reps: 1, set_index: 1, workout_id: 'w-score', created_at: now })
+  }
+  await page.getByRole('link', { name: 'Big3', exact: true }).click()
+  const score = page.getByRole('region', { name: 'Big3スコア' })
+  await expect(score.getByText('480', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '目標を設定', exact: true }).click()
+  await page.getByLabel('目標の合計重量（kg）').fill('600')
+  await page.getByLabel('目標期限', { exact: true }).fill('2027-12-31')
+  await page.getByRole('button', { name: '目標を保存', exact: true }).click()
+  await expect(score).toContainText('120 kg')
+  await expect(score).toContainText('80%')
+  await page.getByRole('button', { name: '目標を変更', exact: true }).click()
+  await page.getByLabel('目標の合計重量（kg）').fill('550')
+  await page.getByRole('button', { name: '目標を保存', exact: true }).click()
+  await expect(score).toContainText('目標 550 kg')
+  expect(data.goals).toHaveLength(1)
+  await page.reload()
+  await expect(score).toContainText('目標 550 kg')
+  await expect(score).toContainText('70 kg')
+  await expect(page.getByText('目標を追加', { exact: true })).toHaveCount(0)
+  await page.screenshot({ path: 'test-results/strength-score-mobile.png', fullPage: true })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.getByRole('link', { name: 'GYM LOG トップへ', exact: true }).click()
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
 })

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '../../components/ui/Button'
+import { SortableList } from '../../components/SortableList'
 import { toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup } from '../../lib/types'
 import { ExercisePicker } from '../exercises/ExercisePicker'
 import { exerciseLabel } from '../exercises/catalog'
 import { createExercise } from '../exercises/queries'
-import { deleteRoutine, fetchRoutines, moveItem, saveRoutine, type Routine } from './queries'
+import { deleteRoutine, fetchRoutines, saveRoutine, type Routine } from './queries'
 
 type Props = {
   userId: string
@@ -44,6 +45,24 @@ export function RoutinePanel({ userId, exercises, onExerciseCreated, onStart, on
     onExerciseCreated(exercise)
     select(exercise)
   }
+  async function reorder(ids: string[]) {
+    if (!editing || busy) return
+    const next = { ...editing, exercise_ids: ids }
+    setEditing(next)
+    const saved = items.find((item) => item.id === editing.id)
+    // Existing routines save an order-only change immediately. A new routine
+    // or other pending edits still use the form's one Save action.
+    if (!saved || saved.name !== next.name || saved.exercise_ids.length !== ids.length ||
+        saved.exercise_ids.some((id) => !ids.includes(id))) return
+    setBusy(true); setError(null)
+    try {
+      const result = await saveRoutine(next)
+      setItems((old) => old.map((item) => item.id === result.id ? result : item))
+    } catch (e) { setError(toMessage(e)) }
+    finally { setBusy(false) }
+  }
+  const original = items.find((item) => item.id === editing?.id)
+  const dirty = !original || original.name !== editing?.name || original.exercise_ids.join(',') !== editing?.exercise_ids.join(',')
   if (editing) return (
     <section className="mb-6 space-y-3 border-y border-border py-4" aria-label="ルーティン編集">
       <div className="px-4">
@@ -52,28 +71,23 @@ export function RoutinePanel({ userId, exercises, onExerciseCreated, onStart, on
           <input value={editing.name} maxLength={40} disabled={busy} onChange={(e) => setEditing({ ...editing, name: e.target.value })}
             placeholder="例：胸の日" className="min-h-14 rounded-xl border border-border bg-surface px-3 text-fg" />
         </label>
-        <ol className="mt-3 space-y-2">
-          {editing.exercise_ids.map((id, index) => (
-            <li key={id} className="rounded-xl border border-border bg-surface p-3">
-              <div className="mb-1 text-sm">{index + 1}. {nameFor(id)}</div>
-              <div className="flex justify-end">
-                <button className="min-h-14 min-w-14 disabled:opacity-25" aria-label={nameFor(id) + 'を上へ'} disabled={busy || index === 0}
-                  onClick={() => setEditing({ ...editing, exercise_ids: moveItem(editing.exercise_ids, index, -1) })}>↑</button>
-                <button className="min-h-14 min-w-14 disabled:opacity-25" aria-label={nameFor(id) + 'を下へ'} disabled={busy || index === editing.exercise_ids.length - 1}
-                  onClick={() => setEditing({ ...editing, exercise_ids: moveItem(editing.exercise_ids, index, 1) })}>↓</button>
-                <button className="min-h-14 min-w-14 text-sm text-muted" aria-label={nameFor(id) + 'をルーティンから外す'} disabled={busy}
-                  onClick={() => setEditing({ ...editing, exercise_ids: editing.exercise_ids.filter((value) => value !== id) })}>外す</button>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <p className="mt-4 text-xs text-muted">⠿ 長押しで並び替え</p>
+        <SortableList items={editing.exercise_ids.map((id) => ({ id, label: nameFor(id) }))} disabled={busy}
+          className="mt-3 space-y-2"
+          onReorder={(ids) => void reorder(ids)}
+          renderItem={(item, handle) => <div className="flex items-center rounded-xl border border-border bg-surface pl-3">
+            <span className="min-w-0 flex-1 text-sm">{nameFor(item.id)}</span>
+            <button type="button" className="min-h-14 min-w-14 text-xs text-muted" aria-label={nameFor(item.id) + 'をルーティンから外す'} disabled={busy}
+              onClick={() => setEditing({ ...editing, exercise_ids: editing.exercise_ids.filter((value) => value !== item.id) })}>外す</button>
+            {handle}
+          </div>} />
       </div>
       {choosing ? <><ExercisePicker userId={userId} exercises={exercises} onSelect={select} onCreate={create} createLabel="追加して選択" />
         <button className="min-h-14 w-full text-sm text-muted" onClick={() => setChoosing(false)}>種目の追加をやめる</button></>
         : <div className="px-4"><Button variant="ghost" disabled={busy || editing.exercise_ids.length >= 30} onClick={() => setChoosing(true)}>＋ ルーティンに種目を追加</Button></div>}
       <div className="space-y-3 px-4">
         {error && <p role="alert" className="text-sm text-accent">{error}</p>}
-        <Button disabled={busy || choosing || !editing.name.trim() || editing.exercise_ids.length === 0 ||
+        {dirty && <Button disabled={busy || choosing || !editing.name.trim() || editing.exercise_ids.length === 0 ||
           editing.exercise_ids.some((id) => !exercises.some((e) => e.id === id))}
           onClick={async () => {
             setBusy(true); setError(null)
@@ -83,8 +97,8 @@ export function RoutinePanel({ userId, exercises, onExerciseCreated, onStart, on
               setEditing(null)
             } catch (e) { setError(toMessage(e)) }
             finally { setBusy(false) }
-          }}>{busy ? '保存中…' : 'ルーティンを保存'}</Button>
-        <Button variant="ghost" disabled={busy} onClick={() => { setEditing(null); setChoosing(false); setError(null) }}>キャンセル</Button>
+          }}>{busy ? '保存中…' : 'ルーティンを保存'}</Button>}
+        <Button variant="ghost" disabled={busy} onClick={() => { setEditing(null); setChoosing(false); setError(null) }}>{dirty ? 'キャンセル' : '閉じる'}</Button>
         {items.some((r) => r.id === editing.id) && <button className="min-h-14 w-full text-sm text-accent" disabled={busy}
           onClick={async () => {
             if (!window.confirm('このルーティンを削除しますか？トレーニングの記録は残ります。')) return

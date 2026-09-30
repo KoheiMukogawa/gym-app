@@ -1,11 +1,13 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ExercisePicker } from './ExercisePicker'
 import type { Exercise } from '../../lib/types'
+const { saveOrder } = vi.hoisted(() => ({ saveOrder: vi.fn() }))
+beforeEach(() => { saveOrder.mockReset(); saveOrder.mockResolvedValue(undefined) })
 vi.mock('../routines/queries', async (original) => ({
   ...await original<typeof import('../routines/queries')>(),
-  fetchExerciseOrder: async () => [], saveExerciseOrder: async () => undefined,
+  fetchExerciseOrder: async () => [], saveExerciseOrder: saveOrder,
 }))
 
 const exercise = (id: string, name: string, muscle_group: Exercise['muscle_group'], owner: string | null = null): Exercise => ({
@@ -25,21 +27,37 @@ function setup(onCreate = vi.fn(), recentIds: string[] = []) {
   return { onSelect, onCreate, user: userEvent.setup() }
 }
 describe('ExercisePicker', () => {
+  it('saves a keyboard reorder directly, retains failed order and retries', async () => {
+    saveOrder.mockRejectedValueOnce(new Error('network'))
+    const { user, onSelect } = setup()
+    const handle = screen.getByRole('button', { name: '自分のプレスを長押しして並び替え' })
+    await waitFor(() => expect(handle).toBeEnabled())
+    await user.click(handle)
+    expect(onSelect).not.toHaveBeenCalled()
+    handle.focus()
+    await user.keyboard('{ArrowUp}')
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(saveOrder).toHaveBeenCalledWith('u1', ['own', 'bench'])
+    await user.click(screen.getByRole('button', { name: '再試行' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    expect(saveOrder).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('button', { name: '並び順を保存' })).not.toBeInTheDocument()
+  })
   it('shows only basic and personal exercises for the selected body part, without search', async () => {
     const { user } = setup()
     expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /ベンチプレス/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /自分のプレス/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ベンチプレス' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^自分のプレス\s*自分の種目$/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /他の人/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /デクライン/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /スクワット/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'スクワット' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '脚' }))
-    expect(screen.getByRole('button', { name: /スクワット/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /ベンチプレス/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'スクワット' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'ベンチプレス' })).not.toBeInTheDocument()
   })
   it('omits recent exercises and core', async () => {
     setup(vi.fn(), ['decline'])
-    await waitFor(() => expect(screen.getByRole('button', { name: '並び替え' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'ベンチプレスを長押しして並び替え' })).toBeEnabled())
     expect(screen.queryByRole('region', { name: '最近使った種目' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '体幹' })).not.toBeInTheDocument()
   })
