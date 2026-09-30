@@ -1,131 +1,76 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ExercisePicker } from './ExercisePicker'
 import type { Exercise } from '../../lib/types'
 
-const exercise = (id: string, name: string, group: Exercise['muscle_group']): Exercise => ({
-  id,
-  name,
-  name_normalized: name.toLowerCase(),
-  muscle_group: group,
-  is_preset: true,
-  created_by: null,
-  created_at: '2026-08-01T00:00:00Z',
+const exercise = (id: string, name: string, muscle_group: Exercise['muscle_group'], owner: string | null = null): Exercise => ({
+  id, name, name_normalized: name.toLowerCase(), muscle_group,
+  is_preset: !owner, created_by: owner, created_at: '2026-08-01T00:00:00Z',
 })
-
 const EXERCISES = [
   exercise('bench', 'ベンチプレス', 'chest'),
   exercise('squat', 'スクワット', 'legs'),
-  exercise('curl', 'ダンベルカール', 'arms'),
+  exercise('decline', 'デクラインベンチプレス', 'chest'),
+  exercise('own', '自分のプレス', 'chest', 'u1'),
+  exercise('other', '他の人のプレス', 'chest', 'u2'),
 ]
-
+function setup(onCreate = vi.fn(), recentIds: string[] = []) {
+  const onSelect = vi.fn()
+  render(<ExercisePicker exercises={EXERCISES} recentIds={recentIds} userId="u1" onSelect={onSelect} onCreate={onCreate} />)
+  return { onSelect, onCreate, user: userEvent.setup() }
+}
 describe('ExercisePicker', () => {
-  it('lists every exercise', () => {
-    render(
-      <ExercisePicker exercises={EXERCISES} recentIds={[]} onSelect={vi.fn()} onCreate={vi.fn()} />,
-    )
+  it('shows only basic and personal exercises for the selected body part, without search', async () => {
+    const { user } = setup()
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /ベンチプレス/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /スクワット/ })).toBeInTheDocument()
-  })
-
-  it('shows recently used exercises in their own section', () => {
-    render(
-      <ExercisePicker
-        exercises={EXERCISES}
-        recentIds={['squat']}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-      />,
-    )
-    expect(screen.getByText('最近使った種目')).toBeInTheDocument()
-  })
-
-  it('filters by the search term', async () => {
-    render(
-      <ExercisePicker exercises={EXERCISES} recentIds={[]} onSelect={vi.fn()} onCreate={vi.fn()} />,
-    )
-    await userEvent.type(screen.getByRole('searchbox', { name: '種目を検索' }), 'ベンチ')
-
-    expect(screen.getByRole('button', { name: /ベンチプレス/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /自分のプレス/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /他の人/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /デクライン/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /スクワット/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '脚' }))
+    expect(screen.getByRole('button', { name: /スクワット/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ベンチプレス/ })).not.toBeInTheDocument()
   })
-
-  it('ignores spaces and case when filtering', async () => {
-    render(
-      <ExercisePicker exercises={EXERCISES} recentIds={[]} onSelect={vi.fn()} onCreate={vi.fn()} />,
-    )
-    await userEvent.type(screen.getByRole('searchbox', { name: '種目を検索' }), 'ベンチ プレス')
-    expect(screen.getByRole('button', { name: /ベンチプレス/ })).toBeInTheDocument()
+  it('keeps previously used non-basic exercises accessible', async () => {
+    const { user, onSelect } = setup(vi.fn(), ['decline'])
+    await user.click(within(screen.getByRole('region', { name: '最近使った種目' })).getByRole('button', { name: /デクライン/ }))
+    expect(onSelect).toHaveBeenCalledWith(EXERCISES[2])
   })
-
-  it('calls onSelect with the chosen exercise', async () => {
-    const onSelect = vi.fn()
-    render(
-      <ExercisePicker exercises={EXERCISES} recentIds={[]} onSelect={onSelect} onCreate={vi.fn()} />,
-    )
-    await userEvent.click(screen.getByRole('button', { name: /ベンチプレス/ }))
-    expect(onSelect).toHaveBeenCalledWith(EXERCISES[0])
-  })
-
-  it('offers to create a new exercise when nothing matches', async () => {
-    const onCreate = vi.fn().mockResolvedValue(undefined)
-    render(
-      <ExercisePicker exercises={EXERCISES} recentIds={[]} onSelect={vi.fn()} onCreate={onCreate} />,
-    )
-    await userEvent.type(screen.getByRole('searchbox', { name: '種目を検索' }), 'ヒップアブダクション')
-    await userEvent.click(screen.getByRole('button', { name: '「ヒップアブダクション」を追加' }))
-    await userEvent.click(screen.getByRole('button', { name: '脚' }))
-    await userEvent.click(screen.getByRole('button', { name: '追加する' }))
-
+  it('adds a personal exercise within the selected group', async () => {
+    const { user, onCreate } = setup(vi.fn().mockResolvedValue(undefined))
+    await user.click(screen.getByRole('button', { name: '脚' }))
+    await user.click(screen.getByRole('button', { name: /脚の種目を追加/ }))
+    await user.type(screen.getByRole('textbox', { name: '種目名' }), '  ヒップアブダクション  ')
+    await user.click(screen.getByRole('button', { name: '追加して記録' }))
     expect(onCreate).toHaveBeenCalledWith('ヒップアブダクション', 'legs')
   })
-
-  it('does not render a recent exercise twice when it also matches the current view', () => {
-    render(
-      <ExercisePicker
-        exercises={EXERCISES}
-        recentIds={['squat']}
-        onSelect={vi.fn()}
-        onCreate={vi.fn()}
-      />,
-    )
-    expect(screen.getByRole('button', { name: /スクワット/ })).toBeInTheDocument()
-  })
-
-  it('shows an inline error and keeps the create screen when onCreate rejects', async () => {
-    const onCreate = vi.fn().mockRejectedValue({ code: '23505' })
-    render(
-      <ExercisePicker exercises={EXERCISES} recentIds={[]} onSelect={vi.fn()} onCreate={onCreate} />,
-    )
-    await userEvent.type(screen.getByRole('searchbox', { name: '種目を検索' }), 'ヒップアブダクション')
-    await userEvent.click(screen.getByRole('button', { name: '「ヒップアブダクション」を追加' }))
-    await userEvent.click(screen.getByRole('button', { name: '脚' }))
-    await userEvent.click(screen.getByRole('button', { name: '追加する' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      '同じ名前の種目がすでに登録されています。',
-    )
-    expect(screen.getByText('「ヒップアブダクション」を追加')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '追加する' })).toBeEnabled()
-  })
-
-  it('clears a previous error once a retry succeeds', async () => {
-    const onCreate = vi
-      .fn()
-      .mockRejectedValueOnce({ code: '23505' })
-      .mockResolvedValueOnce(undefined)
-    render(
-      <ExercisePicker exercises={EXERCISES} recentIds={[]} onSelect={vi.fn()} onCreate={onCreate} />,
-    )
-    await userEvent.type(screen.getByRole('searchbox', { name: '種目を検索' }), 'ヒップアブダクション')
-    await userEvent.click(screen.getByRole('button', { name: '「ヒップアブダクション」を追加' }))
-    await userEvent.click(screen.getByRole('button', { name: '脚' }))
-    await userEvent.click(screen.getByRole('button', { name: '追加する' }))
-    await screen.findByRole('alert')
-
-    await userEvent.click(screen.getByRole('button', { name: '追加する' }))
-
+  it('keeps input and group after failure and retries', async () => {
+    const create = vi.fn().mockRejectedValueOnce({ code: '23505' }).mockResolvedValueOnce(undefined)
+    const { user } = setup(create)
+    await user.click(screen.getByRole('button', { name: /胸の種目を追加/ }))
+    await user.type(screen.getByRole('textbox', { name: '種目名' }), '新しいプレス')
+    await user.click(screen.getByRole('button', { name: '追加して記録' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('同じ名前')
+    expect(screen.getByRole('textbox')).toHaveValue('新しいプレス')
+    await user.click(screen.getByRole('button', { name: '追加して記録' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(create).toHaveBeenCalledTimes(2)
+  })
+  it('reuses an existing basic exercise instead of creating a duplicate', async () => {
+    const { user, onCreate, onSelect } = setup()
+    await user.click(screen.getByRole('button', { name: /胸の種目を追加/ }))
+    await user.type(screen.getByRole('textbox'), 'ベンチ プレス')
+    await user.click(screen.getByRole('button', { name: '追加して記録' }))
+    expect(onCreate).not.toHaveBeenCalled()
+    expect(onSelect).toHaveBeenCalledWith(EXERCISES[0])
+  })
+  it('allows a hidden preset to become a personal addition', async () => {
+    const { user, onCreate } = setup(vi.fn().mockResolvedValue(undefined))
+    await user.click(screen.getByRole('button', { name: /胸の種目を追加/ }))
+    await user.type(screen.getByRole('textbox'), 'デクラインベンチプレス')
+    await user.click(screen.getByRole('button', { name: '追加して記録' }))
+    expect(onCreate).toHaveBeenCalledWith('デクラインベンチプレス', 'chest')
   })
 })

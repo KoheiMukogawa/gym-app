@@ -31,9 +31,9 @@ export const WORKOUT_SELECT = `
   workout_sets ( exercise_id, weight_kg, reps, set_index, exercises ( name ) )
 `
 
-export function mapWorkoutRows(rows: WorkoutRow[]): FeedItem[] {
+export function mapWorkoutRows(rows: WorkoutRow[], includeEmpty = false): FeedItem[] {
   return rows
-    .filter((w) => w.workout_sets.length > 0)
+    .filter((w) => includeEmpty || w.workout_sets.length > 0)
     .map((w) => ({
       workout_id: w.id,
       user_id: w.user_id,

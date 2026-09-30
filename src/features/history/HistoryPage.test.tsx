@@ -82,7 +82,7 @@ describe('HistoryPage error handling', () => {
     const retryButton = await screen.findByRole('button', { name: '再試行' })
     await user.click(retryButton)
 
-    expect(await screen.findByText('たろう')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: '編集' })).toHaveAttribute('href', '/history/w1')
     expect(fetchUserWorkouts).toHaveBeenCalledTimes(2)
   })
 

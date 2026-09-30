@@ -1,16 +1,13 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { SessionProvider } from './features/auth/SessionProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { LoginPage } from './features/auth/LoginPage'
 import { AppShell } from './components/AppShell'
 import { ToastProvider } from './components/ui/Toast'
 import { LogPage } from './features/workout-log/LogPage'
-import { FeedPage } from './features/feed/FeedPage'
 import { HistoryPage } from './features/history/HistoryPage'
 import { ExerciseDetailPage } from './features/exercises/ExerciseDetailPage'
-import { MembersPage } from './features/history/MembersPage'
-import { MemberDetailPage } from './features/history/MemberDetailPage'
-import { SettingsPage } from './features/settings/SettingsPage'
+import { WorkoutEditorPage } from './features/history/WorkoutEditorPage'
 import { StrengthPage } from './features/strength/StrengthPage'
 
 export default function App() {
@@ -22,15 +19,15 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
-                <Route path="/" element={<FeedPage />} />
+                <Route path="/" element={<LogPage home />} />
                 <Route path="/strength" element={<StrengthPage />} />
                 <Route path="/history" element={<HistoryPage />} />
-                <Route path="/members" element={<MembersPage />} />
-                <Route path="/members/:userId" element={<MemberDetailPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/history/new" element={<WorkoutEditorPage key="new" />} />
+                <Route path="/history/:workoutId" element={<WorkoutEditorPage />} />
                 <Route path="/exercises/:exerciseId" element={<ExerciseDetailPage />} />
               </Route>
-              <Route path="/log" element={<LogPage />} />
+              <Route path="/log" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
         </ToastProvider>

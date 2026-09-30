@@ -14,7 +14,7 @@ export default defineConfig({
       manifest: {
         name: 'ジム記録',
         short_name: 'ジム記録',
-        description: '筋トレの記録をグループで共有する',
+        description: '部位から選んで、すぐに筋トレを記録する',
         lang: 'ja',
         start_url: '/',
         display: 'standalone',

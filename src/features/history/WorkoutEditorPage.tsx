@@ -1,0 +1,211 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Button } from '../../components/ui/Button'
+import { Spinner } from '../../components/ui/Spinner'
+import { useToast } from '../../components/ui/Toast'
+import { localDate, validateSet, workoutDateISO } from '../../lib/dates'
+import { InputError, toMessage } from '../../lib/errors'
+import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
+import { useSession } from '../auth/SessionProvider'
+import { ExercisePicker } from '../exercises/ExercisePicker'
+import { createExercise, fetchExercises } from '../exercises/queries'
+import { loadDraft, clearDraft } from '../workout-log/persistence'
+import { createDatedWorkout, fetchEditableWorkout, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutDate, updateWorkoutSet } from './editorQueries'
+
+type Entry = { id: string; exercise_id: string; weight: string; reps: string; existing: boolean }
+const fieldClass = 'min-h-14 min-w-0 w-full rounded-xl border border-border bg-bg px-3 text-lg tabular-nums'
+
+export function WorkoutEditorPage() {
+  const { workoutId } = useParams()
+  const { userId } = useSession()
+  const navigate = useNavigate()
+  const { show } = useToast()
+  const newId = useRef(crypto.randomUUID())
+  const [savedId, setSavedId] = useState<string | null>(workoutId ?? null)
+  const [date, setDate] = useState(localDate())
+  const [savedDate, setSavedDate] = useState<string | null>(null)
+  const [sets, setSets] = useState<WorkoutSet[]>([])
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [notFound, setNotFound] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [entry, setEntry] = useState<Entry | null>(null)
+  const [picking, setPicking] = useState(!workoutId)
+  const lock = useRef(false)
+
+  const load = useCallback(async () => {
+    if (!userId) return
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const [all, workout] = await Promise.all([
+        fetchExercises(), workoutId ? fetchEditableWorkout(userId, workoutId) : Promise.resolve(null),
+      ])
+      setExercises(all)
+      setNotFound(!!workoutId && !workout)
+      if (workout) {
+        setSavedId(workout.id)
+        setSavedDate(workout.performed_at)
+        setDate(localDate(workout.performed_at))
+        setSets(workout.workout_sets.sort((a, b) => a.created_at.localeCompare(b.created_at)))
+      }
+    } catch (e) { setLoadError(toMessage(e)) }
+    finally { setLoading(false) }
+  }, [userId, workoutId])
+  useEffect(() => { void load() }, [load])
+
+  // Warn before a reload while a form or request is still in progress.
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (entry || busy || (savedDate && date !== localDate(savedDate))) e.preventDefault()
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [entry, busy, savedDate, date])
+
+  function invalidateDraft() {
+    if (userId && savedId && loadDraft(userId)?.workoutId === savedId) clearDraft(userId)
+  }
+  async function action(task: () => Promise<void>) {
+    if (lock.current) return
+    lock.current = true
+    setBusy(true)
+    setError(null)
+    try { await task() }
+    catch (e) { setError(toMessage(e)) }
+    finally { lock.current = false; setBusy(false) }
+  }
+  function choose(exercise: Exercise) {
+    const previous = [...sets].reverse().find((s) => s.exercise_id === exercise.id)
+    setEntry((old) => old ? { ...old, exercise_id: exercise.id } : {
+      id: crypto.randomUUID(), exercise_id: exercise.id,
+      weight: String(previous?.weight_kg ?? 20), reps: String(previous?.reps ?? 10), existing: false,
+    })
+    setPicking(false)
+    setError(null)
+  }
+  async function create(name: string, group: MuscleGroup) {
+    if (!userId) throw new Error('ログインしてください')
+    const exercise = await createExercise({ name, muscle_group: group, userId })
+    setExercises((old) => [...old, exercise])
+    choose(exercise)
+  }
+  async function saveEntry() {
+    if (!entry || !userId) return
+    await action(async () => {
+      if (!entry.weight.trim() || !entry.reps.trim()) throw new InputError('重量と回数を入力してください')
+      const weight_kg = Number(entry.weight)
+      const reps = Number(entry.reps)
+      validateSet(weight_kg, reps)
+      workoutDateISO(date)
+      let id = savedId
+      if (!id) {
+        id = newId.current
+        await createDatedWorkout(userId, id, date)
+        setSavedId(id)
+        setSavedDate(workoutDateISO(date))
+      } else if (savedDate && date !== localDate(savedDate)) {
+        throw new InputError('先に日付の変更を保存してください')
+      }
+      const old = sets.find((s) => s.id === entry.id)
+      const set_index = old?.exercise_id === entry.exercise_id ? old.set_index
+        : 1 + Math.max(0, ...sets.filter((s) => s.exercise_id === entry.exercise_id).map((s) => s.set_index))
+      const next: WorkoutSet = {
+        id: entry.id, workout_id: id, exercise_id: entry.exercise_id, weight_kg, reps, set_index,
+        created_at: old?.created_at ?? new Date().toISOString(),
+      }
+      if (entry.existing) await updateWorkoutSet(id, next)
+      else await saveEditableSet(id, next)
+      setSets((items) => entry.existing ? items.map((s) => s.id === next.id ? next : s) : [...items, next])
+      invalidateDraft()
+      show(entry.existing ? '記録を修正しました' : 'セットを追加しました')
+      setEntry(null)
+      if (!workoutId) navigate('/history/' + id, { replace: true })
+    })
+  }
+
+  if (loading) return <Spinner />
+  if (loadError) return <div className="space-y-4 p-4"><p role="alert">{loadError}</p><Button onClick={() => void load()}>再試行</Button></div>
+  if (notFound) return <div className="p-4"><p role="alert">この記録は見つからないか、編集できません。</p><Link className="flex min-h-14 items-center text-accent" to="/history">履歴へ戻る</Link></div>
+  const names = Object.fromEntries(exercises.map((e) => [e.id, e.name]))
+
+  return (
+    <div className="flex flex-col gap-5 py-4">
+      <header className="flex items-center justify-between px-4">
+        <h1 className="text-2xl font-semibold">{workoutId ? '記録を編集' : '日付を選んで記録'}</h1>
+        <button className="min-h-14 px-3 text-sm text-muted" disabled={busy}
+          onClick={() => {
+            if (entry && !window.confirm('入力中のセットは保存されません。履歴に戻りますか？')) return
+            if (savedDate && date !== localDate(savedDate) && !window.confirm('日付の変更は保存されません。履歴に戻りますか？')) return
+            navigate('/history')
+          }}>完了</button>
+      </header>
+      <section className="mx-4 space-y-3 rounded-2xl border border-border bg-surface p-4">
+        <label className="flex flex-col gap-2 text-sm text-muted">トレーニング日
+          <input type="date" value={date} max={localDate()} disabled={busy} onChange={(e) => setDate(e.target.value)} className={fieldClass} />
+        </label>
+        {savedId && savedDate && date !== localDate(savedDate) && (
+          <Button disabled={busy} onClick={() => void action(async () => {
+            const value = await updateWorkoutDate(userId!, savedId, date, savedDate)
+            setSavedDate(value)
+            invalidateDraft()
+            show('日付を変更しました')
+          })}>日付の変更を保存</Button>
+        )}
+      </section>
+      {error && <p role="alert" className="px-4 text-sm text-accent">{error}</p>}
+      <section className="flex flex-col gap-2 px-4" aria-label="保存済みのセット">
+        {sets.map((set) => (
+          <div key={set.id} className="flex items-center gap-2 rounded-xl border border-border bg-surface p-3">
+            <button type="button" disabled={busy || !!entry} className="min-h-14 flex-1 text-left"
+              aria-label={names[set.exercise_id] + ' ' + set.weight_kg + 'kg ' + set.reps + '回を編集'}
+              onClick={() => { setEntry({ id: set.id, exercise_id: set.exercise_id, weight: String(set.weight_kg), reps: String(set.reps), existing: true }); setPicking(false); setError(null) }}>
+              <span className="block text-sm text-muted">{names[set.exercise_id] ?? '種目'}</span>
+              <span className="font-semibold tabular-nums">{set.weight_kg} kg × {set.reps} 回</span>
+              <span className="ml-3 text-xs text-muted">編集</span>
+            </button>
+            <button type="button" disabled={busy || !!entry} aria-label={names[set.exercise_id] + ' ' + set.weight_kg + 'kg ' + set.reps + '回を削除'}
+              className="min-h-14 min-w-14 text-xs text-muted"
+              onClick={() => { if (window.confirm('このセットを削除しますか？')) void action(async () => {
+                await removeWorkoutSet(savedId!, set.id)
+                setSets((old) => old.filter((s) => s.id !== set.id))
+                invalidateDraft()
+              }) }}>削除</button>
+          </div>
+        ))}
+        {sets.length === 0 && !picking && !entry && <p className="py-4 text-sm text-muted">セットがありません。種目を選んで追加できます。</p>}
+      </section>
+      {picking && <ExercisePicker exercises={exercises} recentIds={[...new Set([...sets].reverse().map((s) => s.exercise_id))]} userId={userId} onSelect={choose} onCreate={create} />}
+      {entry && !picking && (
+        <form className="mx-4 space-y-4 rounded-2xl border border-accent/40 bg-surface p-4"
+          onSubmit={(e) => { e.preventDefault(); void saveEntry() }}>
+          <button type="button" disabled={busy} onClick={() => setPicking(true)} className="min-h-14 w-full text-left font-semibold">
+            {names[entry.exercise_id]} <span className="text-xs font-normal text-muted">種目を変更</span>
+          </button>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-2 text-sm text-muted">重量（kg）
+              <input type="number" inputMode="decimal" min="0" max="9999.9" step="0.1" required disabled={busy}
+                value={entry.weight} onChange={(e) => setEntry({ ...entry, weight: e.target.value })} className={fieldClass} />
+            </label>
+            <label className="flex flex-col gap-2 text-sm text-muted">回数
+              <input type="number" inputMode="numeric" min="1" max="9999" step="1" required disabled={busy}
+                value={entry.reps} onChange={(e) => setEntry({ ...entry, reps: e.target.value })} className={fieldClass} />
+            </label>
+          </div>
+          <Button type="submit" disabled={busy}>{busy ? '保存中…' : entry.existing ? '変更を保存' : 'セットを追加'}</Button>
+        </form>
+      )}
+      {(entry || picking) ? <button className="mx-4 min-h-14 text-sm text-muted" disabled={busy}
+        onClick={() => { setEntry(null); setPicking(false); setError(null) }}>キャンセル</button>
+        : <div className="px-4"><Button variant="ghost" onClick={() => setPicking(true)}>＋ セットを追加</Button></div>}
+      {savedId && <button disabled={busy || !!entry} className="mx-4 mt-4 min-h-14 text-sm text-accent"
+        onClick={() => { if (window.confirm('この日のトレーニング記録を削除しますか？')) void action(async () => {
+          await removeWorkout(userId!, savedId)
+          invalidateDraft()
+          navigate('/history')
+        }) }}>この記録を削除</button>}
+    </div>
+  )
+}

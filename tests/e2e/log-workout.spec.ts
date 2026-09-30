@@ -14,11 +14,7 @@ test.describe('中核の記録導線', () => {
     await page.getByLabel('パスワード').fill(PASSWORD)
     await page.getByRole('button', { name: 'ログイン' }).click()
 
-    const startLink = page.getByRole('link', { name: 'トレーニング開始' })
-    await expect(startLink).toBeVisible()
-    await startLink.click()
-
-    await page.getByRole('searchbox', { name: '種目を検索' }).fill('ベンチプレス')
+    await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
     await page.getByRole('button', { name: /ベンチプレス/ }).first().click()
 
     await page.getByRole('button', { name: '重量を増やす' }).click()
@@ -28,7 +24,7 @@ test.describe('中核の記録導線', () => {
     await expect(page.getByRole('listitem').first()).toContainText('1セット目')
 
     await page.getByRole('button', { name: '終了' }).click()
-    await expect(page).toHaveURL(/\/$/)
+    await expect(page).toHaveURL(/\/history$/)
     await expect(page.getByText('ベンチプレス').first()).toBeVisible()
   })
 })
