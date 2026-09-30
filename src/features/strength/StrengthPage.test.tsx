@@ -48,6 +48,23 @@ beforeEach(() => {
 })
 
 describe('StrengthPage', () => {
+  it('uses lifetime RM estimates for the total, breakdown and goal progress without singles', async () => {
+    const multi = [
+      { exercise_id: 'squat', weight_kg: 160, reps: 5 },
+      { exercise_id: 'bench', weight_kg: 80, reps: 5 },
+      { exercise_id: 'deadlift', weight_kg: 180, reps: 5 },
+    ].map((row) => ({ ...row, performed_at: '2020-01-01T12:00:00Z' }))
+    const snapshot = buildStrengthSnapshot(exercises, [], multi)
+    expect(snapshot.prTotal).toBeNull()
+    expect(snapshot.currentEstimatedTotal).toBeNull()
+    fetchStrengthSnapshot.mockResolvedValue(snapshot)
+    fetchStrengthGoals.mockResolvedValue([{ id: 'g1', user_id: 'u1', label: '目標', target_date: '2027-12-31', target_total_kg: 600, created_at: '2026-09-01' }])
+    renderPage()
+    const score = within(await screen.findByRole('region', { name: 'Big3スコア' }))
+    for (const value of ['472.5', '180', '90', '202.5']) expect(score.getByText(value)).toBeInTheDocument()
+    expect(score.getByText('127.5 kg')).toBeInTheDocument()
+    expect(score.getByText('（78%）')).toBeInTheDocument()
+  })
   it('edits one existing goal, preserves a failed input and retries', async () => {
     const goal = { id: 'g1', user_id: 'u1', label: '年内', target_date: '2026-12-31', target_total_kg: 600, created_at: '2026-09-01' }
     fetchStrengthGoals.mockResolvedValue([goal, { ...goal, id: 'old', created_at: '2025-01-01', target_total_kg: 700 }])
@@ -79,7 +96,7 @@ describe('StrengthPage', () => {
   it('does not present missing records as a zero score', async () => {
     fetchStrengthSnapshot.mockResolvedValue(buildStrengthSnapshot(exercises, [], []))
     renderPage()
-    expect(await screen.findByText('3種目の1回挙上の記録がそろうと合計を表示します')).toBeInTheDocument()
+    expect(await screen.findByText('3種目の1〜10回の記録がそろうと合計を表示します')).toBeInTheDocument()
     expect(screen.queryByText('目標達成！')).not.toBeInTheDocument()
   })
   it('shows metrics without exercise mapping controls or a catalog request', async () => {
