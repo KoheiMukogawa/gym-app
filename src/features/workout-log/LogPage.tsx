@@ -10,7 +10,10 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from '../auth/SessionProvider'
 import { ExercisePicker } from '../exercises/ExercisePicker'
-import { createExercise, fetchExercises, fetchRecentExerciseIds } from '../exercises/queries'
+import { createExercise, fetchExercises } from '../exercises/queries'
+import { exerciseLabel } from '../exercises/catalog'
+import { RoutinePanel } from '../routines/RoutinePanel'
+import type { ActiveRoutine } from '../routines/queries'
 import { initialLogState, logReducer, nextSet, type LoggedSet } from './logReducer'
 import { clearDraft, loadDraft, saveDraft, type SetStatus } from './persistence'
 import {
@@ -73,7 +76,8 @@ export function LogPage({ home = false }: { home?: boolean }) {
     return demoted
   })
   const [exercises, setExercises] = useState<Exercise[]>([])
-  const [recentIds, setRecentIds] = useState<string[]>([])
+  const [routine, setRoutine] = useState<ActiveRoutine | null>(draft?.routine ?? null)
+  const [editingRoutine, setEditingRoutine] = useState(false)
   const [history, setHistory] = useState<Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -117,8 +121,8 @@ export function LogPage({ home = false }: { home?: boolean }) {
   // workoutId は state 化したので、作成直後の値も取りこぼさずに書き込まれる。
   useEffect(() => {
     if (!userId) return
-    saveDraft(userId, { state, workoutId, status: statusById })
-  }, [state, workoutId, statusById, userId])
+    saveDraft(userId, { state, workoutId, status: statusById, routine })
+  }, [state, workoutId, statusById, userId, routine])
 
   useEffect(() => {
     const update = () => setOffline(isOffline())
@@ -141,11 +145,10 @@ export function LogPage({ home = false }: { home?: boolean }) {
     let active = true
     setLoading(true)
     setLoadError(null)
-    Promise.all([fetchExercises(), fetchRecentExerciseIds(userId), fetchUserSetHistory(userId)])
-      .then(([ex, recent, hist]) => {
+    Promise.all([fetchExercises(), fetchUserSetHistory(userId)])
+      .then(([ex, hist]) => {
         if (!active) return
         setExercises(ex)
-        setRecentIds(recent)
         setHistory(hist)
       })
       .catch((e) => { if (active) setLoadError(toMessage(e)) })
@@ -153,7 +156,21 @@ export function LogPage({ home = false }: { home?: boolean }) {
     return () => { active = false }
   }, [userId, loadAttempt])
 
-  const exerciseNames = Object.fromEntries(exercises.map((e) => [e.id, e.name]))
+  const exerciseNames = Object.fromEntries(exercises.map((e) => [e.id, exerciseLabel(e)]))
+
+  function selectExercise(exerciseId: string) {
+    dispatch({ type: 'select-exercise', exerciseId, prefill: findPrefill(history, exerciseId) })
+    setPicking(false)
+  }
+  function moveRoutine(direction: -1 | 1) {
+    if (!routine) return
+    const index = routine.index + direction
+    if (index < 0 || index >= routine.exerciseIds.length) return
+    const id = routine.exerciseIds[index]
+    if (!exercises.some((e) => e.id === id)) { show('この種目は見つかりません。ルーティンを編集してください。'); return }
+    setRoutine({ ...routine, index })
+    selectExercise(id)
+  }
 
   function showJustSaved() {
     if (justSavedTimerRef.current) clearTimeout(justSavedTimerRef.current)
@@ -313,6 +330,7 @@ export function LogPage({ home = false }: { home?: boolean }) {
   async function handleCreateExercise(name: string, group: MuscleGroup) {
     if (!userId) throw new Error('サインインしていません')
     const created = await createExercise({ name, muscle_group: group, userId })
+    setRoutine(null)
     setExercises((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'ja')))
     dispatch({ type: 'select-exercise', exerciseId: created.id, prefill: null })
     setPicking(false)
@@ -397,20 +415,22 @@ export function LogPage({ home = false }: { home?: boolean }) {
           </button>
           )}
         </header>
-        <ExercisePicker
+        {userId && <RoutinePanel userId={userId} exercises={exercises}
+          onEditingChange={setEditingRoutine}
+          onExerciseCreated={(exercise) => setExercises((old) => [...old, exercise])}
+          onStart={(selected) => {
+            setRoutine({ name: selected.name, exerciseIds: [...selected.exercise_ids], index: 0 })
+            selectExercise(selected.exercise_ids[0])
+          }} />}
+        {!editingRoutine && <ExercisePicker
           exercises={exercises}
-          recentIds={recentIds}
           userId={userId}
           onSelect={(e) => {
-            dispatch({
-              type: 'select-exercise',
-              exerciseId: e.id,
-              prefill: findPrefill(history, e.id),
-            })
-            setPicking(false)
+            setRoutine(null)
+            selectExercise(e.id)
           }}
           onCreate={handleCreateExercise}
-        />
+        />}
       </div>
     )
   }
@@ -434,6 +454,15 @@ export function LogPage({ home = false }: { home?: boolean }) {
           {finishing ? '終了中…' : '終了'}
         </button>
       </header>
+      {routine && <section className="mx-4 mb-3 rounded-xl border border-border bg-surface px-3" aria-label="進行中のルーティン">
+        <div className="pt-3 text-sm">{routine.name} <span className="text-muted">{routine.index + 1} / {routine.exerciseIds.length}種目</span></div>
+        <div className="flex justify-between gap-2">
+          <button className="min-h-14 text-sm text-muted disabled:opacity-30" disabled={routine.index === 0} onClick={() => moveRoutine(-1)}>前の種目</button>
+          {routine.index < routine.exerciseIds.length - 1
+            ? <button className="min-h-14 text-sm text-accent" onClick={() => moveRoutine(1)}>次の種目へ →</button>
+            : <span className="flex min-h-14 items-center text-xs text-muted">最後の種目です</span>}
+        </div>
+      </section>}
 
       <div className="flex-1 overflow-y-auto px-4 pb-[26rem]">
         <SetList

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ui/Toast'
@@ -43,87 +43,25 @@ beforeEach(() => {
   saveBig3ExerciseMapping.mockResolvedValue(undefined)
 })
 
-describe('StrengthPage exercise mappings', () => {
-  it('shows defaults and allows any existing exercise for each lift', async () => {
+describe('StrengthPage', () => {
+  it('shows metrics without exercise mapping controls or a catalog request', async () => {
     renderPage()
-    const selectors = await screen.findAllByRole('combobox')
-    expect(selectors).toHaveLength(3)
-    for (const selector of selectors) {
-      expect(selector).toHaveValue('')
-      expect(selector).toHaveClass('min-h-14')
-      expect(selector.querySelectorAll('option')).toHaveLength(exercises.length + 1)
-    }
+    expect(await screen.findByText('480')).toBeInTheDocument()
+    expect(screen.queryByText('Big3の対象種目')).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(fetchExercises).not.toHaveBeenCalled()
   })
-
-  it('saves a selection and immediately refreshes totals and the exercise detail link', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
-    expect(screen.getByText('480')).toBeInTheDocument()
+  it('preserves existing mapped calculations', async () => {
     fetchStrengthSnapshot.mockResolvedValue(mapped)
-    await user.selectOptions(selector, 'conventional')
-    expect(saveBig3ExerciseMapping).toHaveBeenCalledWith('u1', 'deadlift', 'conventional')
-    await waitFor(() => expect(selector).toHaveValue('conventional'))
-    expect(screen.getByText('500')).toBeInTheDocument()
-    expect(screen.queryByText('480')).not.toBeInTheDocument()
+    renderPage()
+    expect(await screen.findByText('500')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /デッドリフト コンベンショナルデッドリフト/ })).toHaveAttribute('href', '/exercises/conventional')
+    expect(saveBig3ExerciseMapping).not.toHaveBeenCalled()
   })
-
-  it('restores preset calculations when the user selects the default option', async () => {
-    const user = userEvent.setup()
-    fetchStrengthSnapshot.mockResolvedValueOnce(mapped)
+  it('recovers from a load failure using retry', async () => {
+    fetchStrengthSnapshot.mockRejectedValueOnce(new Error('network'))
     renderPage()
-    const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
-    expect(selector).toHaveValue('conventional')
-    await user.selectOptions(selector, '')
-    expect(saveBig3ExerciseMapping).toHaveBeenCalledWith('u1', 'deadlift', null)
-    await waitFor(() => expect(selector).toHaveValue(''))
-    expect(screen.getByText('480')).toBeInTheDocument()
-  })
-
-  it('keeps the saved selection and metrics when saving fails, and permits retry', async () => {
-    const user = userEvent.setup()
-    saveBig3ExerciseMapping.mockRejectedValueOnce(new Error('network error'))
-    renderPage()
-    const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
-    await user.selectOptions(selector, 'conventional')
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(selector).toHaveValue('')
-    expect(selector).toBeEnabled()
-    expect(screen.getByText('480')).toBeInTheDocument()
-    expect(fetchStrengthSnapshot).toHaveBeenCalledOnce()
-    fetchStrengthSnapshot.mockResolvedValue(mapped)
-    await user.selectOptions(selector, 'conventional')
-    await waitFor(() => expect(selector).toHaveValue('conventional'))
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-  })
-
-  it('disables mapping controls while saving to prevent overlapping updates', async () => {
-    const user = userEvent.setup()
-    let finish!: () => void
-    saveBig3ExerciseMapping.mockReturnValue(new Promise<void>((resolve) => { finish = resolve }))
-    renderPage()
-    const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
-    await user.selectOptions(selector, 'conventional')
-    for (const control of screen.getAllByRole('combobox')) expect(control).toBeDisabled()
-    expect(screen.getByText('保存・再計算中…')).toBeInTheDocument()
-    fetchStrengthSnapshot.mockResolvedValue(mapped)
-    finish()
-    await waitFor(() => expect(selector).toBeEnabled())
-  })
-
-  it('hides stale metrics if refresh fails after saving and recovers via retry', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    const selector = await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })
-    fetchStrengthSnapshot.mockRejectedValueOnce(new Error('refresh failed'))
-    await user.selectOptions(selector, 'conventional')
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(screen.queryByText('480')).not.toBeInTheDocument()
-    fetchStrengthSnapshot.mockResolvedValue(mapped)
-    await user.click(screen.getByRole('button', { name: '再試行' }))
-    expect(await screen.findByRole('combobox', { name: 'デッドリフトの対象種目' })).toHaveValue('conventional')
-    expect(screen.getByText('500')).toBeInTheDocument()
-    expect(saveBig3ExerciseMapping).toHaveBeenCalledOnce()
+    await userEvent.setup().click(await screen.findByRole('button', { name: '再試行' }))
+    expect(await screen.findByText('480')).toBeInTheDocument()
   })
 })

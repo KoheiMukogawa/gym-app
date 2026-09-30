@@ -1,4 +1,5 @@
 import type { LogState } from './logReducer'
+import type { ActiveRoutine } from '../routines/queries'
 
 const KEY_PREFIX = 'gym-app.draft.'
 // ユーザー単位の名前空間化（Important 5）より前に使っていたキー。
@@ -11,6 +12,7 @@ export type Draft = {
   state: LogState
   workoutId: string | null
   status: Record<string, SetStatus>
+  routine?: ActiveRoutine | null
 }
 
 type StoredDraft = Draft & {
@@ -87,7 +89,11 @@ export function loadDraft(userId: string): Draft | null {
     // 持ち主が違う、または当日の記録でない下書きは復元しない
     if (typeof parsed.userId !== 'string' || parsed.userId !== userId) return null
     if (typeof parsed.date !== 'string' || parsed.date !== today()) return null
-    return { state: parsed.state, workoutId, status: parsed.status }
+    const routine = parsed.routine as ActiveRoutine | null | undefined
+    const validRoutine = routine && typeof routine.name === 'string' && Array.isArray(routine.exerciseIds) &&
+      routine.exerciseIds.length > 0 && routine.exerciseIds.every((id) => typeof id === 'string') &&
+      Number.isInteger(routine.index) && routine.index >= 0 && routine.index < routine.exerciseIds.length
+    return { state: parsed.state, workoutId, status: parsed.status, ...(validRoutine ? { routine } : {}) }
   } catch {
     return null
   }

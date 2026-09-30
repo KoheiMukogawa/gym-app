@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock('./editorQueries', () => api)
 vi.mock('../exercises/queries', () => api)
+vi.mock('../routines/queries', () => ({ fetchExerciseOrder: async () => [], saveExerciseOrder: vi.fn() }))
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1' }) }))
 const EXERCISE = { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', muscle_group: 'chest', is_preset: true, created_by: null }
 const SET = { id: 's1', workout_id: 'w1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8, created_at: '2020-01-02T12:00:00Z' }
@@ -35,6 +36,25 @@ beforeEach(() => {
   api.saveEditableSet.mockResolvedValue(undefined)
 })
 describe('WorkoutEditorPage', () => {
+  it('switches directly between sets and retains each unsaved input', async () => {
+    api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET, { ...SET, id: 's2', weight_kg: 60, set_index: 2 }] })
+    const user = setup()
+    await user.click(await screen.findByRole('button', { name: /80kg 8回を編集/ }))
+    await user.clear(screen.getByLabelText('重量（kg）'))
+    await user.type(screen.getByLabelText('重量（kg）'), '85')
+    await user.click(screen.getByRole('button', { name: /60kg 8回を編集/ }))
+    expect(screen.getByLabelText('重量（kg）')).toHaveValue(60)
+    await user.clear(screen.getByLabelText('回数'))
+    await user.type(screen.getByLabelText('回数'), '12')
+    await user.click(screen.getByRole('button', { name: /80kg 8回を編集/ }))
+    expect(screen.getByLabelText('重量（kg）')).toHaveValue(85)
+    await user.click(screen.getByRole('button', { name: '変更を保存' }))
+    await screen.findByRole('button', { name: /85kg 8回を編集/ })
+    await user.click(screen.getByRole('button', { name: /60kg 8回を編集/ }))
+    expect(screen.getByLabelText('回数')).toHaveValue(12)
+    await user.click(screen.getByRole('button', { name: '変更を保存' }))
+    await waitFor(() => expect(api.updateWorkoutSet).toHaveBeenLastCalledWith('w1', expect.objectContaining({ id: 's2', weight_kg: 60, reps: 12 })))
+  })
   it('updates a past set without creating another workout', async () => {
     const user = setup()
     await user.click(await screen.findByRole('button', { name: /80kg 8回を編集/ }))

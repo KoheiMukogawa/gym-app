@@ -1,8 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ExercisePicker } from './ExercisePicker'
 import type { Exercise } from '../../lib/types'
+vi.mock('../routines/queries', async (original) => ({
+  ...await original<typeof import('../routines/queries')>(),
+  fetchExerciseOrder: async () => [], saveExerciseOrder: async () => undefined,
+}))
 
 const exercise = (id: string, name: string, muscle_group: Exercise['muscle_group'], owner: string | null = null): Exercise => ({
   id, name, name_normalized: name.toLowerCase(), muscle_group,
@@ -33,10 +37,11 @@ describe('ExercisePicker', () => {
     expect(screen.getByRole('button', { name: /スクワット/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /ベンチプレス/ })).not.toBeInTheDocument()
   })
-  it('keeps previously used non-basic exercises accessible', async () => {
-    const { user, onSelect } = setup(vi.fn(), ['decline'])
-    await user.click(within(screen.getByRole('region', { name: '最近使った種目' })).getByRole('button', { name: /デクライン/ }))
-    expect(onSelect).toHaveBeenCalledWith(EXERCISES[2])
+  it('omits recent exercises and core', async () => {
+    setup(vi.fn(), ['decline'])
+    await waitFor(() => expect(screen.getByRole('button', { name: '並び替え' })).toBeEnabled())
+    expect(screen.queryByRole('region', { name: '最近使った種目' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '体幹' })).not.toBeInTheDocument()
   })
   it('adds a personal exercise within the selected group', async () => {
     const { user, onCreate } = setup(vi.fn().mockResolvedValue(undefined))

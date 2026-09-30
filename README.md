@@ -4,7 +4,7 @@
 
 部位から種目を選び、すぐにセットを記録するダークテーマの筋トレ記録PWAです。画面は「記録・履歴・Big3」の3つ。基本21種目と個人の追加種目、過去日の記録追加、セット・日付の修正、重量推移と目標管理に対応しています。
 
-最新の画面構成・導入手順・検証範囲は[操作のシンプル化](docs/simple-training-flow.md)を参照してください。リリース前に `0006_personal_exercise_names.sql` の適用が必要です。
+最新の画面構成・導入手順・検証範囲は[操作のシンプル化](docs/simple-training-flow.md)を参照してください。リリース前に未適用の `0006_personal_exercise_names.sql`、`0007_routines_and_exercise_order.sql` を順に適用してください。
 
 ![ログイン画面](docs/screenshot.png)
 
