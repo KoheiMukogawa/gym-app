@@ -3,8 +3,11 @@ import type { Profile } from '../../lib/types'
 import { WORKOUT_SELECT, mapWorkoutRows, type FeedItem, type WorkoutRow } from '../feed/queries'
 
 export async function fetchMonthWorkouts(userId: string, year: number, month: number): Promise<FeedItem[]> {
-  const start = new Date(year, month - 1, 1).toISOString()
-  const end = new Date(year, month, 1).toISOString()
+  return fetchWorkoutsInRange(userId, new Date(year, month - 1, 1).toISOString(), new Date(year, month, 1).toISOString())
+}
+
+/** start 以上 end 未満のワークアウトを、セットごと取得する。エクスポートの期間指定にも使う。 */
+export async function fetchWorkoutsInRange(userId: string, start: string, end: string): Promise<FeedItem[]> {
   const rows: WorkoutRow[] = []
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await supabase.from('workouts').select(WORKOUT_SELECT)

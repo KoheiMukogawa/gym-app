@@ -521,3 +521,22 @@ test('the record tab is gone and reps are filled from records, then from an esti
   await weight.fill('100')
   await expect(reps).toHaveValue('1')
 })
+
+test('exports the chosen period as markdown, memos included', async ({ page }) => {
+  const data = await mockApi(page)
+  const now = new Date()
+  const at = (d: number) => new Date(now.getFullYear(), now.getMonth(), d, 12).toISOString()
+  data.workouts.push({ id: 'w-x', user_id: USER, performed_at: at(now.getDate()), created_at: at(now.getDate()) })
+  data.sets.push({ id: 'x1', workout_id: 'w-x', exercise_id: 'bench', weight_kg: 80, reps: 5, set_index: 1, note: '肩甲骨を寄せる', created_at: at(now.getDate()) })
+
+  await page.goto('/export')
+  await page.getByRole('button', { name: '今月', exact: true }).click()
+  await page.getByRole('button', { name: 'Markdownを作成', exact: true }).click()
+
+  const output = page.getByRole('textbox', { name: 'エクスポートした内容' })
+  await expect(output).toContainText('# Glog トレーニング記録')
+  await expect(output).toContainText('トレーニング日数: 1日 / 総セット数: 1')
+  // 80kg×5 の推定1RM は 90.0kg
+  await expect(output).toContainText('| 1 | 80.0 kg | 5 | 90.0 kg | 肩甲骨を寄せる |')
+  await expect(page.getByRole('button', { name: 'ファイルで保存' })).toBeVisible()
+})

@@ -33,6 +33,7 @@ export function CommunityPanel() {
   const [attempt, setAttempt] = useState(0)
   const [rankAttempt, setRankAttempt] = useState(0)
   const [confirm, setConfirm] = useState<'leave' | 'delete' | 'rotate' | null>(null)
+  const [managing, setManaging] = useState(false)
   const lock = useRef(false)
   useEffect(() => {
     if (!userId) return
@@ -64,13 +65,14 @@ export function CommunityPanel() {
   if (loading) return <Spinner />
   if (loadError) return <div className="space-y-3"><p role="alert">コミュニティを読み込めませんでした。{loadError}</p><Button onClick={() => setAttempt((n) => n + 1)}>再試行</Button></div>
   return <section className="space-y-5" aria-label="ランキング">
-    <div className="-mx-4 flex gap-2 overflow-x-auto px-4" role="group" aria-label="ランキングの範囲">{[{ id: GLOBAL, name: '全体' }, ...groups].map((g) => <button key={g.id} disabled={busy} aria-pressed={selected === g.id}
+    <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4" role="group" aria-label="ランキングの範囲">{[{ id: GLOBAL, name: '全体' }, ...groups].map((g) => <button key={g.id} disabled={busy} aria-pressed={selected === g.id}
       className={`min-h-14 shrink-0 rounded-full border px-5 text-sm ${selected === g.id ? 'border-accent bg-surface text-fg' : 'border-border text-muted'}`}
-      onClick={() => { setSelected(g.id); setConfirm(null); setError(null) }}>{g.name}</button>)}</div>
+      onClick={() => { setSelected(g.id); setManaging(false); setConfirm(null); setError(null) }}>{g.name}</button>)}
+      <button type="button" aria-label="コミュニティに参加・作成" aria-expanded={managing} disabled={busy}
+        className={`flex min-h-14 w-14 shrink-0 items-center justify-center rounded-full border text-xl ${managing ? 'border-accent text-fg' : 'border-border text-muted'}`}
+        onClick={() => { setManaging((v) => !v); setError(null) }}>＋</button></div>
     {error && <p role="alert" className="text-sm text-accent">{error}</p>}
-    <details className="rounded-xl border border-border p-3">
-      <summary className="flex min-h-14 cursor-pointer items-center text-sm">＋ コミュニティに参加・作成</summary>
-      <div className="space-y-4">
+    {managing && <div className="space-y-4 rounded-xl border border-border p-3">
     {draft ? <form className="space-y-3 rounded-2xl border border-border p-4" onSubmit={(e) => { e.preventDefault(); void run(async () => { await saveProfile(draft); window.dispatchEvent(new Event('glog-profile-updated')); setMine(draft); setDraft(null); setRankAttempt((n) => n + 1) }) }}>
       <h2 className="font-semibold">プロフィール</h2>
       <label className="block text-sm">表示名<input className={field} required maxLength={30} value={draft.display_name} onChange={(e) => setDraft({ ...draft, display_name: e.target.value })} disabled={busy} /></label>
@@ -84,17 +86,15 @@ export function CommunityPanel() {
     {!mine && <p className="text-sm text-muted">表示名を設定すると、コミュニティを作成・参加できます。</p>}
     <p className="text-xs leading-relaxed text-muted">参加すると、プロフィールとBIG3の数値・推移をメンバーに共有します。全トレーニング履歴は公開されません。</p>
     <div className="flex gap-2">{(['create','join'] as const).map((f) => <button key={f} disabled={!mine || busy} className="min-h-14 flex-1 rounded-xl border border-border text-sm disabled:opacity-40" onClick={() => { requestId.current = crypto.randomUUID(); setForm(f); setValue(''); setError(null) }}>{f === 'create' ? '＋ コミュニティを作る' : '招待コードで参加'}</button>)}</div>
-    {form && <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => { const id = await manage(form, value.trim(), form === 'create' ? requestId.current : null); setSelected(id); setForm(null); setValue(''); setAttempt((n) => n + 1) }) }}>
+    {form && <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => { const id = await manage(form, value.trim(), form === 'create' ? requestId.current : null); setSelected(id); setForm(null); setValue(''); setManaging(false); setAttempt((n) => n + 1) }) }}>
       <label className="text-sm">{form === 'create' ? 'コミュニティ名' : '招待コード'}<input className={field} value={value} onChange={(e) => setValue(e.target.value)} required maxLength={form === 'create' ? 40 : 36} disabled={busy} autoCapitalize="none" /></label>
       <Button type="submit" disabled={busy || !value.trim()}>{busy ? '処理中…' : form === 'create' ? '作成する' : '参加する'}</Button>
       <Button type="button" variant="ghost" disabled={busy} onClick={() => { setForm(null); setError(null) }}>キャンセル</Button>
     </form>}
-      </div>
-    </details>
-    {selected === GLOBAL && <GlobalRanking />}
-    {group && <>
+    </div>}
+    {!managing && selected === GLOBAL && <GlobalRanking />}
+    {!managing && group && <>
       <div className="flex border-b border-border">{(['total','growth'] as const).map((m) => <button key={m} className={`min-h-14 flex-1 text-sm ${mode === m ? 'border-b-2 border-accent text-fg' : 'text-muted'}`} aria-pressed={mode === m} onClick={() => setMode(m)}>{m === 'total' ? 'BIG3合計' : '今月の伸び'}</button>)}</div>
-      <p className="text-xs text-muted">{mode === 'total' ? '各種目の最高推定1RMの合計 · 自己申告の記録' : '月初からの自己ベスト合計の増加（日本時間）。月初以前に3種目の記録が必要です。'}</p>
       {rankLoading ? <Spinner /> : rankError ? <div><p role="alert">{rankError}</p><Button variant="ghost" onClick={() => setRankAttempt((n) => n + 1)}>再試行</Button></div> : <div className="divide-y divide-border">{rankMembers(members, mode).map((m) => <button key={m.user_id} onClick={() => setPerson(m.user_id)} className={`flex min-h-20 w-full items-center gap-3 px-2 text-left ${m.user_id === userId ? 'bg-surface' : ''}`}>
         <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span><Avatar icon={m.icon} name={m.display_name}/><span className="min-w-0 flex-1 break-words text-sm">{m.display_name}{m.user_id === userId && <span className="ml-2 text-xs text-muted">自分</span>}</span>
         <span className="shrink-0 text-lg font-semibold tabular-nums">{mode === 'growth' && m.growth !== null ? '+' : ''}{kg(m[mode])}</span>
@@ -106,7 +106,10 @@ export function CommunityPanel() {
           {detail.points.filter((p) => p.lift === l.key).length >= 2 && <div className="mt-3 h-28"><ResponsiveContainer width="100%" height="100%"><LineChart data={detail.points.filter((p) => p.lift === l.key)}><XAxis dataKey="date" tick={{ fill: '#8A8A93', fontSize: 10 }} tickFormatter={(d: string) => d.slice(5)} /><YAxis hide domain={['dataMin - 5', 'dataMax + 5']} /><Tooltip contentStyle={{ background: '#17171A', border: '1px solid #2A2A2F' }} formatter={(v) => [`${v} kg`, '推定1RM']} /><Line dataKey="value" stroke="var(--color-accent)" dot={false} /></LineChart></ResponsiveContainer></div>}
         </div>)}
       </section>}
-      <p className="text-xs text-muted">— は比較できる記録がまだそろっていない状態です。同じ重量は同順位です。</p>
+      <div className="space-y-1 border-t border-border pt-3">
+        <p className="text-xs text-muted">{mode === 'total' ? '各種目の最高推定1RMの合計 · 自己申告の記録' : '月初からの自己ベスト合計の増加（日本時間）。月初以前に3種目の記録が必要です。'}</p>
+        <p className="text-xs text-muted">— は比較できる記録がまだそろっていない状態です。同じ重量は同順位です。</p>
+      </div>
       {group.invite_code && <details className="rounded-xl border border-border p-3"><summary className="flex min-h-14 cursor-pointer items-center text-sm">招待コード</summary><p className="select-all break-all py-3 font-mono text-sm">{group.invite_code}</p><p className="text-xs text-muted">参加してほしい人にこのコードを送ってください。</p><button disabled={busy} className="min-h-14 text-xs text-muted" onClick={() => setConfirm('rotate')}>コードを再発行</button></details>}
       {confirm ? <div className="space-y-2 rounded-xl border border-border p-4"><p className="text-sm">{confirm === 'delete' ? 'コミュニティを削除しますか？全員がランキングを見られなくなります。筋トレ記録は残ります。' : confirm === 'rotate' ? '招待コードを再発行しますか？古いコードは使えなくなります。' : 'コミュニティから退出しますか？プロフィールとBIG3の共有も終了します。'}</p><Button disabled={busy} onClick={() => void run(async () => { await manage(confirm, '', selected); setConfirm(null); setAttempt((n) => n + 1) })}>確定する</Button><Button variant="ghost" disabled={busy} onClick={() => setConfirm(null)}>キャンセル</Button></div> : <button disabled={busy} className="min-h-14 text-xs text-muted" onClick={() => setConfirm(group.owner_id === userId ? 'delete' : 'leave')}>{group.owner_id === userId ? 'コミュニティを削除' : 'コミュニティから退出'}</button>}
     </>}
