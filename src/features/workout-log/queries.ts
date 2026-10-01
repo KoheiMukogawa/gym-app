@@ -14,7 +14,7 @@ export async function fetchTodayWorkout(userId: string): Promise<{ id: string; s
   const [start, end] = todayRange()
   const { data, error } = await supabase
     .from('workouts')
-    .select('id, workout_sets(id, exercise_id, set_index, weight_kg, reps, created_at)')
+    .select('id, workout_sets(id, exercise_id, set_index, weight_kg, reps, note, created_at)')
     .eq('user_id', userId)
     .gte('performed_at', start)
     .lt('performed_at', end)
@@ -26,7 +26,7 @@ export async function fetchTodayWorkout(userId: string): Promise<{ id: string; s
   const row = data as unknown as { id: string; workout_sets: (LoggedSet & { created_at: string })[] | null }
   const sets = [...(row.workout_sets ?? [])]
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
-    .map(({ id, exercise_id, set_index, weight_kg, reps }) => ({ id, exercise_id, set_index, weight_kg: Number(weight_kg), reps }))
+    .map(({ id, exercise_id, set_index, weight_kg, reps, note }) => ({ id, exercise_id, set_index, weight_kg: Number(weight_kg), reps, ...(note ? { note } : {}) }))
   return { id: row.id, sets }
 }
 
@@ -61,6 +61,7 @@ export async function saveSet(workoutId: string, set: LoggedSet): Promise<void> 
     set_index: set.set_index,
     weight_kg: set.weight_kg,
     reps: set.reps,
+    note: set.note ?? null,
   })
   if (error) {
     // id は画面側が生成したもの。主キー重複（23505）は「直前の試行は
@@ -69,6 +70,13 @@ export async function saveSet(workoutId: string, set: LoggedSet): Promise<void> 
     if (error.code === '23505') return
     throw error
   }
+}
+
+/** セットのメモを保存する（空文字はメモなしとして保存）。 */
+export async function updateSetNote(setId: string, note: string): Promise<void> {
+  const value = note.trim() ? note.trim().slice(0, 200) : null
+  const { error } = await supabase.from('workout_sets').update({ note: value }).eq('id', setId).select('id').single()
+  if (error) throw error
 }
 
 /** セット本体を削除する。取り消し（undo）が保存済みのセットに対して行われたときに使う。 */

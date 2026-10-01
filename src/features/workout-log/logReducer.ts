@@ -6,6 +6,7 @@ export type LoggedSet = {
   set_index: number
   weight_kg: number
   reps: number
+  note?: string | null
 }
 
 export type LogState = {
@@ -21,7 +22,8 @@ export type LogAction =
   | { type: 'adjust-reps'; direction: 1 | -1 }
   | { type: 'set-weight'; value: number; min?: number }
   | { type: 'set-reps'; value: number }
-  | { type: 'complete-set'; id: string }
+  | { type: 'complete-set'; id: string; note?: string | null }
+  | { type: 'set-note'; id: string; note: string | null }
   | { type: 'remove-set'; id: string }
   | { type: 'load-sets'; sets: LoggedSet[] }
 
@@ -57,9 +59,12 @@ export function logReducer(state: LogState, action: LogAction): LogState {
     case 'set-reps':
       return { ...state, reps: Math.max(MIN_REPS, Math.round(action.value)) }
     case 'complete-set': {
-      const set = nextSet(state, action.id)
+      const set = nextSet(state, action.id, action.note)
       if (set === null) return state
       return { ...state, sets: [...state.sets, set] }
+    }
+    case 'set-note': {
+      return { ...state, sets: state.sets.map((s) => (s.id === action.id ? { ...s, note: action.note } : s)) }
     }
     case 'remove-set':
       return { ...state, sets: state.sets.filter((s) => s.id !== action.id) }
@@ -74,7 +79,7 @@ export function logReducer(state: LogState, action: LogAction): LogState {
  * id は呼び出し側（画面側）が生成し、dispatch と永続化の両方に同じ値を渡す。
  * これにより、同じセットの再試行が同じ id を持ち、DB 側で重複登録を防げる。
  */
-export function nextSet(state: LogState, id: string): LoggedSet | null {
+export function nextSet(state: LogState, id: string, note?: string | null): LoggedSet | null {
   if (state.currentExerciseId === null) return null
   const exerciseId = state.currentExerciseId
   // 途中のセットを削除しても番号が重複しないよう、件数ではなく最大値の次にする
@@ -85,5 +90,6 @@ export function nextSet(state: LogState, id: string): LoggedSet | null {
     set_index: last + 1,
     weight_kg: state.weight_kg,
     reps: state.reps,
+    ...(note ? { note } : {}),
   }
 }

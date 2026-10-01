@@ -43,6 +43,8 @@ export type WorkoutSet = {
   set_index: number
   weight_kg: number
   reps: number
+  /** セットごとのメモ（任意、200文字まで） */
+  note?: string | null
   created_at: string
 }
 

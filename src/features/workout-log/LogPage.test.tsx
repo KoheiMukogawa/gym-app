@@ -12,8 +12,9 @@ vi.mock('../routines/queries', async (original) => ({
 
 const USER = 'user-1'
 
-const { createWorkout, saveSet, deleteWorkoutIfEmpty, deleteSet, fetchUserSetHistory, fetchTodayWorkout } = vi.hoisted(
+const { createWorkout, saveSet, deleteWorkoutIfEmpty, deleteSet, fetchUserSetHistory, fetchTodayWorkout, updateSetNote } = vi.hoisted(
   () => ({
+    updateSetNote: vi.fn(),
     fetchTodayWorkout: vi.fn(),
     createWorkout: vi.fn(),
     saveSet: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('./queries', () => ({
   deleteSet,
   fetchUserSetHistory,
   fetchTodayWorkout,
+  updateSetNote,
 }))
 
 const lastDeleteButton = () => screen.getAllByRole('button', { name: /を削除$/ }).at(-1)!
@@ -262,6 +264,25 @@ describe('LogPage', () => {
     await userEvent.type(weight, '-20')
     await userEvent.click(screen.getByRole('button', { name: /セット完了/ }))
     expect(saveSet).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ weight_kg: -20 }))
+  })
+
+  it('saves a memo with the set and edits it by tapping the recorded set', async () => {
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+    updateSetNote.mockResolvedValue(undefined)
+    renderLogPage()
+    await userEvent.type(await screen.findByPlaceholderText(/メモ（任意）/), 'フォーム意識')
+    await userEvent.click(screen.getByRole('button', { name: /セット完了/ }))
+    await waitFor(() => expect(saveSet).toHaveBeenCalledWith('w1', expect.objectContaining({ note: 'フォーム意識' })))
+    expect(screen.getByPlaceholderText(/メモ（任意）/)).toHaveValue('')
+
+    await userEvent.click(screen.getByRole('button', { name: /のメモ: フォーム意識/ }))
+    const input = screen.getByRole('textbox', { name: 'セットのメモ' })
+    await userEvent.clear(input)
+    await userEvent.type(input, '最後は補助あり')
+    await userEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(updateSetNote).toHaveBeenCalledWith(saveSet.mock.calls[0][1].id, '最後は補助あり'))
+    expect(await screen.findByText('最後は補助あり')).toBeInTheDocument()
   })
 
   it('calls deleteSet when undoing a saved set', async () => {

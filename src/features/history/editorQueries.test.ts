@@ -18,6 +18,12 @@ beforeEach(() => {
   q.single.mockResolvedValue({ data: { id: 'w1' }, error: null })
 })
 describe('workout editing persistence', () => {
+  it('accepts an assisted (negative) load only when the caller allows it', async () => {
+    const set = { id: 's1', exercise_id: 'chin', set_index: 1, weight_kg: -20, reps: 8, note: 'band' }
+    await expect(updateWorkoutSet('w1', set)).rejects.toThrow()
+    await updateWorkoutSet('w1', set, -70)
+    expect(q.update).toHaveBeenCalledWith({ exercise_id: 'chin', set_index: 1, weight_kg: -20, reps: 8, note: 'band' })
+  })
   it('scopes editable reads by both workout and signed-in user', async () => {
     q.maybeSingle.mockResolvedValue({ data: null, error: null })
     expect(await fetchEditableWorkout('u1', 'w1')).toBeNull()
@@ -31,12 +37,12 @@ describe('workout editing persistence', () => {
   it('only patches editable fields on the requested workout', async () => {
     const set = { id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 62.5, reps: 8, created_at: 'ignored' }
     await updateWorkoutSet('w1', set)
-    expect(q.update).toHaveBeenCalledWith({ exercise_id: 'bench', set_index: 1, weight_kg: 62.5, reps: 8 })
+    expect(q.update).toHaveBeenCalledWith({ exercise_id: 'bench', set_index: 1, weight_kg: 62.5, reps: 8, note: null })
     expect(q.eq.mock.calls).toEqual([['id', 's1'], ['workout_id', 'w1']])
   })
   it('upserts the same client ID with corrected values on retry', async () => {
     await saveEditableSet('w1', { id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 65, reps: 9 })
-    expect(q.upsert).toHaveBeenCalledWith({ id: 's1', workout_id: 'w1', exercise_id: 'bench', set_index: 1, weight_kg: 65, reps: 9 }, { onConflict: 'id' })
+    expect(q.upsert).toHaveBeenCalledWith({ id: 's1', workout_id: 'w1', exercise_id: 'bench', set_index: 1, weight_kg: 65, reps: 9, note: null }, { onConflict: 'id' })
   })
   it('rejects invalid input before a database mutation', async () => {
     await expect(saveEditableSet('w1', { id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: -1, reps: 9 })).rejects.toThrow()

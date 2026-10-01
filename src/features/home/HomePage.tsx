@@ -61,6 +61,7 @@ function TodayWorkout({ item, bodyweight }: { item: FeedItem; bodyweight: number
             <span className="text-muted">{i + 1}</span>
             <span>{group.bodyweight ? formatAddedLoad(s.weight_kg) : `${s.weight_kg.toFixed(1)} kg`}</span>
             <span><span className="text-muted">×</span> {s.reps} <span className="text-xs text-muted">reps</span></span>
+            {s.note && <span className="col-start-2 col-end-4 break-words text-xs text-muted">{s.note}</span>}
           </li>)}
         </ol>
       </section>
