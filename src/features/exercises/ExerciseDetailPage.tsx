@@ -9,6 +9,9 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from '../auth/SessionProvider'
 import { fetchExercise, fetchExerciseSets } from './queries'
+import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
+import { localDate } from '../../lib/dates'
+import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
 
 export type ExerciseSummary = {
   best: number | null
@@ -24,6 +27,11 @@ export function summarizeExercise(sets: SetWithDate[]): ExerciseSummary {
     setCount: sets.length,
     points: maxWeightByDate(sets),
   }
+}
+
+/** 自重種目は、その日の体重を足した総重量で自己ベストや推移を数える。 */
+export function withTotalLoad(sets: SetWithDate[], logs: BodyweightLog[]): SetWithDate[] {
+  return sets.map((s) => ({ ...s, weight_kg: Math.round((s.weight_kg + (bodyweightOn(logs, localDate(s.performed_at)) ?? 0)) * 10) / 10 }))
 }
 
 export function ExerciseDetailPage() {
@@ -42,10 +50,10 @@ export function ExerciseDetailPage() {
     if (!exerciseId || !userId) return
     setLoading(true)
     setError(null)
-    Promise.all([fetchExercise(exerciseId), fetchExerciseSets(exerciseId, userId)])
-      .then(([ex, s]) => {
+    Promise.all([fetchExercise(exerciseId), fetchExerciseSets(exerciseId, userId), fetchBodyweightLogs(userId)])
+      .then(([ex, s, logs]) => {
         setExercise(ex)
-        setSets(s)
+        setSets(ex?.is_bodyweight ? withTotalLoad(s, logs) : s)
       })
       .catch((e: unknown) => {
         const message = toMessage(e)
@@ -85,7 +93,7 @@ export function ExerciseDetailPage() {
           ← ホーム
         </Link>
         <h1 className="mt-2 text-2xl font-bold">{exercise.name}</h1>
-        <p className="text-xs text-muted">{MUSCLE_GROUP_LABELS[exercise.muscle_group]}</p>
+        <p className="text-xs text-muted">{MUSCLE_GROUP_LABELS[exercise.muscle_group]}{exercise.is_bodyweight && ' · 体重＋加重の総重量で表示'}</p>
       </header>
 
       <section className="grid grid-cols-3 gap-2">

@@ -16,10 +16,10 @@ export type LogState = {
 }
 
 export type LogAction =
-  | { type: 'select-exercise'; exerciseId: string; prefill: { weight_kg: number; reps: number } | null }
+  | { type: 'select-exercise'; exerciseId: string; prefill: { weight_kg: number; reps: number } | null; defaultWeight?: number }
   | { type: 'adjust-weight'; direction: 1 | -1 }
   | { type: 'adjust-reps'; direction: 1 | -1 }
-  | { type: 'set-weight'; value: number }
+  | { type: 'set-weight'; value: number; min?: number }
   | { type: 'set-reps'; value: number }
   | { type: 'complete-set'; id: string }
   | { type: 'remove-set'; id: string }
@@ -42,7 +42,7 @@ export function logReducer(state: LogState, action: LogAction): LogState {
       return {
         ...state,
         currentExerciseId: action.exerciseId,
-        weight_kg: base?.weight_kg ?? DEFAULT_WEIGHT,
+        weight_kg: base?.weight_kg ?? action.defaultWeight ?? DEFAULT_WEIGHT,
         reps: base?.reps ?? DEFAULT_REPS,
       }
     }
@@ -52,7 +52,8 @@ export function logReducer(state: LogState, action: LogAction): LogState {
       return { ...state, reps: adjustReps(state.reps, action.direction) }
     case 'set-weight':
       // numeric(5,1) の列に保存するため、小数第2位以下は表示と実データがずれる前に丸める
-      return { ...state, weight_kg: Math.max(MIN_WEIGHT, Math.round(action.value * 10) / 10) }
+      // 自重種目ではアシスト分のマイナスを許すため、下限を呼び出し側から受け取る
+      return { ...state, weight_kg: Math.max(action.min ?? MIN_WEIGHT, Math.round(action.value * 10) / 10) }
     case 'set-reps':
       return { ...state, reps: Math.max(MIN_REPS, Math.round(action.value)) }
     case 'complete-set': {

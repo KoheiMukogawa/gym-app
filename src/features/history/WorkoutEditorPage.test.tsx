@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
 vi.mock('./editorQueries', () => api)
 vi.mock('../exercises/queries', () => api)
 vi.mock('../routines/queries', () => ({ fetchExerciseOrder: async () => [], saveExerciseOrder: vi.fn() }))
+vi.mock('../profile/bodyweightQueries', () => ({ fetchBodyweightLogs: async () => [{ recorded_on: '2019-01-01', bodyweight_kg: 70 }] }))
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1' }) }))
 const EXERCISE = { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', muscle_group: 'chest', is_preset: true, created_by: null }
 const SET = { id: 's1', workout_id: 'w1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8, created_at: '2020-01-02T12:00:00Z' }
@@ -115,7 +116,6 @@ describe('WorkoutEditorPage', () => {
   it('saves date changes independently and preserves a failed deletion', async () => {
     api.updateWorkoutDate.mockResolvedValue('2020-02-03T12:00:00Z')
     api.removeWorkoutSet.mockRejectedValue(new Error('network'))
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = setup()
     const date = await screen.findByLabelText('トレーニング日')
     await user.clear(date); await user.type(date, '2020-02-03')
@@ -125,6 +125,32 @@ describe('WorkoutEditorPage', () => {
     await user.click(screen.getByRole('button', { name: /80kg 8回を削除/ }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /80kg 8回を編集/ })).toBeInTheDocument()
+  })
+  it('groups sets under one heading per exercise and deletes a set without a confirm dialog', async () => {
+    api.removeWorkoutSet.mockResolvedValue(undefined)
+    const confirm = vi.spyOn(window, 'confirm')
+    api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [
+      SET, { ...SET, id: 's2', weight_kg: 60, set_index: 2, created_at: '2020-01-02T12:01:00Z' },
+    ] })
+    const user = setup()
+    await screen.findByRole('button', { name: /60kg 8回を編集/ })
+    expect(screen.getAllByRole('heading', { name: 'ベンチプレス' })).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: /60kg 8回を削除/ }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: /60kg 8回を編集/ })).not.toBeInTheDocument())
+    expect(api.removeWorkoutSet).toHaveBeenCalledWith('w1', 's2')
+    expect(confirm).not.toHaveBeenCalled()
     confirm.mockRestore()
+  })
+  it('lets bodyweight exercises take an assisted (negative) load', async () => {
+    const CHIN = { ...EXERCISE, id: 'chin', name: 'チンニング', name_normalized: 'チンニング', is_bodyweight: true }
+    api.fetchExercises.mockResolvedValue([EXERCISE, CHIN])
+    api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [{ ...SET, exercise_id: 'chin', weight_kg: 0 }] })
+    const user = setup()
+    await user.click(await screen.findByRole('button', { name: /チンニング 自重 8回を編集/ }))
+    const added = screen.getByRole('spinbutton', { name: '加重（kg）' })
+    await user.clear(added); await user.type(added, '-20')
+    await user.click(screen.getByRole('button', { name: '変更を保存' }))
+    await waitFor(() => expect(api.updateWorkoutSet).toHaveBeenCalledWith('w1', expect.objectContaining({ weight_kg: -20 })))
+    expect(await screen.findByRole('button', { name: /チンニング −20kg 8回を編集/ })).toBeInTheDocument()
   })
 })

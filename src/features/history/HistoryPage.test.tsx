@@ -13,6 +13,7 @@ import type { FeedItem } from '../feed/queries'
 declare const process: { env: Record<string, string | undefined> }
 
 const { fetchMonthWorkouts } = vi.hoisted(() => ({ fetchMonthWorkouts: vi.fn() }))
+vi.mock('../profile/bodyweightQueries', () => ({ fetchBodyweightLogs: async () => [] }))
 vi.mock('./queries', () => ({ fetchMonthWorkouts }))
 
 const { useSession } = vi.hoisted(() => ({ useSession: vi.fn() }))

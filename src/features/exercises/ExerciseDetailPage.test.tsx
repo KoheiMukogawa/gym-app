@@ -10,6 +10,7 @@ const { fetchExercise, fetchExerciseSets } = vi.hoisted(() => ({
   fetchExercise: vi.fn(),
   fetchExerciseSets: vi.fn(),
 }))
+vi.mock('../profile/bodyweightQueries', () => ({ fetchBodyweightLogs: async () => [] }))
 vi.mock('./queries', () => ({ fetchExercise, fetchExerciseSets }))
 
 const { useSession } = vi.hoisted(() => ({ useSession: vi.fn() }))

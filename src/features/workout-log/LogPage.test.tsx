@@ -46,6 +46,16 @@ vi.mock('../exercises/queries', () => ({
   fetchRecentExerciseIds,
 }))
 
+const { fetchBodyweightLogs, saveBodyweight } = vi.hoisted(() => ({
+  fetchBodyweightLogs: vi.fn(),
+  saveBodyweight: vi.fn(),
+}))
+vi.mock('../profile/bodyweightQueries', async (original) => ({
+  ...await original<typeof import('../profile/bodyweightQueries')>(),
+  fetchBodyweightLogs,
+  saveBodyweight,
+}))
+
 const { useSession } = vi.hoisted(() => ({ useSession: vi.fn() }))
 vi.mock('../auth/SessionProvider', () => ({ useSession }))
 
@@ -96,6 +106,7 @@ describe('LogPage', () => {
     fetchRecentExerciseIds.mockResolvedValue([])
     fetchUserSetHistory.mockResolvedValue([])
     fetchTodayWorkout.mockResolvedValue(null)
+    fetchBodyweightLogs.mockResolvedValue([])
     saveSet.mockResolvedValue(undefined)
     deleteWorkoutIfEmpty.mockResolvedValue(false)
     deleteSet.mockResolvedValue(undefined)
@@ -205,6 +216,40 @@ describe('LogPage', () => {
 
     await waitFor(() => expect(deleteSet).toHaveBeenCalledWith(firstId))
     await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
+  })
+
+  it('asks for bodyweight first, then records assisted chin-ups against the total load', async () => {
+    const CHIN: Exercise = { ...BENCH, id: 'chin', name: 'チンニング', name_normalized: 'チンニング', muscle_group: 'back', is_bodyweight: true }
+    fetchExercises.mockResolvedValue([BENCH, CHIN])
+    createWorkout.mockResolvedValue({ id: 'w1' })
+    saveBodyweight.mockResolvedValue({ recorded_on: '2026-10-01', bodyweight_kg: 70 })
+    saveDraft(USER, { state: { currentExerciseId: 'chin', weight_kg: 0, reps: 8, sets: [] }, workoutId: null, status: {} })
+
+    renderLogPage()
+    expect(await screen.findByText(/体重＋加重/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /セット完了/ })).toBeDisabled()
+    await userEvent.type(screen.getByLabelText('体重（kg）'), '70')
+    await userEvent.click(screen.getByRole('button', { name: '体重を保存' }))
+
+    expect(await screen.findByText(/総重量/)).toHaveTextContent('総重量 70 kg')
+    const added = screen.getByRole('spinbutton', { name: '加重' })
+    await userEvent.clear(added)
+    await userEvent.type(added, '-20')
+    expect(screen.getByText(/総重量/)).toHaveTextContent('総重量 50 kg')
+    await userEvent.click(screen.getByRole('button', { name: /セット完了/ }))
+
+    await waitFor(() => expect(saveSet).toHaveBeenCalledWith('w1', expect.objectContaining({ exercise_id: 'chin', weight_kg: -20 })))
+    expect(screen.getByRole('listitem')).toHaveTextContent('−20 kg')
+  })
+
+  it('does not allow a negative weight on a regular exercise', async () => {
+    seedDraftWithExercise()
+    renderLogPage()
+    const weight = await screen.findByRole('spinbutton', { name: '重量' })
+    await userEvent.clear(weight)
+    await userEvent.type(weight, '-20')
+    await userEvent.click(screen.getByRole('button', { name: /セット完了/ }))
+    expect(saveSet).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ weight_kg: -20 }))
   })
 
   it('calls deleteSet when undoing a saved set', async () => {
