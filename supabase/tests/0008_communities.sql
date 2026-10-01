@@ -4,7 +4,7 @@ insert into auth.users(id,email,raw_user_meta_data) values
  ('a0000000-0000-4000-8000-000000000002','community2@example.com','{}'),
  ('a0000000-0000-4000-8000-000000000003','outside@example.com','{}');
 insert into public.community_profiles(user_id,display_name) values
- ('a0000000-0000-4000-8000-000000000001','One'),('a0000000-0000-4000-8000-000000000002','Two');
+ ('a0000000-0000-4000-8000-000000000001','One'),('a0000000-0000-4000-8000-000000000002','Two') on conflict(user_id) do update set display_name=excluded.display_name;
 insert into public.workouts(id,user_id,performed_at) values
  ('b0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000001',date_trunc('month',now() at time zone 'Asia/Tokyo') at time zone 'Asia/Tokyo' - interval '1 day'),
  ('b0000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000001',now()),

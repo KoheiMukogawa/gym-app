@@ -10,6 +10,7 @@ export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
 }
 
 export type Profile = {
+  icon?: string
   id: string
   display_name: string
   created_at: string
