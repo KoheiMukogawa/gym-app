@@ -6,6 +6,7 @@ import {
   findPrefill,
   maxWeightByDate,
   maxRepsAt,
+  suggestReps,
   e1rmByDate,
   adjustWeight,
   adjustReps,
@@ -152,5 +153,31 @@ describe('maxRepsAt', () => {
     expect(maxRepsAt(history, 'bench', 100)).toBeNull()
     expect(maxRepsAt(history, 'deadlift', 80)).toBeNull()
     expect(maxRepsAt([], 'bench', 80)).toBeNull()
+  })
+})
+
+describe('suggestReps', () => {
+  const history = [
+    { exercise_id: 'bench', weight_kg: 80, reps: 5 },
+    { exercise_id: 'bench', weight_kg: 80, reps: 8 },
+  ]
+  it('prefers what was actually lifted at that weight', () => {
+    expect(suggestReps(history, 'bench', 80)).toEqual({ reps: 8, source: 'record' })
+  })
+  it('falls back to an estimate from the best e1RM', () => {
+    // 80kg×8 → 推定1RM 約99.3kg。85kgなら6回、1RM超えは1回。
+    expect(suggestReps(history, 'bench', 85)).toEqual({ reps: 6, source: 'estimate' })
+    expect(suggestReps(history, 'bench', 120)).toEqual({ reps: 1, source: 'estimate' })
+  })
+  it('gives nothing when the weight is too light to estimate or the exercise is new', () => {
+    expect(suggestReps(history, 'bench', 40)).toBeNull()
+    expect(suggestReps(history, 'squat', 80)).toBeNull()
+  })
+  it('counts bodyweight exercises on their total load', () => {
+    // 体重70kg + 加重10kg で8回 → 総重量80kgで8回ぶんの推定1RM
+    const chin = [{ exercise_id: 'chin', weight_kg: 10, reps: 8 }]
+    expect(suggestReps(chin, 'chin', 15, 70)).toEqual({ reps: 6, source: 'estimate' })
+    // 体重を無視すると加重10kgだけで換算してしまい、まったく違う答えになる
+    expect(suggestReps(chin, 'chin', 15, 0)).toEqual({ reps: 1, source: 'estimate' })
   })
 })

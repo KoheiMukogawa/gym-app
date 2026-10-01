@@ -176,6 +176,8 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await wheel.hover()
   await page.mouse.wheel(0,80)
   await expect(page.getByRole('spinbutton',{name:'重量',exact:true})).toHaveValue('85')
+  // 重量を変えると回数が提案値に入れ替わるので、推定1RMの表示を見るために戻す
+  await page.getByRole('spinbutton',{name:'回数',exact:true}).fill('6')
   await expect(page.getByText('98.7 kg',{exact:true})).toBeVisible()
   await page.screenshot({path:'test-results/log-mobile-redesigned.png',fullPage:true})
   await page.getByRole('button', { name: 'プロフィールメニュー', exact: true }).click()
@@ -482,7 +484,7 @@ test('memo field is iOS-zoom safe and grows so long text stays visible', async (
   expect((await memo.boundingBox())!.height).toBe(oneLine)
 })
 
-test('the record tab is gone and reps start at the best ever done at that weight', async ({ page }) => {
+test('the record tab is gone and reps are filled from records, then from an estimate', async ({ page }) => {
   const data = await mockApi(page)
 
   // 過去に 80kg×5 と 80kg×8、直近に 60kg×12 を挙げている
@@ -511,8 +513,11 @@ test('the record tab is gone and reps start at the best ever done at that weight
   await expect(reps).toHaveValue('8')
   await expect(page.getByText('この重量の自己ベスト')).toContainText('8')
 
-  // 記録のない重量では回数を変えない
+  // 挙げたことのない重量は、推定1RM（80kg×8 から約99.3kg）から逆算する
+  await weight.fill('85')
+  await expect(reps).toHaveValue('6')
+  await expect(page.getByText('この重量の目安')).toContainText('推定1RMから')
+  // 推定1RMを超える重量は1回
   await weight.fill('100')
-  await expect(reps).toHaveValue('8')
-  await expect(page.getByText('この重量の自己ベスト')).toHaveCount(0)
+  await expect(reps).toHaveValue('1')
 })

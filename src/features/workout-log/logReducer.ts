@@ -1,4 +1,4 @@
-import { adjustReps, adjustWeight, DEFAULT_REPS, DEFAULT_WEIGHT, maxRepsAt, MIN_REPS, MIN_WEIGHT } from '../../lib/calc'
+import { adjustReps, adjustWeight, DEFAULT_REPS, DEFAULT_WEIGHT, MIN_REPS, MIN_WEIGHT, suggestReps } from '../../lib/calc'
 import type { WorkoutSet } from '../../lib/types'
 
 /** レップ数の初期値を決めるための、過去のセット履歴 */
@@ -21,10 +21,10 @@ export type LogState = {
 }
 
 export type LogAction =
-  | { type: 'select-exercise'; exerciseId: string; prefill: { weight_kg: number; reps: number } | null; defaultWeight?: number; history?: SetHistory }
+  | { type: 'select-exercise'; exerciseId: string; prefill: { weight_kg: number; reps: number } | null; defaultWeight?: number; history?: SetHistory; loadOffset?: number }
   | { type: 'adjust-weight'; direction: 1 | -1 }
   | { type: 'adjust-reps'; direction: 1 | -1 }
-  | { type: 'set-weight'; value: number; min?: number; history?: SetHistory }
+  | { type: 'set-weight'; value: number; min?: number; history?: SetHistory; loadOffset?: number }
   | { type: 'set-reps'; value: number }
   | { type: 'complete-set'; id: string; note?: string | null }
   | { type: 'set-note'; id: string; note: string | null }
@@ -50,7 +50,7 @@ export function logReducer(state: LogState, action: LogAction): LogState {
         ...state,
         currentExerciseId: action.exerciseId,
         weight_kg: weight,
-        reps: bestReps(state, action.history, action.exerciseId, weight) ?? base?.reps ?? DEFAULT_REPS,
+        reps: bestReps(state, action, action.exerciseId, weight) ?? base?.reps ?? DEFAULT_REPS,
       }
     }
     case 'adjust-weight':
@@ -63,7 +63,7 @@ export function logReducer(state: LogState, action: LogAction): LogState {
       const weight = Math.max(action.min ?? MIN_WEIGHT, Math.round(action.value * 10) / 10)
       // その重量で前に挙げられた回数を初期値にする。記録が無ければ今の回数のまま。
       const best = state.currentExerciseId === null ? null
-        : bestReps(state, action.history, state.currentExerciseId, weight)
+        : bestReps(state, action, state.currentExerciseId, weight)
       return { ...state, weight_kg: weight, reps: best ?? state.reps }
     }
     case 'set-reps':
@@ -83,10 +83,15 @@ export function logReducer(state: LogState, action: LogAction): LogState {
   }
 }
 
-/** 過去の履歴と、この場で記録したセットの両方から、その重量の最大レップ数を探す。 */
-function bestReps(state: LogState, history: SetHistory | undefined, exerciseId: string, weightKg: number): number | null {
-  if (!history) return null
-  return maxRepsAt([...history, ...state.sets], exerciseId, weightKg)
+/** 過去の履歴と、この場で記録したセットの両方から、その重量で狙う回数を決める。 */
+function bestReps(
+  state: LogState,
+  action: { history?: SetHistory; loadOffset?: number },
+  exerciseId: string,
+  weightKg: number,
+): number | null {
+  if (!action.history) return null
+  return suggestReps([...action.history, ...state.sets], exerciseId, weightKg, action.loadOffset ?? 0)?.reps ?? null
 }
 
 /**
