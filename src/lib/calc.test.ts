@@ -5,6 +5,7 @@ import {
   personalBest,
   findPrefill,
   maxWeightByDate,
+  maxRepsAt,
   e1rmByDate,
   adjustWeight,
   adjustReps,
@@ -132,5 +133,24 @@ describe('e1rmByDate', () => {
       { date: '2026-08-03', e1rm: 99.3 },
       { date: '2026-08-10', e1rm: 101.3 },
     ])
+  })
+})
+
+describe('maxRepsAt', () => {
+  const history = [
+    { exercise_id: 'bench', weight_kg: 80, reps: 5 },
+    { exercise_id: 'bench', weight_kg: 80, reps: 8 },
+    { exercise_id: 'bench', weight_kg: 82.5, reps: 12 },
+    { exercise_id: 'squat', weight_kg: 80, reps: 15 },
+  ]
+  it('returns the best reps done at that exact weight for that exercise', () => {
+    expect(maxRepsAt(history, 'bench', 80)).toBe(8)
+    expect(maxRepsAt(history, 'bench', 82.5)).toBe(12)
+    expect(maxRepsAt(history, 'squat', 80)).toBe(15)
+  })
+  it('returns null when that weight has never been lifted for that exercise', () => {
+    expect(maxRepsAt(history, 'bench', 100)).toBeNull()
+    expect(maxRepsAt(history, 'deadlift', 80)).toBeNull()
+    expect(maxRepsAt([], 'bench', 80)).toBeNull()
   })
 })

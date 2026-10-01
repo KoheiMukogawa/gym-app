@@ -5,7 +5,8 @@ import { toMessage } from '../lib/errors'
 import { Avatar } from '../features/profile/Avatar'
 import { LogPage } from '../features/workout-log/LogPage'
 import { loadDraft } from '../features/workout-log/persistence'
-const TABS=[{to:'/',label:'ホーム'},{to:'/log',label:'記録'},{to:'/history',label:'履歴'},{to:'/big3',label:'BIG3'}]
+// 記録画面へはホームのボタンから入る。過去分は履歴から追加できるのでタブには出さない。
+const TABS=[{to:'/',label:'ホーム'},{to:'/history',label:'履歴'},{to:'/big3',label:'BIG3'}]
 export function AppShell(){
   const {signOut,profile,refreshProfile,userId}=useSession(),location=useLocation(),navigate=useNavigate()
   // トレーニングの途中でアプリを開き直したときは、ホームではなく記録画面から再開する

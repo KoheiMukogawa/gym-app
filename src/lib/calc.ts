@@ -35,6 +35,25 @@ export function findPrefill(
   return { weight_kg: hit.weight_kg, reps: hit.reps }
 }
 
+/**
+ * その種目・その重量で、過去に挙げられた最大レップ数。記録がなければ null。
+ * 重量を選んだときのレップ数の初期値に使う。
+ */
+export function maxRepsAt(
+  history: Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[],
+  exerciseId: string,
+  weightKg: number,
+): number | null {
+  let best: number | null = null
+  for (const set of history) {
+    if (set.exercise_id !== exerciseId) continue
+    // numeric(5,1) 同士なので誤差は出ないが、浮動小数の比較として安全側に倒す
+    if (Math.abs(set.weight_kg - weightKg) > 1e-9) continue
+    if (best === null || set.reps > best) best = set.reps
+  }
+  return best
+}
+
 /** 日付ごとの最大重量を、古い順に返す。 */
 export function maxWeightByDate(sets: SetWithDate[]): { date: string; max_weight: number }[] {
   const byDate = new Map<string, number>()

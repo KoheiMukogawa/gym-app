@@ -167,3 +167,37 @@ describe('nextSet', () => {
     expect(predicted).toEqual(after.sets[1])
   })
 })
+
+describe('reps follow the best ever done at the chosen weight', () => {
+  const history = [
+    { exercise_id: 'bench', weight_kg: 80, reps: 5 },
+    { exercise_id: 'bench', weight_kg: 80, reps: 8 },
+  ]
+  it('fills reps from history when the weight is chosen', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null, history })
+    state = logReducer(state, { type: 'set-weight', value: 80, history })
+    expect(state.reps).toBe(8)
+  })
+  it('keeps the current reps for a weight with no record', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null, history })
+    state = logReducer(state, { type: 'set-weight', value: 80, history })
+    state = logReducer(state, { type: 'set-weight', value: 100, history })
+    expect(state.weight_kg).toBe(100)
+    expect(state.reps).toBe(8)
+  })
+  it('counts sets recorded earlier in this session', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null, history: [] })
+    state = logReducer(state, { type: 'set-weight', value: 60, history: [] })
+    state = logReducer(state, { type: 'set-reps', value: 12 })
+    state = logReducer(state, { type: 'complete-set', id: 's1' })
+    state = logReducer(state, { type: 'set-weight', value: 80, history: [] })
+    state = logReducer(state, { type: 'set-weight', value: 60, history: [] })
+    expect(state.reps).toBe(12)
+  })
+  it('leaves reps alone when no history is passed', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null })
+    state = logReducer(state, { type: 'set-reps', value: 3 })
+    state = logReducer(state, { type: 'set-weight', value: 80 })
+    expect(state.reps).toBe(3)
+  })
+})

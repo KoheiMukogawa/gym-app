@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { findPrefill } from '../../lib/calc'
+import { findPrefill, maxRepsAt } from '../../lib/calc'
 import { validateSet } from '../../lib/dates'
 import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
@@ -192,6 +192,9 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const minWeight = isBodyweight && bodyweight !== null ? -bodyweight : 0
   const load = isBodyweight ? totalLoad(state.weight_kg, bodyweight) : state.weight_kg
   const estimated = load === null ? null : estimateOneRepMax(load, state.reps)
+  // この重量で前に挙げられた最大レップ数。回数の初期値になるので、根拠として画面にも出す。
+  const bestRepsHere = state.currentExerciseId === null ? null
+    : maxRepsAt([...history, ...state.sets], state.currentExerciseId, state.weight_kg)
 
   async function handleSaveBodyweight() {
     const value = parseBodyweight(bodyweightDraft)
@@ -207,7 +210,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
 
   function selectExercise(exerciseId: string) {
     const bw = exercises.some((e) => e.id === exerciseId && e.is_bodyweight)
-    dispatch({ type: 'select-exercise', exerciseId, prefill: findPrefill(history, exerciseId), defaultWeight: bw ? 0 : undefined })
+    dispatch({ type: 'select-exercise', exerciseId, prefill: findPrefill(history, exerciseId), defaultWeight: bw ? 0 : undefined, history })
     setPicking(false)
   }
   function moveRoutine(direction: -1 | 1) {
@@ -558,7 +561,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
             unit="kg"
             min={minWeight}
             format={isBodyweight ? formatAddedLoad : undefined}
-            onEnter={(value) => dispatch({ type: 'set-weight', value, min: minWeight })}
+            onEnter={(value) => dispatch({ type: 'set-weight', value, min: minWeight, history })}
           />
           <WheelNumber
             label="回数"
@@ -570,6 +573,9 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         {isBodyweight && bodyweight !== null && <p className="mb-2 text-center text-xs text-muted">
           体重 {bodyweight} kg {formatAddedLoad(state.weight_kg) === '自重' ? '' : formatAddedLoad(state.weight_kg).replace('+', '＋ ').replace('−', '− ')} ＝ 総重量 <strong className="text-fg tabular-nums">{load} kg</strong>
           <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
+        </p>}
+        {bestRepsHere !== null && <p className="mb-2 text-center text-xs text-muted" aria-live="polite">
+          この重量の自己ベスト <strong className="text-fg tabular-nums">{bestRepsHere}</strong> 回
         </p>}
         <label className="mb-3 block">
           <span className="sr-only">メモ（任意）</span>
