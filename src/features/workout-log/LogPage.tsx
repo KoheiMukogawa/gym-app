@@ -21,6 +21,7 @@ import {
   createWorkout,
   deleteSet,
   deleteWorkoutIfEmpty,
+  fetchTodayWorkout,
   fetchUserSetHistory,
   saveSet,
 } from './queries'
@@ -87,7 +88,7 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   const [justSaved, setJustSaved] = useState(false)
   const [offline, setOffline] = useState(isOffline())
   const [finishing, setFinishing] = useState(false)
-  const [undoing, setUndoing] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // ワークアウト作成の二重発行を防ぐための、進行中の作成 Promise。
   // 1件目の呼び出しがこれを埋め、以降の呼び出しは同じ Promise を待つだけにする。
@@ -117,6 +118,8 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   // いない」と誤認してしまう。id は UUID で使い回されないので、消さなくても
   // 安全（このマウント中に取り消した件数分しか増えない）。
   const abandonedIdsRef = useRef<Set<string>>(new Set())
+  // 今日のワークアウトの読み込みは1回だけ行う（再試行で記録中のセットを上書きしないため）
+  const todayLoadedRef = useRef(false)
 
   // 認証切れやリロードで画面が失われても記録を復元できるよう、変更のたびに退避する。
   // workoutId は state 化したので、作成直後の値も取りこぼさずに書き込まれる。
@@ -146,11 +149,18 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
     let active = true
     setLoading(true)
     setLoadError(null)
-    Promise.all([fetchExercises(), fetchUserSetHistory(userId)])
-      .then(([ex, hist]) => {
+    // 1日の記録は1件にまとめる。下書きが無ければ、今日すでに保存したセットを読み込んで続きから記録する。
+    const resumeToday = !draft?.workoutId && !draft?.state.sets.length && !todayLoadedRef.current
+    Promise.all([fetchExercises(), fetchUserSetHistory(userId), resumeToday ? fetchTodayWorkout(userId) : Promise.resolve(null)])
+      .then(([ex, hist, today]) => {
         if (!active) return
         setExercises(ex)
         setHistory(hist)
+        if (resumeToday) todayLoadedRef.current = true
+        if (today) {
+          setWorkoutId(today.id)
+          dispatch({ type: 'load-sets', sets: today.sets })
+        }
       })
       .catch((e) => { if (active) setLoadError(toMessage(e)) })
       .finally(() => { if (active) setLoading(false) })
@@ -290,21 +300,21 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
     void persist(target)
   }
 
-  async function handleUndo() {
-    if (undoing) return
-    const last = state.sets[state.sets.length - 1]
-    if (!last) return
-    setUndoing(true)
+  async function handleDelete(setId: string) {
+    if (deletingId) return
+    const target = state.sets.find((s) => s.id === setId)
+    if (!target) return
+    setDeletingId(setId)
     try {
-      abandonedIdsRef.current.add(last.id)
-      const st = statusById[last.id] ?? 'saved'
+      abandonedIdsRef.current.add(target.id)
+      const st = statusById[target.id] ?? 'saved'
       if (st === 'saved') {
         try {
-          await deleteSet(last.id)
+          await deleteSet(target.id)
         } catch (e) {
           // 削除できなかった場合は行を残し、記録が消えたように見せない。
           // まだ本当には取り消されていないので、abandoned の印も取り消す。
-          abandonedIdsRef.current.delete(last.id)
+          abandonedIdsRef.current.delete(target.id)
           show(toMessage(e))
           return
         }
@@ -312,14 +322,14 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
       // pending / failed のセットは DB にまだコミットされていない（か既に
       // 掃除済みの）ので、ローカルの表示から外すだけでよい。まだ進行中の
       // 保存があれば、上の abandonedIdsRef への追加が persist 側で処理する。
-      dispatch({ type: 'undo-last-set' })
+      dispatch({ type: 'remove-set', id: target.id })
       setStatusById((prev) => {
         const next = { ...prev }
-        delete next[last.id]
+        delete next[target.id]
         return next
       })
     } finally {
-      setUndoing(false)
+      setDeletingId(null)
     }
   }
 
@@ -403,7 +413,6 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
           <div>
             <p className="mb-1 text-xs text-muted">{new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}</p>
             <h1 className="text-2xl font-semibold tracking-tight">{state.sets.length ? '次はどの種目？' : '今日のトレーニング'}</h1>
-            <p className="mt-2 text-sm text-muted">種目を選んで、そのまま記録。</p>
           </div>
           {state.sets.length > 0 && <button type="button" onClick={() => setPicking(false)} className="min-h-14 px-2 text-sm text-muted">戻る</button>}
           {state.sets.length > 0 && (
@@ -471,9 +480,9 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
           sets={state.sets}
           exerciseNames={exerciseNames}
           status={statusById}
-          onUndo={() => void handleUndo()}
+          onDelete={handleDelete}
           onRetry={handleRetry}
-          undoing={undoing}
+          deletingId={deletingId}
         />
       </div>
 

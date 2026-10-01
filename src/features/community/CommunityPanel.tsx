@@ -4,16 +4,18 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import { useSession } from '../auth/SessionProvider'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
+import { GlobalRanking } from './GlobalRanking'
 import { communityMessage, listCommunities, manage, profile, ranking, rankMembers, saveProfile, type Community, type CommunityProfile, type Member } from './queries'
 
 const field = 'min-h-14 w-full rounded-xl border border-border bg-bg px-3 text-fg'
 const lifts = [{ key: 'squat', name: 'スクワット' }, { key: 'bench', name: 'ベンチプレス' }, { key: 'deadlift', name: 'デッドリフト' }] as const
+const GLOBAL = 'global'
 const kg = (n: number | null) => n === null ? '—' : `${n} kg`
 
 export function CommunityPanel() {
   const { userId } = useSession()
   const [groups, setGroups] = useState<Community[]>([])
-  const [selected, setSelected] = useState('')
+  const [selected, setSelected] = useState(GLOBAL)
   const [members, setMembers] = useState<Member[]>([])
   const [person, setPerson] = useState<string | null>(null)
   const [mine, setMine] = useState<CommunityProfile | null>(null)
@@ -38,13 +40,13 @@ export function CommunityPanel() {
     setLoading(true); setLoadError(null)
     Promise.all([listCommunities(), profile(userId)]).then(([g, p]) => {
       if (!active) return
-      setGroups(g); setMine(p); setSelected((id) => g.some((c) => c.id === id) ? id : g[0]?.id ?? '')
+      setGroups(g); setMine(p); setSelected((id) => g.some((c) => c.id === id) ? id : GLOBAL)
     }).catch((e) => { if (active) setLoadError(communityMessage(e)) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [userId, attempt])
   useEffect(() => {
     setMembers([]); setPerson(null); setRankError(null)
-    if (!selected) return
+    if (selected === GLOBAL) return
     let active = true
     setRankLoading(true)
     ranking(selected).then((data) => { if (active) setMembers(data) })
@@ -61,10 +63,13 @@ export function CommunityPanel() {
   const detail = members.find((m) => m.user_id === person)
   if (loading) return <Spinner />
   if (loadError) return <div className="space-y-3"><p role="alert">コミュニティを読み込めませんでした。{loadError}</p><Button onClick={() => setAttempt((n) => n + 1)}>再試行</Button></div>
-  return <section className="space-y-5" aria-label="コミュニティ">
+  return <section className="space-y-5" aria-label="ランキング">
+    <div className="-mx-4 flex gap-2 overflow-x-auto px-4" role="group" aria-label="ランキングの範囲">{[{ id: GLOBAL, name: '全体' }, ...groups].map((g) => <button key={g.id} disabled={busy} aria-pressed={selected === g.id}
+      className={`min-h-14 shrink-0 rounded-full border px-5 text-sm ${selected === g.id ? 'border-accent bg-surface text-fg' : 'border-border text-muted'}`}
+      onClick={() => { setSelected(g.id); setConfirm(null); setError(null) }}>{g.name}</button>)}</div>
     {error && <p role="alert" className="text-sm text-accent">{error}</p>}
-    <details open={groups.length === 0} className="rounded-xl border border-border p-3">
-      <summary className="flex min-h-14 cursor-pointer items-center text-sm">プロフィール・参加管理</summary>
+    <details className="rounded-xl border border-border p-3">
+      <summary className="flex min-h-14 cursor-pointer items-center text-sm">＋ コミュニティに参加・作成</summary>
       <div className="space-y-4">
     {draft ? <form className="space-y-3 rounded-2xl border border-border p-4" onSubmit={(e) => { e.preventDefault(); void run(async () => { await saveProfile(draft); window.dispatchEvent(new Event('glog-profile-updated')); setMine(draft); setDraft(null); setRankAttempt((n) => n + 1) }) }}>
       <h2 className="font-semibold">プロフィール</h2>
@@ -86,7 +91,7 @@ export function CommunityPanel() {
     </form>}
       </div>
     </details>
-    {groups.length > 0 && <label className="block text-sm">コミュニティ<select className={field} value={selected} disabled={busy} onChange={(e) => { setSelected(e.target.value); setConfirm(null); setError(null) }}>{groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></label>}
+    {selected === GLOBAL && <GlobalRanking />}
     {group && <>
       <div className="flex border-b border-border">{(['total','growth'] as const).map((m) => <button key={m} className={`min-h-14 flex-1 text-sm ${mode === m ? 'border-b-2 border-accent text-fg' : 'text-muted'}`} aria-pressed={mode === m} onClick={() => setMode(m)}>{m === 'total' ? 'BIG3合計' : '今月の伸び'}</button>)}</div>
       <p className="text-xs text-muted">{mode === 'total' ? '各種目の最高推定1RMの合計 · 自己申告の記録' : '月初からの自己ベスト合計の増加（日本時間）。月初以前に3種目の記録が必要です。'}</p>

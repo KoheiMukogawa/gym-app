@@ -325,5 +325,40 @@ test('Big3 score has one editable goal and the logo returns home', async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.getByRole('link', { name: 'Glog トップへ', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
+  // Today's sets were seeded above, so the home screen continues today's single workout.
+  await expect(page.getByRole('heading', { name: '次はどの種目？' })).toBeVisible()
+})
+
+test('sets are deleted by swiping left like a mail app', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  for (const reps of ['8', '6', '4']) {
+    await page.getByRole('spinbutton', { name: '回数', exact: true }).fill(reps)
+    await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  }
+  await expect.poll(() => data.sets.length).toBe(3)
+  await expect(page.getByRole('button', { name: '直前のセットを取り消す' })).toHaveCount(0)
+  const rows = page.getByRole('listitem')
+  const swipe = async (index: number, distance: number) => {
+    const box = (await rows.nth(index).boundingBox())!
+    const y = box.y + box.height / 2
+    await page.mouse.move(box.x + box.width - 10, y)
+    await page.mouse.down()
+    for (let step = 1; step <= 10; step++) await page.mouse.move(box.x + box.width - 10 - distance * step / 10, y)
+    await page.mouse.up()
+  }
+  // A long swipe deletes the middle set right away.
+  const middle = data.sets[1].id
+  await swipe(1, 300)
+  await expect.poll(() => data.sets.map((s) => s.id)).not.toContain(middle)
+  await expect(rows).toHaveCount(2)
+  await expect(rows.nth(1)).toContainText('2set')
+  // A short swipe only reveals the delete button.
+  await swipe(0, 100)
+  await expect(page.getByText('削除', { exact: true }).first()).toBeInViewport()
+  expect(data.sets).toHaveLength(2)
+  await page.screenshot({ path: 'test-results/swipe-delete-mobile.png' })
+  await page.getByRole('button', { name: /1set .*を削除$/ }).click()
+  await expect.poll(() => data.sets.length).toBe(1)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

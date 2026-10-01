@@ -11,7 +11,7 @@ import { ExercisePicker } from '../exercises/ExercisePicker'
 import { exerciseLabel } from '../exercises/catalog'
 import { createExercise, fetchExercises } from '../exercises/queries'
 import { loadDraft, clearDraft } from '../workout-log/persistence'
-import { createDatedWorkout, fetchEditableWorkout, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutDate, updateWorkoutSet } from './editorQueries'
+import { createDatedWorkout, fetchEditableWorkout, findWorkoutOnDate, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutDate, updateWorkoutSet } from './editorQueries'
 
 type Entry = { id: string; exercise_id: string; weight: string; reps: string; existing: boolean }
 const fieldClass = 'min-h-14 min-w-0 w-full rounded-xl border border-border bg-bg px-3 text-lg tabular-nums'
@@ -117,9 +117,15 @@ export function WorkoutEditorPage() {
       validateSet(weight_kg, reps)
       workoutDateISO(date)
       let id = savedId
+      let known = sets
       if (!id) {
-        id = newId.current
-        await createDatedWorkout(userId, id, date)
+        // One workout per day: add to the day's existing record when there is one.
+        id = await findWorkoutOnDate(userId, date)
+        if (id) known = (await fetchEditableWorkout(userId, id))?.workout_sets ?? []
+        else {
+          id = newId.current
+          await createDatedWorkout(userId, id, date)
+        }
         setSavedId(id)
         setSavedDate(workoutDateISO(date))
       } else if (savedDate && date !== localDate(savedDate)) {
@@ -127,7 +133,7 @@ export function WorkoutEditorPage() {
       }
       const old = sets.find((s) => s.id === entry.id)
       const set_index = old?.exercise_id === entry.exercise_id ? old.set_index
-        : 1 + Math.max(0, ...sets.filter((s) => s.exercise_id === entry.exercise_id).map((s) => s.set_index))
+        : 1 + Math.max(0, ...known.filter((s) => s.exercise_id === entry.exercise_id).map((s) => s.set_index))
       const next: WorkoutSet = {
         id: entry.id, workout_id: id, exercise_id: entry.exercise_id, weight_kg, reps, set_index,
         created_at: old?.created_at ?? new Date().toISOString(),
@@ -165,6 +171,7 @@ export function WorkoutEditorPage() {
         </label>
         {savedId && savedDate && date !== localDate(savedDate) && (
           <Button disabled={busy} onClick={() => void action(async () => {
+            if (await findWorkoutOnDate(userId!, date, savedId)) throw new InputError('この日にはすでに記録があります。その日の記録に追加してください')
             const value = await updateWorkoutDate(userId!, savedId, date, savedDate)
             setSavedDate(value)
             invalidateDraft()

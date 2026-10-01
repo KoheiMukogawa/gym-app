@@ -12,8 +12,9 @@ vi.mock('../routines/queries', async (original) => ({
 
 const USER = 'user-1'
 
-const { createWorkout, saveSet, deleteWorkoutIfEmpty, deleteSet, fetchUserSetHistory } = vi.hoisted(
+const { createWorkout, saveSet, deleteWorkoutIfEmpty, deleteSet, fetchUserSetHistory, fetchTodayWorkout } = vi.hoisted(
   () => ({
+    fetchTodayWorkout: vi.fn(),
     createWorkout: vi.fn(),
     saveSet: vi.fn(),
     deleteWorkoutIfEmpty: vi.fn(),
@@ -28,7 +29,10 @@ vi.mock('./queries', () => ({
   deleteWorkoutIfEmpty,
   deleteSet,
   fetchUserSetHistory,
+  fetchTodayWorkout,
 }))
+
+const lastDeleteButton = () => screen.getAllByRole('button', { name: /を削除$/ }).at(-1)!
 
 const { fetchExercises, createExercise, fetchRecentExerciseIds } = vi.hoisted(() => ({
   fetchExercises: vi.fn(),
@@ -91,6 +95,7 @@ describe('LogPage', () => {
     fetchExercises.mockResolvedValue([BENCH])
     fetchRecentExerciseIds.mockResolvedValue([])
     fetchUserSetHistory.mockResolvedValue([])
+    fetchTodayWorkout.mockResolvedValue(null)
     saveSet.mockResolvedValue(undefined)
     deleteWorkoutIfEmpty.mockResolvedValue(false)
     deleteSet.mockResolvedValue(undefined)
@@ -157,6 +162,51 @@ describe('LogPage', () => {
     expect(screen.getByRole('button', { name: /未保存/ })).toBeInTheDocument()
   })
 
+  it('continues today\'s workout instead of starting a second one for the day', async () => {
+    fetchTodayWorkout.mockResolvedValue({
+      id: 'today',
+      sets: [{ id: 'old', exercise_id: 'bench', set_index: 1, weight_kg: 60, reps: 10 }],
+    })
+
+    renderLogPage()
+    expect(await screen.findByRole('heading', { name: '次はどの種目？' })).toBeInTheDocument()
+    await userEvent.click(screen.getAllByRole('button', { name: /ベンチプレス/ })[0])
+    await userEvent.click(await screen.findByRole('button', { name: /セット完了/ }))
+
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
+    expect(createWorkout).not.toHaveBeenCalled()
+    expect(saveSet).toHaveBeenCalledWith('today', expect.objectContaining({ exercise_id: 'bench', set_index: 2 }))
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('does not load today\'s workout over a restored draft that already has one', async () => {
+    saveDraft(USER, {
+      state: { currentExerciseId: 'bench', weight_kg: 80, reps: 8, sets: [{ id: 'd1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 }] },
+      workoutId: 'w0',
+      status: { d1: 'saved' },
+    })
+    renderLogPage()
+    await screen.findByRole('button', { name: /セット完了/ })
+    expect(fetchTodayWorkout).not.toHaveBeenCalled()
+  })
+
+  it('deletes a set from the middle of the list', async () => {
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+    await userEvent.click(button)
+    await userEvent.click(button)
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(2))
+    const firstId = saveSet.mock.calls[0][1].id
+
+    await userEvent.click(screen.getAllByRole('button', { name: /を削除$/ })[0])
+
+    await waitFor(() => expect(deleteSet).toHaveBeenCalledWith(firstId))
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1))
+  })
+
   it('calls deleteSet when undoing a saved set', async () => {
     seedDraftWithExercise()
     createWorkout.mockResolvedValue({ id: 'w1' })
@@ -166,7 +216,7 @@ describe('LogPage', () => {
     await userEvent.click(button)
     await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
 
-    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
+    await userEvent.click(lastDeleteButton())
 
     await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
   })
@@ -181,7 +231,7 @@ describe('LogPage', () => {
     await userEvent.click(button)
     await screen.findByRole('button', { name: /未保存/ })
 
-    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
+    await userEvent.click(lastDeleteButton())
 
     expect(deleteSet).not.toHaveBeenCalled()
   })
@@ -206,7 +256,7 @@ describe('LogPage', () => {
     await userEvent.click(button)
     await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
 
-    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
+    await userEvent.click(lastDeleteButton())
 
     await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
     // 削除が失敗したので、行は消えずに残っている
@@ -255,7 +305,7 @@ describe('LogPage', () => {
     await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
 
     // セット A を取り消す（DB 上の w1 が空になる）
-    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
+    await userEvent.click(lastDeleteButton())
     await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
 
     // セット B を記録 → 保存が失敗し、w1 は空だったため削除され workoutId がリセットされる
@@ -296,7 +346,7 @@ describe('LogPage', () => {
     await userEvent.click(rowRetry)
 
     // 保留のうちに取り消す
-    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
+    await userEvent.click(lastDeleteButton())
     expect(screen.getByText('まだ記録がありません')).toBeInTheDocument()
     expect(deleteSet).not.toHaveBeenCalled()
 
@@ -354,7 +404,7 @@ describe('LogPage', () => {
     await userEvent.click(button)
 
     // 保存がまだ pending のうちに取り消す
-    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
+    await userEvent.click(lastDeleteButton())
     expect(screen.getByText('まだ記録がありません')).toBeInTheDocument()
     expect(deleteSet).not.toHaveBeenCalled()
 
@@ -383,8 +433,7 @@ describe('LogPage', () => {
   })
 
   it('does not double-delete when the undo control is tapped twice quickly, dropping exactly one row', async () => {
-    // 1件だけだと undo-last-set は2回叩いても sets.slice(0, -1) が両方とも []
-    // になり、「2行落ちて1件しか消えていない」というバグを観測できない。
+    // 1件だけだと「2行落ちて1件しか消えていない」というバグを観測できない。
     // 2件以上仕込んで、残りがちょうど1件であることを確認する。
     seedDraftWithExercise()
     createWorkout.mockResolvedValue({ id: 'w1' })
@@ -406,9 +455,10 @@ describe('LogPage', () => {
         }),
     )
 
-    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
-    // 進行中は取り消し中…に変わり、無効化されているので2回目のタップは効かない
-    await userEvent.click(screen.getByRole('button', { name: '取り消し中…' }))
+    await userEvent.click(lastDeleteButton())
+    // 削除中は削除ボタンが無効化されているので、2回目のタップは効かない
+    expect(lastDeleteButton()).toBeDisabled()
+    await userEvent.click(lastDeleteButton())
 
     deferred.resolve?.()
 

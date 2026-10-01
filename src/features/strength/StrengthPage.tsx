@@ -146,8 +146,7 @@ export function StrengthPage() {
     <Button variant="ghost" onClick={load}>再試行</Button>
   </div>
   return <div className="flex flex-col gap-6 p-4">
-    <header><p className="text-xs uppercase tracking-[0.2em] text-muted">Strength</p>
-      <h1 className="mt-1 text-2xl font-bold">Big3の成長</h1></header>
+    <header><h1 className="text-2xl font-bold">BIG3</h1></header>
     {editing ? <section className="rounded-3xl border border-border bg-surface p-5">
       <h2 className="mb-5 text-lg font-semibold">{goal ? '目標を変更' : '目標を設定'}</h2>
       <form onSubmit={(event) => void save(event)} className="space-y-5">
@@ -165,10 +164,6 @@ export function StrengthPage() {
         <Button type="button" variant="ghost" disabled={saving} onClick={() => setEditing(false)}>キャンセル</Button>
       </form>
     </section> : <StrengthScore snapshot={snapshot} goal={goal} onEdit={edit} />}
-    <div className="flex items-center justify-between rounded-2xl border border-border px-4 py-4">
-      <div><p className="text-sm text-muted">直近30日の推定合計</p><p className="mt-1 text-xs text-muted">1〜10回の記録から算出</p></div>
-      <p className="text-2xl font-semibold tabular-nums">{formatKg(snapshot.currentEstimatedTotal)}<span className="ml-1 text-xs font-normal text-muted">kg</span></p>
-    </div>
     <section className="flex flex-col gap-3" aria-label="種目ごとの記録">
       <h2 className="text-sm font-semibold">種目ごとの記録</h2>
       <LiftCard lift={snapshot.lifts.squat} /><LiftCard lift={snapshot.lifts.bench} /><LiftCard lift={snapshot.lifts.deadlift} />

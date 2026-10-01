@@ -22,7 +22,8 @@ export type LogAction =
   | { type: 'set-weight'; value: number }
   | { type: 'set-reps'; value: number }
   | { type: 'complete-set'; id: string }
-  | { type: 'undo-last-set' }
+  | { type: 'remove-set'; id: string }
+  | { type: 'load-sets'; sets: LoggedSet[] }
 
 export const initialLogState: LogState = {
   currentExerciseId: null,
@@ -59,8 +60,10 @@ export function logReducer(state: LogState, action: LogAction): LogState {
       if (set === null) return state
       return { ...state, sets: [...state.sets, set] }
     }
-    case 'undo-last-set':
-      return { ...state, sets: state.sets.slice(0, -1) }
+    case 'remove-set':
+      return { ...state, sets: state.sets.filter((s) => s.id !== action.id) }
+    case 'load-sets':
+      return { ...state, sets: action.sets }
   }
 }
 
@@ -73,11 +76,12 @@ export function logReducer(state: LogState, action: LogAction): LogState {
 export function nextSet(state: LogState, id: string): LoggedSet | null {
   if (state.currentExerciseId === null) return null
   const exerciseId = state.currentExerciseId
-  const count = state.sets.filter((s) => s.exercise_id === exerciseId).length
+  // 途中のセットを削除しても番号が重複しないよう、件数ではなく最大値の次にする
+  const last = Math.max(0, ...state.sets.filter((s) => s.exercise_id === exerciseId).map((s) => s.set_index))
   return {
     id,
     exercise_id: exerciseId,
-    set_index: count + 1,
+    set_index: last + 1,
     weight_kg: state.weight_kg,
     reps: state.reps,
   }

@@ -7,7 +7,7 @@ import { ToastProvider } from '../../components/ui/Toast'
 import { localDate } from '../../lib/dates'
 
 const api = vi.hoisted(() => ({
-  fetchEditableWorkout: vi.fn(), createDatedWorkout: vi.fn(), updateWorkoutDate: vi.fn(),
+  fetchEditableWorkout: vi.fn(), findWorkoutOnDate: vi.fn(), createDatedWorkout: vi.fn(), updateWorkoutDate: vi.fn(),
   updateWorkoutSet: vi.fn(), removeWorkoutSet: vi.fn(), removeWorkout: vi.fn(),
   fetchExercises: vi.fn(), createExercise: vi.fn(), saveEditableSet: vi.fn(),
 }))
@@ -33,6 +33,7 @@ beforeEach(() => {
   api.fetchEditableWorkout.mockResolvedValue(WORKOUT)
   api.updateWorkoutSet.mockResolvedValue(undefined)
   api.createDatedWorkout.mockResolvedValue(undefined)
+  api.findWorkoutOnDate.mockResolvedValue(null)
   api.saveEditableSet.mockResolvedValue(undefined)
 })
 describe('WorkoutEditorPage', () => {
@@ -92,6 +93,17 @@ describe('WorkoutEditorPage', () => {
     expect(api.createDatedWorkout).toHaveBeenCalledTimes(1)
     expect(api.createDatedWorkout).toHaveBeenCalledWith('u1', expect.any(String), '2020-02-03')
     expect(api.saveEditableSet.mock.calls[0][1].id).toBe(api.saveEditableSet.mock.calls[1][1].id)
+  })
+  it('adds to the existing record for that day instead of creating a second one', async () => {
+    api.findWorkoutOnDate.mockResolvedValue('w-day')
+    api.fetchEditableWorkout.mockImplementation(async (_user, id) => ({ ...WORKOUT, id, performed_at: '2020-02-03T12:00:00Z', workout_sets: [{ ...SET, weight_kg: 20, reps: 10 }] }))
+    const user = setup('/history/new?date=2020-02-03')
+    await user.click(await screen.findByRole('button', { name: 'ベンチプレス' }))
+    await user.click(screen.getByRole('button', { name: 'セットを追加' }))
+    await screen.findByRole('button', { name: /20kg 10回を編集/ })
+    expect(api.findWorkoutOnDate).toHaveBeenCalledWith('u1', '2020-02-03')
+    expect(api.createDatedWorkout).not.toHaveBeenCalled()
+    expect(api.saveEditableSet).toHaveBeenCalledWith('w-day', expect.objectContaining({ exercise_id: 'bench', set_index: 2 }))
   })
   it('does not expose editing controls for another user or missing record', async () => {
     api.fetchEditableWorkout.mockResolvedValue(null)
