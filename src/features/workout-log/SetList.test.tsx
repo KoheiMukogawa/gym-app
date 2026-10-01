@@ -20,7 +20,7 @@ describe('SetList', () => {
     expect(screen.getByText('まだ記録がありません')).toBeInTheDocument()
   })
 
-  it('shows the newest set first', () => {
+  it('groups sets under one exercise in ascending order', () => {
     render(
       <SetList
         sets={[
@@ -35,8 +35,9 @@ describe('SetList', () => {
       />,
     )
     const items = screen.getAllByRole('listitem')
-    expect(items[0]).toHaveTextContent('2セット目')
-    expect(items[0]).toHaveTextContent('82.5')
+    expect(items[0]).toHaveTextContent('1set')
+    expect(screen.getAllByText(NAMES.bench)).toHaveLength(1)
+    expect(items[1]).toHaveTextContent('82.5')
   })
 
   it('calls onUndo when the undo button is pressed', async () => {

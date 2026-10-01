@@ -5,7 +5,8 @@ import { validateSet } from '../../lib/dates'
 import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
-import { NumberStepper } from '../../components/ui/NumberStepper'
+import { WheelNumber } from '../../components/ui/WheelNumber'
+import { estimateOneRepMax } from '../../lib/strength'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from '../auth/SessionProvider'
@@ -53,7 +54,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'>
   })
 }
 
-export function LogPage({ home = false }: { home?: boolean }) {
+export function LogPage({ home = false, onFinished }: { home?: boolean; onFinished?: () => void }) {
   const { userId } = useSession()
   const navigate = useNavigate()
   const { show } = useToast()
@@ -384,6 +385,7 @@ export function LogPage({ home = false }: { home?: boolean }) {
         10_000,
       )
       clearDraft(userId)
+      onFinished?.()
       navigate(home ? '/history' : '/')
     } finally {
       setFinishing(false)
@@ -464,7 +466,7 @@ export function LogPage({ home = false }: { home?: boolean }) {
         </div>
       </section>}
 
-      <div className="flex-1 overflow-y-auto px-4 pb-[26rem]">
+      <div className="order-2 px-4 pb-4">
         <SetList
           sets={state.sets}
           exerciseNames={exerciseNames}
@@ -475,25 +477,22 @@ export function LogPage({ home = false }: { home?: boolean }) {
         />
       </div>
 
-      <div className={`fixed inset-x-0 mx-auto max-w-lg border-t border-border bg-bg px-4 pb-4 pt-4 ${home ? 'bottom-[calc(4rem+env(safe-area-inset-bottom))]' : 'bottom-0'}`}>
-        <div className="mb-4 flex flex-col gap-4">
-          <NumberStepper
-            direct
+      <div className="order-1 border-t border-border bg-bg px-4 pb-6 pt-4">
+        <div className="mb-4 grid grid-cols-2 gap-4">
+          <WheelNumber
             label="重量"
             value={state.weight_kg}
             unit="kg"
-            onStep={(direction) => dispatch({ type: 'adjust-weight', direction })}
             onEnter={(value) => dispatch({ type: 'set-weight', value })}
           />
-          <NumberStepper
-            direct
+          <WheelNumber
             label="回数"
             value={state.reps}
             unit="回"
-            onStep={(direction) => dispatch({ type: 'adjust-reps', direction })}
             onEnter={(value) => dispatch({ type: 'set-reps', value })}
           />
         </div>
+        <p className="mb-4 text-center text-sm text-muted" aria-live="polite">推定1RM <strong className="ml-2 text-xl text-fg tabular-nums">{estimateOneRepMax(state.weight_kg,state.reps) === null ? '—' : estimateOneRepMax(state.weight_kg,state.reps) + ' kg'}</strong>{state.reps>10&&<span className="ml-2 text-xs">1〜10回で換算</span>}</p>
         <Button size="lg" onClick={handleCompleteSet} disabled={offline || finishing}>
           {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
         </Button>

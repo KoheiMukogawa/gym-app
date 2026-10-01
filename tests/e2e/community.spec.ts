@@ -15,13 +15,11 @@ test('community profile, create, ranking retry, ties, member detail, join and le
     if(req.method()==='OPTIONS') return route.fulfill({status:204})
     if(endpoint==='token') return send(session)
     if(endpoint==='user') return send(session.user)
-    if(endpoint==='profiles') return send({id:uid,display_name:'Private name'})
-    if(endpoint==='community_profiles') {
-      if(req.method()==='POST') {
-        if(failSave) { failSave=false; return send({message:'保存を再試行してください'},500) }
-        mine=body; return send(null)
-      }
-      return send(mine)
+    if(endpoint==='profiles') return send({id:uid,display_name:mine?.display_name??'Private name',icon:mine?.icon??'initials'})
+    if(endpoint==='community_profiles') return send(mine)
+    if(endpoint==='save_glog_profile') {
+      if(failSave) { failSave=false; return send({message:'保存エラー'},500) }
+      mine={user_id:uid,display_name:body.p_name,icon:body.p_icon,bio:body.p_bio,global_ranking:body.p_global};return send(null)
     }
     if(endpoint==='community_list') return send(groups)
     if(endpoint==='community_manage') {
@@ -31,7 +29,7 @@ test('community profile, create, ranking retry, ties, member detail, join and le
       if(body.p_action==='rotate') groups[0].invite_code='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
       return send(body.p_action==='join'?'group2':'group1')
     }
-    if(endpoint==='community_ranking') {
+    if(endpoint==='community_ranking'||endpoint==='global_ranking') {
       if(failRanking) { failRanking=false; return send({message:'ランキング通信エラー'},500) }
       const members: Member[]=[
         {...mine!,total:450,growth:20,lifts:{squat:150,bench:100,deadlift:200},points:[{lift:'bench',date:'2026-09-01',value:90},{lift:'bench',date:'2026-10-01',value:100}]},
@@ -80,5 +78,17 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByRole('button',{name:'コミュニティから退出'}).click()
   await page.getByRole('button',{name:'確定する'}).click()
   await expect(page.getByRole('combobox',{name:'コミュニティ',exact:true})).toHaveValue('group1')
+  await page.getByRole('button',{name:'プロフィールメニュー'}).click()
+  await page.getByRole('link',{name:'プロフィールを編集'}).click()
+  await page.getByLabel('名前',{exact:true}).fill('コウヘイ2')
+  await page.getByRole('button',{name:'ターゲット',exact:true}).click()
+  await page.getByLabel('全体ランキングに参加する').check()
+  await page.getByRole('button',{name:'プロフィールを保存'}).click()
+  await expect(page.getByRole('status')).toContainText('保存しました')
+  expect(mine).toMatchObject({display_name:'コウヘイ2',icon:'target',global_ranking:true})
+  await page.getByRole('link',{name:'Big3',exact:true}).click()
+  await page.getByRole('button',{name:'全体',exact:true}).click()
+  await expect(page.getByRole('heading',{name:'全体ランキング'})).toBeVisible()
+  await expect(page.getByRole('listitem').filter({hasText:'コウヘイ2'})).toContainText('450 kg')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
 })

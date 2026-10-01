@@ -1,53 +1,23 @@
-import { Link, NavLink, Outlet } from 'react-router-dom'
-import { useState } from 'react'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import { useSession } from '../features/auth/SessionProvider'
 import { toMessage } from '../lib/errors'
-
-const TABS = [
-  { to: '/', label: '記録' },
-  { to: '/history', label: '履歴' },
-  { to: '/strength', label: 'Big3' },
-]
-
-export function AppShell() {
-  const { signOut } = useSession()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  return (
-    <div className="mx-auto flex min-h-full max-w-lg flex-col">
-      <header className="flex items-center justify-between px-4 pt-2">
-        <Link to="/" aria-label="Glog トップへ" className="flex min-h-14 items-center text-xs font-semibold tracking-[0.25em] text-muted">Glog</Link>
-        <details className="relative">
-          <summary className="flex min-h-14 min-w-14 cursor-pointer list-none items-center justify-center text-xl text-muted" aria-label="アカウント">•••</summary>
-          <div className="absolute right-0 z-50 w-60 rounded-xl border border-border bg-surface p-3 shadow-xl">
-            {error && <p role="alert" className="p-2 text-sm text-accent">{error}</p>}
-            <button className="min-h-14 w-full text-sm" disabled={busy} onClick={async () => {
-              setBusy(true); setError(null)
-              try { await signOut() } catch (e) { setError(toMessage(e)) }
-              finally { setBusy(false) }
-            }}>{busy ? 'ログアウト中…' : 'ログアウト'}</button>
-          </div>
-        </details>
-      </header>
-      <main className="flex-1 pb-20">
-        <Outlet />
-      </main>
-      <nav aria-label="メイン" className="fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-lg border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]">
-        {TABS.map((tab) => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            end={tab.to === '/'}
-            className={({ isActive }) =>
-              `flex min-h-16 flex-1 items-center justify-center text-sm ${
-                isActive ? 'text-accent font-semibold' : 'text-muted'
-              }`
-            }
-          >
-            {tab.label}
-          </NavLink>
-        ))}
-      </nav>
-    </div>
-  )
+import { Avatar } from '../features/profile/Avatar'
+import { LogPage } from '../features/workout-log/LogPage'
+const TABS=[{to:'/',label:'記録'},{to:'/history',label:'履歴'},{to:'/strength',label:'Big3'}]
+export function AppShell(){
+  const {signOut,profile,refreshProfile}=useSession(),location=useLocation()
+  const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[logKey,setLogKey]=useState(0)
+  useEffect(()=>{const update=()=>{void refreshProfile().catch(()=>{})};window.addEventListener('glog-profile-updated',update);return()=>window.removeEventListener('glog-profile-updated',update)},[refreshProfile])
+  const menu=useRef<HTMLDivElement>(null)
+  useEffect(()=>setOpen(false),[location.pathname,location.search])
+  useEffect(()=>{if(!open)return;const outside=(e:PointerEvent)=>{if(!menu.current?.contains(e.target as Node))setOpen(false)};const escape=(e:KeyboardEvent)=>{if(e.key==='Escape')setOpen(false)};document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape)}},[open])
+  return <div className="mx-auto flex min-h-dvh max-w-lg flex-col">
+    <header className="flex items-center justify-between px-4 py-2"><Link to="/" aria-label="Glog トップへ" className="flex min-h-14 items-center text-3xl font-bold tracking-tight">Glog</Link>
+      <div ref={menu} className="relative"><button className="flex min-h-14 min-w-14 items-center justify-center" aria-label="プロフィールメニュー" aria-expanded={open} onClick={()=>setOpen(v=>!v)}><Avatar icon={profile?.icon} name={profile?.display_name}/></button>
+        {open&&<div className="absolute right-0 z-50 w-64 rounded-xl border border-border bg-surface p-3 shadow-xl"><p className="break-words px-3 py-2 font-semibold">{profile?.display_name||'プロフィール'}</p><Link to="/profile" className="flex min-h-14 items-center px-3 text-sm">プロフィールを編集</Link>{error&&<p role="alert" className="text-sm text-accent">{error}</p>}<button className="min-h-14 w-full px-3 text-left text-sm text-muted" disabled={busy} onClick={async()=>{setBusy(true);setError(null);try{await signOut()}catch(e){setError(toMessage(e))}finally{setBusy(false)}}}>{busy?'ログアウト中…':'ログアウト'}</button></div>}
+      </div></header>
+    <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]"><div hidden={location.pathname!=='/'}><LogPage key={logKey} home onFinished={()=>setLogKey(k=>k+1)}/></div><Outlet/></main>
+    <nav aria-label="メイン" className="fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-lg border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]">{TABS.map(t=><NavLink key={t.to} to={t.to} end={t.to==='/'} className={({isActive})=>`flex min-h-16 flex-1 items-center justify-center text-sm ${isActive?'font-semibold text-accent':'text-muted'}`}>{t.label}</NavLink>)}</nav>
+  </div>
 }

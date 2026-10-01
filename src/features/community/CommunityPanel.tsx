@@ -1,3 +1,4 @@
+import { Avatar, AvatarPicker } from '../profile/Avatar'
 import { useEffect, useRef, useState } from 'react'
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useSession } from '../auth/SessionProvider'
@@ -65,15 +66,15 @@ export function CommunityPanel() {
     <details open={groups.length === 0} className="rounded-xl border border-border p-3">
       <summary className="flex min-h-14 cursor-pointer items-center text-sm">プロフィール・参加管理</summary>
       <div className="space-y-4">
-    {draft ? <form className="space-y-3 rounded-2xl border border-border p-4" onSubmit={(e) => { e.preventDefault(); void run(async () => { await saveProfile(draft); setMine(draft); setDraft(null); setRankAttempt((n) => n + 1) }) }}>
+    {draft ? <form className="space-y-3 rounded-2xl border border-border p-4" onSubmit={(e) => { e.preventDefault(); void run(async () => { await saveProfile(draft); window.dispatchEvent(new Event('glog-profile-updated')); setMine(draft); setDraft(null); setRankAttempt((n) => n + 1) }) }}>
       <h2 className="font-semibold">プロフィール</h2>
       <label className="block text-sm">表示名<input className={field} required maxLength={30} value={draft.display_name} onChange={(e) => setDraft({ ...draft, display_name: e.target.value })} disabled={busy} /></label>
-      <label className="block text-sm">アイコン<select className={field} value={draft.icon} onChange={(e) => setDraft({ ...draft, icon: e.target.value })} disabled={busy}>{['💪','🔥','🏋️','🐻','🐱','⚡'].map((i) => <option key={i}>{i}</option>)}</select></label>
+      <AvatarPicker value={draft.icon} name={draft.display_name} onChange={(icon)=>setDraft({...draft,icon})} disabled={busy}/>
       <label className="block text-sm">ひとこと<input className={field} maxLength={100} value={draft.bio} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} disabled={busy} /></label>
       <Button disabled={busy || !draft.display_name.trim()} type="submit">{busy ? '保存中…' : 'プロフィールを保存'}</Button>
       <Button type="button" variant="ghost" disabled={busy} onClick={() => { setDraft(null); setError(null) }}>キャンセル</Button>
-    </form> : <button className="flex min-h-14 w-full items-center justify-between rounded-xl border border-border px-4 text-sm" onClick={() => { setError(null); setDraft(mine ?? { user_id: userId!, display_name: '', icon: '💪', bio: '' }) }}>
-      <span>{mine ? `${mine.icon} ${mine.display_name}` : 'プロフィールを作る'}</span><span className="text-xs text-muted">編集</span>
+    </form> : <button className="flex min-h-14 w-full items-center justify-between rounded-xl border border-border px-4 text-sm" onClick={() => { setError(null); setDraft(mine ?? { user_id: userId!, display_name: '', icon: 'initials', bio: '' }) }}>
+      <span>{mine ? mine.display_name : 'プロフィールを作る'}</span><span className="text-xs text-muted">編集</span>
     </button>}
     {!mine && <p className="text-sm text-muted">表示名を設定すると、コミュニティを作成・参加できます。</p>}
     <p className="text-xs leading-relaxed text-muted">参加すると、プロフィールとBIG3の数値・推移をメンバーに共有します。全トレーニング履歴は公開されません。</p>
@@ -90,11 +91,11 @@ export function CommunityPanel() {
       <div className="flex border-b border-border">{(['total','growth'] as const).map((m) => <button key={m} className={`min-h-14 flex-1 text-sm ${mode === m ? 'border-b-2 border-accent text-fg' : 'text-muted'}`} aria-pressed={mode === m} onClick={() => setMode(m)}>{m === 'total' ? 'BIG3合計' : '今月の伸び'}</button>)}</div>
       <p className="text-xs text-muted">{mode === 'total' ? '各種目の最高推定1RMの合計 · 自己申告の記録' : '月初からの自己ベスト合計の増加（日本時間）。月初以前に3種目の記録が必要です。'}</p>
       {rankLoading ? <Spinner /> : rankError ? <div><p role="alert">{rankError}</p><Button variant="ghost" onClick={() => setRankAttempt((n) => n + 1)}>再試行</Button></div> : <div className="divide-y divide-border">{rankMembers(members, mode).map((m) => <button key={m.user_id} onClick={() => setPerson(m.user_id)} className={`flex min-h-20 w-full items-center gap-3 px-2 text-left ${m.user_id === userId ? 'bg-surface' : ''}`}>
-        <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span><span aria-hidden="true">{m.icon}</span><span className="min-w-0 flex-1 break-words text-sm">{m.display_name}{m.user_id === userId && <span className="ml-2 text-xs text-muted">自分</span>}</span>
+        <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span><Avatar icon={m.icon} name={m.display_name}/><span className="min-w-0 flex-1 break-words text-sm">{m.display_name}{m.user_id === userId && <span className="ml-2 text-xs text-muted">自分</span>}</span>
         <span className="shrink-0 text-lg font-semibold tabular-nums">{mode === 'growth' && m.growth !== null ? '+' : ''}{kg(m[mode])}</span>
       </button>)}</div>}
       {detail && <section className="space-y-4 rounded-2xl border border-border bg-surface p-4" aria-label="メンバーの記録">
-        <div className="flex items-center justify-between gap-2"><h2 className="break-words font-semibold">{detail.icon} {detail.display_name}</h2><button className="min-h-14 shrink-0 px-2 text-sm text-muted" onClick={() => setPerson(null)}>閉じる</button></div>
+        <div className="flex items-center justify-between gap-2"><h2 className="break-words font-semibold"><Avatar icon={detail.icon} name={detail.display_name}/> {detail.display_name}</h2><button className="min-h-14 shrink-0 px-2 text-sm text-muted" onClick={() => setPerson(null)}>閉じる</button></div>
         {detail.bio && <p className="break-words text-sm text-muted">{detail.bio}</p>}
         {lifts.map((l) => <div key={l.key}><div className="flex justify-between text-sm"><span>{l.name}</span><strong>{kg(detail.lifts[l.key])}</strong></div>
           {detail.points.filter((p) => p.lift === l.key).length >= 2 && <div className="mt-3 h-28"><ResponsiveContainer width="100%" height="100%"><LineChart data={detail.points.filter((p) => p.lift === l.key)}><XAxis dataKey="date" tick={{ fill: '#8A8A93', fontSize: 10 }} tickFormatter={(d: string) => d.slice(5)} /><YAxis hide domain={['dataMin - 5', 'dataMax + 5']} /><Tooltip contentStyle={{ background: '#17171A', border: '1px solid #2A2A2F' }} formatter={(v) => [`${v} kg`, '推定1RM']} /><Line dataKey="value" stroke="var(--color-accent)" dot={false} /></LineChart></ResponsiveContainer></div>}

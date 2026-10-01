@@ -1,7 +1,7 @@
 import { toMessage } from '../../lib/errors'
 import { supabase } from '../../lib/supabase'
 export type Community = { id: string; name: string; owner_id: string; invite_code: string | null }
-export type CommunityProfile = { user_id: string; display_name: string; icon: string; bio: string }
+export type CommunityProfile = { global_ranking?: boolean; user_id: string; display_name: string; icon: string; bio: string }
 export type Member = CommunityProfile & {
   total: number | null; growth: number | null
   lifts: Record<'squat' | 'bench' | 'deadlift', number | null>
@@ -28,7 +28,7 @@ export async function profile(userId: string): Promise<CommunityProfile | null> 
   return data
 }
 export async function saveProfile(value: CommunityProfile) {
-  const { error } = await supabase.from('community_profiles').upsert({ ...value, display_name: value.display_name.trim(), bio: value.bio.trim() })
+  const { error } = await supabase.rpc('save_glog_profile', { p_name: value.display_name.trim(), p_icon: ['initials','barbell','target','bolt'].includes(value.icon) ? value.icon : 'initials', p_bio: value.bio.trim(), p_global: value.global_ranking ?? false })
   if (error) throw error
 }
 export function rankMembers(members: Member[], metric: 'total' | 'growth') {
@@ -44,6 +44,6 @@ export function rankMembers(members: Member[], metric: 'total' | 'growth') {
 export function communityMessage(error: unknown): string {
   const e = error as { code?: string; message?: string } | null
   if (['PGRST202', 'PGRST205', '42P01'].includes(e?.code ?? '')) return 'コミュニティ機能の準備中です。データベースの更新が必要です。'
-  const known = ['ログインが必要です', '先にプロフィールを保存してください', '招待コードが見つかりません', 'コミュニティに参加していません', '作成者はコミュニティの削除を選んでください', 'この操作はできません']
+  const known = ['ログインが必要です', '先にプロフィールを保存してください', '招待コードが見つかりません', 'コミュニティに参加していません', '作成者はコミュニティの削除を選んでください', 'この操作はできません', 'プロフィールの入力内容を確認してください']
   return known.includes(e?.message ?? '') ? e!.message! : toMessage(error)
 }
