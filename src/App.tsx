@@ -8,7 +8,7 @@ import { LogPage } from './features/workout-log/LogPage'
 import { HistoryPage } from './features/history/HistoryPage'
 import { ExerciseDetailPage } from './features/exercises/ExerciseDetailPage'
 import { WorkoutEditorPage } from './features/history/WorkoutEditorPage'
-import { StrengthPage } from './features/strength/StrengthPage'
+import { Big3Page } from './features/community/Big3Page'
 
 export default function App() {
   return (
@@ -20,7 +20,7 @@ export default function App() {
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
                 <Route path="/" element={<LogPage home />} />
-                <Route path="/strength" element={<StrengthPage />} />
+                <Route path="/strength" element={<Big3Page />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/history/new" element={<WorkoutEditorPage key="new" />} />
                 <Route path="/history/:workoutId" element={<WorkoutEditorPage />} />
