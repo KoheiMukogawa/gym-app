@@ -434,8 +434,11 @@ test('history calendar changes month by swiping left and right', async ({ page }
   const label = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月`
   const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   await expect(page.getByText(label(now), { exact: true })).toBeVisible()
+  const calendar = page.getByLabel(/スワイプで月を切り替え/)
   const swipe = async (dx: number) => {
-    const box = (await page.getByLabel(/スワイプで月を切り替え/).boundingBox())!
+    // Wait for the previous slide animation to finish so the swipe starts on the calendar.
+    await expect.poll(() => calendar.evaluate((el) => getComputedStyle(el).transform)).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/)
+    const box = (await calendar.boundingBox())!
     const x = box.x + box.width / 2, y = box.y + box.height / 2
     await page.mouse.move(x, y)
     await page.mouse.down()
