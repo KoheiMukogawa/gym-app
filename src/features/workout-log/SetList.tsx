@@ -3,6 +3,7 @@ import { SwipeRow } from '../../components/SwipeRow'
 import type { LoggedSet } from './logReducer'
 import type { SetStatus } from './persistence'
 import { formatAddedLoad } from '../../lib/bodyweight'
+import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 
 type Props = {
   sets: LoggedSet[]
@@ -49,13 +50,13 @@ export function SetList({ sets, exerciseNames, status, onDelete, onRetry, onNote
               <span className="text-lg font-semibold tabular-nums">{bodyweightIds.includes(id)
                 ? <>{formatAddedLoad(s.weight_kg)}<span className="text-xs font-normal text-muted"> × </span></>
                 : <>{s.weight_kg}<span className="text-xs font-normal text-muted"> kg × </span></>}{s.reps}<span className="text-xs font-normal text-muted"> 回</span></span>
-              {s.note && <span className="w-full break-words text-xs text-muted">{s.note}</span>}
+              {s.note && <span className="w-full whitespace-pre-wrap break-words text-xs text-muted">{s.note}</span>}
             </button>
             {st === 'failed' && <button type="button" onClick={() => onRetry(s.id)} className="min-h-14 text-xs text-accent">未保存・再試行</button>}
-            {editing === s.id && <form className="flex w-full gap-2 pb-1" onSubmit={(e) => { e.preventDefault(); void save(s.id) }}>
-              <input autoFocus maxLength={200} value={draft} disabled={saving} onChange={(e) => setDraft(e.target.value)}
+            {editing === s.id && <form className="flex w-full items-end gap-2 pb-1" onSubmit={(e) => { e.preventDefault(); void save(s.id) }}>
+              <AutoGrowTextarea autoFocus maxLength={200} value={draft} disabled={saving} onChange={(e) => setDraft(e.target.value)}
                 aria-label="セットのメモ" placeholder="例: フォーム意識、最後は補助あり"
-                className="min-h-12 min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 text-sm text-fg" />
+                className="min-h-12 min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-3 text-fg" />
               <button type="submit" disabled={saving} className="min-h-12 shrink-0 rounded-lg bg-accent px-4 text-sm font-semibold text-white disabled:opacity-50">{saving ? '保存中…' : '保存'}</button>
             </form>}
           </SwipeRow>

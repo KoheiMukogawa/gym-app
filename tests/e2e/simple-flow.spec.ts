@@ -453,3 +453,28 @@ test('history calendar changes month by swiping left and right', async ({ page }
   await expect(page.getByText(label(now), { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
+
+test('memo field is iOS-zoom safe and grows so long text stays visible', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  const memo = page.getByPlaceholder(/メモ（任意）/)
+
+  // iOS zooms the page when a focused field is under 16px.
+  const fontSize = await memo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+  expect(fontSize).toBeGreaterThanOrEqual(16)
+
+  const oneLine = (await memo.boundingBox())!.height
+  await memo.fill('フォームを意識する。\n肩甲骨を寄せたまま下ろし、最後の1回だけ補助をもらった。')
+  const grown = (await memo.boundingBox())!.height
+  expect(grown).toBeGreaterThan(oneLine)
+  // Every line is visible: nothing is scrolled out of view.
+  expect(await memo.evaluate((el: HTMLTextAreaElement) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1)
+
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets[0]?.note).toContain('肩甲骨')
+  // The saved memo keeps its line break on screen.
+  await expect(page.getByText('肩甲骨を寄せたまま下ろし', { exact: false })).toBeVisible()
+  // The field is clear and back to one line for the next set.
+  await expect(memo).toHaveValue('')
+  expect((await memo.boundingBox())!.height).toBe(oneLine)
+})

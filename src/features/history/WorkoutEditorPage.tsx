@@ -12,6 +12,7 @@ import { exerciseLabel } from '../exercises/catalog'
 import { createExercise, fetchExercises } from '../exercises/queries'
 import { loadDraft, clearDraft } from '../workout-log/persistence'
 import { SwipeRow } from '../../components/SwipeRow'
+import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 import { bodyweightOn, formatAddedLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
 import { createDatedWorkout, fetchEditableWorkout, findWorkoutOnDate, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutDate, updateWorkoutSet } from './editorQueries'
@@ -221,7 +222,7 @@ export function WorkoutEditorPage() {
                     onClick={() => editSet(set)}>
                     <span className="min-w-0">
                       <span className="block text-lg font-semibold tabular-nums">{loadLabel(set)} <span className="text-xs font-normal text-muted">×</span> {set.reps} <span className="text-xs font-normal text-muted">回</span></span>
-                      {set.note && <span className="block break-words text-xs text-muted">{set.note}</span>}
+                      {set.note && <span className="block whitespace-pre-wrap break-words text-xs text-muted">{set.note}</span>}
                     </span>
                     {(entry?.id === set.id || drafts.current[set.id]) && <span className="text-xs text-accent">{entry?.id === set.id ? '編集中' : '未保存'}</span>}
                   </button>
@@ -256,8 +257,8 @@ export function WorkoutEditorPage() {
             </label>
           </div>
           <label className="flex flex-col gap-2 text-sm text-muted">メモ（任意）
-            <input type="text" maxLength={200} disabled={busy} value={entry.note} placeholder="例: 最後の1回は補助あり"
-              onChange={(e) => setEntry({ ...entry, note: e.target.value })} className="min-h-14 w-full rounded-xl border border-border bg-bg px-3 text-fg" />
+            <AutoGrowTextarea maxLength={200} disabled={busy} value={entry.note} placeholder="例: 最後の1回は補助あり"
+              onChange={(e) => setEntry({ ...entry, note: e.target.value })} className="min-h-14 w-full rounded-xl border border-border bg-bg px-3 py-4 text-fg" />
           </label>
           {entryIsBodyweight && <p className="text-xs text-muted">{minWeightFor(entry.exercise_id) < 0 ? '自重のみは0、加重はプラス、アシストはマイナスで入力します。' : '自重のみは0、加重はプラスで入力します。体重を記録するとアシスト（マイナス）も入力できます。'}</p>}
           <Button type="submit" disabled={busy}>{busy ? '保存中…' : entry.existing ? '変更を保存' : 'セットを追加'}</Button>

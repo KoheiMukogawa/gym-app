@@ -27,6 +27,7 @@ import {
   updateSetNote,
 } from './queries'
 import { SetList } from './SetList'
+import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 import { formatAddedLoad, latestBodyweight, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs, parseBodyweight, saveBodyweight } from '../profile/bodyweightQueries'
 
@@ -572,8 +573,8 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         </p>}
         <label className="mb-3 block">
           <span className="sr-only">メモ（任意）</span>
-          <input type="text" maxLength={200} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="メモ（任意）例: フォーム意識"
-            className="min-h-12 w-full rounded-xl border border-border bg-surface px-4 text-sm text-fg" />
+          <AutoGrowTextarea maxLength={200} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="メモ（任意）例: フォーム意識"
+            className="min-h-12 w-full rounded-xl border border-border bg-surface px-4 py-3 text-fg" />
         </label>
         <p className="mb-4 text-center text-sm text-muted" aria-live="polite">推定1RM <strong className="ml-2 text-xl text-fg tabular-nums">{estimated === null ? '—' : estimated + ' kg'}</strong>{state.reps>10&&<span className="ml-2 text-xs">1〜10回で換算</span>}</p>
         </>}
