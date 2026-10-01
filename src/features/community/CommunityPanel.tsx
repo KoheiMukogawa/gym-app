@@ -65,8 +65,8 @@ export function CommunityPanel() {
   if (loading) return <Spinner />
   if (loadError) return <div className="space-y-3"><p role="alert">コミュニティを読み込めませんでした。{loadError}</p><Button onClick={() => setAttempt((n) => n + 1)}>再試行</Button></div>
   return <section className="space-y-5" aria-label="ランキング">
-    <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4" role="group" aria-label="ランキングの範囲">{[{ id: GLOBAL, name: '全体' }, ...groups].map((g) => <button key={g.id} disabled={busy} aria-pressed={selected === g.id}
-      className={`min-h-14 shrink-0 rounded-full border px-5 text-sm ${selected === g.id ? 'border-accent bg-surface text-fg' : 'border-border text-muted'}`}
+    <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4" role="group" aria-label="ランキングの範囲">{[{ id: GLOBAL, name: '全体' }, ...groups].map((g) => <button key={g.id} disabled={busy} aria-pressed={!managing && selected === g.id}
+      className={`min-h-14 shrink-0 rounded-full border px-5 text-sm ${!managing && selected === g.id ? 'border-accent bg-surface text-fg' : 'border-border text-muted'}`}
       onClick={() => { setSelected(g.id); setManaging(false); setConfirm(null); setError(null) }}>{g.name}</button>)}
       <button type="button" aria-label="コミュニティに参加・作成" aria-expanded={managing} disabled={busy}
         className={`flex min-h-14 w-14 shrink-0 items-center justify-center rounded-full border text-xl ${managing ? 'border-accent text-fg' : 'border-border text-muted'}`}
