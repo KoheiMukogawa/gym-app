@@ -50,6 +50,9 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByRole('button',{name:'コミュニティに参加・作成'}).click()
   // ＋の間はランキングを出さず、作成・参加だけを見せる
   await expect(page.getByRole('region',{name:'全体ランキング'})).toHaveCount(0)
+  // 選択中に見えるのは＋だけ。範囲チップは選択表示を外す
+  await expect(page.getByRole('button',{name:'全体',exact:true})).toHaveAttribute('aria-pressed','false')
+  await expect(page.getByRole('button',{name:'コミュニティに参加・作成'})).toHaveAttribute('aria-expanded','true')
   await page.getByRole('button',{name:/プロフィールを作る/}).click()
   await page.getByLabel('表示名').fill('コウヘイ')
   await page.getByLabel('ひとこと').fill('500kgを目指す')
