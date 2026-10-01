@@ -47,7 +47,7 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.goto('/strength?view=ranking')
   await expect(page.getByRole('heading',{name:'ランキング'})).toBeVisible()
   await expect(page.getByRole('button',{name:'全体',exact:true})).toHaveAttribute('aria-pressed','true')
-  await page.getByText('＋ コミュニティに参加・作成',{exact:true}).click()
+  await page.getByRole('button',{name:'コミュニティに参加・作成'}).click()
   await page.getByRole('button',{name:/プロフィールを作る/}).click()
   await page.getByLabel('表示名').fill('コウヘイ')
   await page.getByLabel('ひとこと').fill('500kgを目指す')
@@ -75,7 +75,9 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByRole('button',{name:'確定する'}).click()
   await page.getByText('招待コード',{exact:true}).click()
   await expect(page.getByText('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')).toBeVisible()
-  await page.getByText('＋ コミュニティに参加・作成',{exact:true}).click()
+  // ⊕ は開閉式なので、閉じているときだけ押す
+  const plus = page.getByRole('button',{name:'コミュニティに参加・作成'})
+  if (await plus.getAttribute('aria-expanded') !== 'true') await plus.click()
   await page.getByRole('button',{name:'招待コードで参加'}).click()
   await page.getByLabel('招待コード',{exact:true}).fill('cccccccc-cccc-4ccc-8ccc-cccccccccccc')
   await page.getByRole('button',{name:'参加する',exact:true}).click()
@@ -97,4 +99,8 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await expect(page.getByRole('region',{name:'全体ランキング'})).toBeVisible()
   await expect(page.getByRole('listitem').filter({hasText:'コウヘイ2'})).toContainText('450 kg')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+  // 説明はランキングの下。まず順位が見えること。
+  const list = await page.getByRole('listitem').first().boundingBox()
+  const note = await page.getByText('公開を選んだ利用者のランキングです',{exact:false}).boundingBox()
+  expect(note!.y).toBeGreaterThan(list!.y)
 })
