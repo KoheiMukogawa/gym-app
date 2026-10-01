@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from './features/auth/SessionProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { LoginPage } from './features/auth/LoginPage'
@@ -10,6 +10,12 @@ import { ExerciseDetailPage } from './features/exercises/ExerciseDetailPage'
 import { WorkoutEditorPage } from './features/history/WorkoutEditorPage'
 import { Big3Page } from './features/community/Big3Page'
 
+// 以前のBIG3のURL（/strength?view=...）は、ホームに統合した。
+function StrengthRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: '/', search }} replace />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -20,15 +26,15 @@ export default function App() {
             <Route path="/signup" element={<LoginPage key="signup" signup />} />
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
-                <Route path="/" element={null} />
+                <Route path="/" element={<Big3Page />} />
+                <Route path="/log" element={null} />
                 <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/strength" element={<Big3Page />} />
+                <Route path="/strength" element={<StrengthRedirect />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/history/new" element={<WorkoutEditorPage key="new" />} />
                 <Route path="/history/:workoutId" element={<WorkoutEditorPage />} />
                 <Route path="/exercises/:exerciseId" element={<ExerciseDetailPage />} />
               </Route>
-              <Route path="/log" element={<Navigate to="/" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

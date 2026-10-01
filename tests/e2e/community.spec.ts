@@ -92,7 +92,7 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByRole('button',{name:'プロフィールを保存'}).click()
   await expect(page.getByRole('status')).toContainText('保存しました')
   expect(mine).toMatchObject({display_name:'コウヘイ2',icon:'target',global_ranking:true})
-  await page.getByRole('link',{name:'Big3',exact:true}).click()
+  await page.getByRole('link',{name:'BIG3',exact:true}).click()
   await page.getByRole('button',{name:'ランキング',exact:true}).click()
   await expect(page.getByRole('region',{name:'全体ランキング'})).toBeVisible()
   await expect(page.getByRole('listitem').filter({hasText:'コウヘイ2'})).toContainText('450 kg')
