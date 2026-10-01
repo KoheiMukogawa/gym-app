@@ -190,6 +190,18 @@ describe('LogPage', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
   })
 
+  it('does not create a draft just by loading today\'s sets, so a finished day is not treated as in progress', async () => {
+    fetchTodayWorkout.mockResolvedValue({
+      id: 'today',
+      sets: [{ id: 'old', exercise_id: 'bench', set_index: 1, weight_kg: 60, reps: 10 }],
+    })
+    renderLogPage()
+    expect(await screen.findByRole('heading', { name: '次はどの種目？' })).toBeInTheDocument()
+    expect(loadDraft(USER)).toBeNull()
+    await userEvent.click(screen.getAllByRole('button', { name: /ベンチプレス/ })[0])
+    await waitFor(() => expect(loadDraft(USER)?.workoutId).toBe('today'))
+  })
+
   it('does not load today\'s workout over a restored draft that already has one', async () => {
     saveDraft(USER, {
       state: { currentExerciseId: 'bench', weight_kg: 80, reps: 8, sets: [{ id: 'd1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 }] },

@@ -66,7 +66,14 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   // 破棄済みの下書きを復元してしまう。
   const [draft] = useState(() => (userId ? loadDraft(userId) : null))
 
-  const [state, dispatch] = useReducer(logReducer, draft?.state ?? initialLogState)
+  const [state, rawDispatch] = useReducer(logReducer, draft?.state ?? initialLogState)
+  // 下書きは「この画面で操作した」ときだけ保存する。今日の記録をサーバーから読み込んだだけで
+  // 下書きができると、終了後に開き直しても記録の途中と判定されてしまう。
+  const touchedRef = useRef(draft !== null)
+  function dispatch(action: Parameters<typeof rawDispatch>[0]) {
+    if (action.type !== 'load-sets') touchedRef.current = true
+    rawDispatch(action)
+  }
   const [workoutId, setWorkoutIdState] = useState<string | null>(draft?.workoutId ?? null)
   // 復元した pending は「保存できたかどうか分からない」状態なので、failed として
   // 提示し直す。23505 の扱いにより再試行は安全にべき等なので、実際には保存できて
@@ -130,7 +137,7 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   // 認証切れやリロードで画面が失われても記録を復元できるよう、変更のたびに退避する。
   // workoutId は state 化したので、作成直後の値も取りこぼさずに書き込まれる。
   useEffect(() => {
-    if (!userId) return
+    if (!userId || !touchedRef.current) return
     saveDraft(userId, { state, workoutId, status: statusById, routine })
   }, [state, workoutId, statusById, userId, routine])
 
