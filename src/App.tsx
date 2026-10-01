@@ -9,11 +9,12 @@ import { HistoryPage } from './features/history/HistoryPage'
 import { ExerciseDetailPage } from './features/exercises/ExerciseDetailPage'
 import { WorkoutEditorPage } from './features/history/WorkoutEditorPage'
 import { Big3Page } from './features/community/Big3Page'
+import { HomePage } from './features/home/HomePage'
 
-// 以前のBIG3のURL（/strength?view=...）は、ホームに統合した。
+// 以前のBIG3のURL（/strength?view=...）は /big3 に移した。
 function StrengthRedirect() {
   const { search } = useLocation()
-  return <Navigate to={{ pathname: '/', search }} replace />
+  return <Navigate to={{ pathname: '/big3', search }} replace />
 }
 
 export default function App() {
@@ -26,7 +27,8 @@ export default function App() {
             <Route path="/signup" element={<LoginPage key="signup" signup />} />
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
-                <Route path="/" element={<Big3Page />} />
+                <Route path="/" element={<HomePage />} />
+                <Route path="/big3" element={<Big3Page />} />
                 <Route path="/log" element={null} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/strength" element={<StrengthRedirect />} />

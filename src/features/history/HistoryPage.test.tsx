@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { HistoryPage } from './HistoryPage'
+import { invalidateMonthWorkouts } from './useMonthWorkouts'
 import { ToastProvider } from '../../components/ui/Toast'
 import type { FeedItem } from '../feed/queries'
 
@@ -42,6 +43,7 @@ function renderHistoryPage(path = '/history') {
 describe('HistoryPage error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    invalidateMonthWorkouts()
     useSession.mockReturnValue({
       userId: USER,
       profile: null,
@@ -84,7 +86,8 @@ describe('HistoryPage error handling', () => {
     await user.click(retryButton)
 
     expect(await screen.findByRole('link', { name: '編集' })).toHaveAttribute('href', '/history/w1')
-    expect(fetchMonthWorkouts).toHaveBeenCalledTimes(2)
+    // August is fetched twice (failure + retry); July may also be prefetched afterwards.
+    expect(fetchMonthWorkouts.mock.calls.filter(([, , month]) => month === 8)).toHaveLength(2)
   })
 
   // Regression: a second failure must not wedge the page in a state with no way
@@ -228,6 +231,7 @@ describe('HistoryPage calendar — marks the local (JST) day, not the UTC day', 
 describe('HistoryPage month swipe', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    invalidateMonthWorkouts()
     useSession.mockReturnValue({ userId: USER, profile: null, loading: false, signOut: vi.fn(), refreshProfile: vi.fn() })
     fetchMonthWorkouts.mockResolvedValue([])
   })

@@ -57,7 +57,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'>
   })
 }
 
-export function LogPage({ home = false, onFinished }: { home?: boolean; onFinished?: () => void }) {
+export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const { userId } = useSession()
   const navigate = useNavigate()
   const { show } = useToast()
@@ -430,7 +430,7 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
       )
       clearDraft(userId)
       onFinished?.()
-      navigate(home ? '/history' : '/')
+      navigate('/')
     } finally {
       setFinishing(false)
     }
