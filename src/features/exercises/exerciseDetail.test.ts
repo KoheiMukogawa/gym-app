@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { maxWeightByDate, personalBest, totalVolume } from '../../lib/calc'
+import { e1rmByDate, personalBest, totalVolume } from '../../lib/calc'
 import type { SetWithDate } from '../../lib/types'
 import { summarizeExercise } from './ExerciseDetailPage'
 
@@ -34,7 +34,7 @@ describe('summarizeExercise', () => {
   })
 
   it('builds chart points from the daily maximum', () => {
-    expect(summarizeExercise(sets).points).toEqual(maxWeightByDate(sets))
+    expect(summarizeExercise(sets).points).toEqual(e1rmByDate(sets))
   })
 
   it('handles an empty history', () => {

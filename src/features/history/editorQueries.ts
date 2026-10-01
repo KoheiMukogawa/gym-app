@@ -11,6 +11,18 @@ export async function fetchEditableWorkout(userId: string, id: string): Promise<
   return data as EditableWorkout | null
 }
 
+/** The workout already recorded on a local date. Each day is kept as one workout. */
+export async function findWorkoutOnDate(userId: string, date: string, excludeId?: string): Promise<string | null> {
+  const start = new Date(date + 'T00:00:00')
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1)
+  let query = supabase.from('workouts').select('id').eq('user_id', userId)
+    .gte('performed_at', start.toISOString()).lt('performed_at', end.toISOString())
+  if (excludeId) query = query.neq('id', excludeId)
+  const { data, error } = await query.order('performed_at', { ascending: true }).limit(1).maybeSingle()
+  if (error) throw error
+  return (data as { id: string } | null)?.id ?? null
+}
+
 // A client-generated ID makes a retry safe if the first response was lost.
 export async function createDatedWorkout(userId: string, id: string, date: string): Promise<void> {
   const { error } = await supabase.from('workouts').insert({

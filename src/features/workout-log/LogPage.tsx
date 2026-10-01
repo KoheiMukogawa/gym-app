@@ -21,10 +21,13 @@ import {
   createWorkout,
   deleteSet,
   deleteWorkoutIfEmpty,
+  fetchTodayWorkout,
   fetchUserSetHistory,
   saveSet,
 } from './queries'
 import { SetList } from './SetList'
+import { formatAddedLoad, latestBodyweight, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
+import { fetchBodyweightLogs, parseBodyweight, saveBodyweight } from '../profile/bodyweightQueries'
 
 function OfflineBanner() {
   return (
@@ -63,7 +66,14 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   // 破棄済みの下書きを復元してしまう。
   const [draft] = useState(() => (userId ? loadDraft(userId) : null))
 
-  const [state, dispatch] = useReducer(logReducer, draft?.state ?? initialLogState)
+  const [state, rawDispatch] = useReducer(logReducer, draft?.state ?? initialLogState)
+  // 下書きは「この画面で操作した」ときだけ保存する。今日の記録をサーバーから読み込んだだけで
+  // 下書きができると、終了後に開き直しても記録の途中と判定されてしまう。
+  const touchedRef = useRef(draft !== null)
+  function dispatch(action: Parameters<typeof rawDispatch>[0]) {
+    if (action.type !== 'load-sets') touchedRef.current = true
+    rawDispatch(action)
+  }
   const [workoutId, setWorkoutIdState] = useState<string | null>(draft?.workoutId ?? null)
   // 復元した pending は「保存できたかどうか分からない」状態なので、failed として
   // 提示し直す。23505 の扱いにより再試行は安全にべき等なので、実際には保存できて
@@ -87,7 +97,11 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   const [justSaved, setJustSaved] = useState(false)
   const [offline, setOffline] = useState(isOffline())
   const [finishing, setFinishing] = useState(false)
-  const [undoing, setUndoing] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>([])
+  const [bodyweightDraft, setBodyweightDraft] = useState('')
+  const [editingBodyweight, setEditingBodyweight] = useState(false)
+  const [savingBodyweight, setSavingBodyweight] = useState(false)
 
   // ワークアウト作成の二重発行を防ぐための、進行中の作成 Promise。
   // 1件目の呼び出しがこれを埋め、以降の呼び出しは同じ Promise を待つだけにする。
@@ -117,11 +131,13 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   // いない」と誤認してしまう。id は UUID で使い回されないので、消さなくても
   // 安全（このマウント中に取り消した件数分しか増えない）。
   const abandonedIdsRef = useRef<Set<string>>(new Set())
+  // 今日のワークアウトの読み込みは1回だけ行う（再試行で記録中のセットを上書きしないため）
+  const todayLoadedRef = useRef(false)
 
   // 認証切れやリロードで画面が失われても記録を復元できるよう、変更のたびに退避する。
   // workoutId は state 化したので、作成直後の値も取りこぼさずに書き込まれる。
   useEffect(() => {
-    if (!userId) return
+    if (!userId || !touchedRef.current) return
     saveDraft(userId, { state, workoutId, status: statusById, routine })
   }, [state, workoutId, statusById, userId, routine])
 
@@ -146,11 +162,19 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
     let active = true
     setLoading(true)
     setLoadError(null)
-    Promise.all([fetchExercises(), fetchUserSetHistory(userId)])
-      .then(([ex, hist]) => {
+    // 1日の記録は1件にまとめる。下書きが無ければ、今日すでに保存したセットを読み込んで続きから記録する。
+    const resumeToday = !draft?.workoutId && !draft?.state.sets.length && !todayLoadedRef.current
+    Promise.all([fetchExercises(), fetchUserSetHistory(userId), resumeToday ? fetchTodayWorkout(userId) : Promise.resolve(null), fetchBodyweightLogs(userId)])
+      .then(([ex, hist, today, logs]) => {
         if (!active) return
         setExercises(ex)
         setHistory(hist)
+        setBodyweightLogs(logs)
+        if (resumeToday) todayLoadedRef.current = true
+        if (today) {
+          setWorkoutId(today.id)
+          dispatch({ type: 'load-sets', sets: today.sets })
+        }
       })
       .catch((e) => { if (active) setLoadError(toMessage(e)) })
       .finally(() => { if (active) setLoading(false) })
@@ -158,9 +182,29 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   }, [userId, loadAttempt])
 
   const exerciseNames = Object.fromEntries(exercises.map((e) => [e.id, exerciseLabel(e)]))
+  const bodyweightIds = exercises.filter((e) => e.is_bodyweight).map((e) => e.id)
+  const isBodyweight = state.currentExerciseId !== null && bodyweightIds.includes(state.currentExerciseId)
+  const bodyweight = latestBodyweight(bodyweightLogs)
+  // 自重種目は体重分までのアシスト（マイナス）を許す
+  const minWeight = isBodyweight && bodyweight !== null ? -bodyweight : 0
+  const load = isBodyweight ? totalLoad(state.weight_kg, bodyweight) : state.weight_kg
+  const estimated = load === null ? null : estimateOneRepMax(load, state.reps)
+
+  async function handleSaveBodyweight() {
+    const value = parseBodyweight(bodyweightDraft)
+    if (!userId || value === null) { show('体重は20〜300kgで入力してください'); return }
+    setSavingBodyweight(true)
+    try {
+      const log = await saveBodyweight(userId, value)
+      setBodyweightLogs((old) => [...old.filter((l) => l.recorded_on !== log.recorded_on), log])
+      setEditingBodyweight(false)
+    } catch (e) { show(toMessage(e)) }
+    finally { setSavingBodyweight(false) }
+  }
 
   function selectExercise(exerciseId: string) {
-    dispatch({ type: 'select-exercise', exerciseId, prefill: findPrefill(history, exerciseId) })
+    const bw = exercises.some((e) => e.id === exerciseId && e.is_bodyweight)
+    dispatch({ type: 'select-exercise', exerciseId, prefill: findPrefill(history, exerciseId), defaultWeight: bw ? 0 : undefined })
     setPicking(false)
   }
   function moveRoutine(direction: -1 | 1) {
@@ -275,7 +319,7 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   )
 
   function handleCompleteSet() {
-    try { validateSet(state.weight_kg, state.reps) }
+    try { validateSet(state.weight_kg, state.reps, minWeight) }
     catch (e) { show(toMessage(e)); return }
     const id = crypto.randomUUID()
     const set = nextSet(state, id)
@@ -290,21 +334,21 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
     void persist(target)
   }
 
-  async function handleUndo() {
-    if (undoing) return
-    const last = state.sets[state.sets.length - 1]
-    if (!last) return
-    setUndoing(true)
+  async function handleDelete(setId: string) {
+    if (deletingId) return
+    const target = state.sets.find((s) => s.id === setId)
+    if (!target) return
+    setDeletingId(setId)
     try {
-      abandonedIdsRef.current.add(last.id)
-      const st = statusById[last.id] ?? 'saved'
+      abandonedIdsRef.current.add(target.id)
+      const st = statusById[target.id] ?? 'saved'
       if (st === 'saved') {
         try {
-          await deleteSet(last.id)
+          await deleteSet(target.id)
         } catch (e) {
           // 削除できなかった場合は行を残し、記録が消えたように見せない。
           // まだ本当には取り消されていないので、abandoned の印も取り消す。
-          abandonedIdsRef.current.delete(last.id)
+          abandonedIdsRef.current.delete(target.id)
           show(toMessage(e))
           return
         }
@@ -312,14 +356,14 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
       // pending / failed のセットは DB にまだコミットされていない（か既に
       // 掃除済みの）ので、ローカルの表示から外すだけでよい。まだ進行中の
       // 保存があれば、上の abandonedIdsRef への追加が persist 側で処理する。
-      dispatch({ type: 'undo-last-set' })
+      dispatch({ type: 'remove-set', id: target.id })
       setStatusById((prev) => {
         const next = { ...prev }
-        delete next[last.id]
+        delete next[target.id]
         return next
       })
     } finally {
-      setUndoing(false)
+      setDeletingId(null)
     }
   }
 
@@ -403,7 +447,6 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
           <div>
             <p className="mb-1 text-xs text-muted">{new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}</p>
             <h1 className="text-2xl font-semibold tracking-tight">{state.sets.length ? '次はどの種目？' : '今日のトレーニング'}</h1>
-            <p className="mt-2 text-sm text-muted">種目を選んで、そのまま記録。</p>
           </div>
           {state.sets.length > 0 && <button type="button" onClick={() => setPicking(false)} className="min-h-14 px-2 text-sm text-muted">戻る</button>}
           {state.sets.length > 0 && (
@@ -471,19 +514,34 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
           sets={state.sets}
           exerciseNames={exerciseNames}
           status={statusById}
-          onUndo={() => void handleUndo()}
+          onDelete={handleDelete}
           onRetry={handleRetry}
-          undoing={undoing}
+          deletingId={deletingId}
+          bodyweightIds={bodyweightIds}
         />
       </div>
 
       <div className="order-1 border-t border-border bg-bg px-4 pb-6 pt-4">
+        {isBodyweight && (bodyweight === null || editingBodyweight) ? (
+          <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
+            <p className="text-sm">この種目は「体重＋加重」で負荷を計算します。今日の体重を入力してください。</p>
+            <label className="block text-xs text-muted">体重（kg）
+              <input type="number" inputMode="decimal" min="20" max="300" step="0.1" required value={bodyweightDraft} disabled={savingBodyweight}
+                onChange={(e) => setBodyweightDraft(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl border border-border bg-bg px-4 text-2xl text-fg tabular-nums" />
+            </label>
+            <p className="text-xs text-muted">体重は自分だけが見られます。</p>
+            <Button type="submit" disabled={savingBodyweight}>{savingBodyweight ? '保存中…' : '体重を保存'}</Button>
+            {bodyweight !== null && <Button type="button" variant="ghost" disabled={savingBodyweight} onClick={() => setEditingBodyweight(false)}>キャンセル</Button>}
+          </form>
+        ) : <>
         <div className="mb-4 grid grid-cols-2 gap-4">
           <WheelNumber
-            label="重量"
+            label={isBodyweight ? '加重' : '重量'}
             value={state.weight_kg}
             unit="kg"
-            onEnter={(value) => dispatch({ type: 'set-weight', value })}
+            min={minWeight}
+            format={isBodyweight ? formatAddedLoad : undefined}
+            onEnter={(value) => dispatch({ type: 'set-weight', value, min: minWeight })}
           />
           <WheelNumber
             label="回数"
@@ -492,8 +550,13 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
             onEnter={(value) => dispatch({ type: 'set-reps', value })}
           />
         </div>
-        <p className="mb-4 text-center text-sm text-muted" aria-live="polite">推定1RM <strong className="ml-2 text-xl text-fg tabular-nums">{estimateOneRepMax(state.weight_kg,state.reps) === null ? '—' : estimateOneRepMax(state.weight_kg,state.reps) + ' kg'}</strong>{state.reps>10&&<span className="ml-2 text-xs">1〜10回で換算</span>}</p>
-        <Button size="lg" onClick={handleCompleteSet} disabled={offline || finishing}>
+        {isBodyweight && bodyweight !== null && <p className="mb-2 text-center text-xs text-muted">
+          体重 {bodyweight} kg {formatAddedLoad(state.weight_kg) === '自重' ? '' : formatAddedLoad(state.weight_kg).replace('+', '＋ ').replace('−', '− ')} ＝ 総重量 <strong className="text-fg tabular-nums">{load} kg</strong>
+          <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
+        </p>}
+        <p className="mb-4 text-center text-sm text-muted" aria-live="polite">推定1RM <strong className="ml-2 text-xl text-fg tabular-nums">{estimated === null ? '—' : estimated + ' kg'}</strong>{state.reps>10&&<span className="ml-2 text-xs">1〜10回で換算</span>}</p>
+        </>}
+        <Button size="lg" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
           {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
         </Button>
       </div>

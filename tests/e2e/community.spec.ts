@@ -30,7 +30,8 @@ test('community profile, create, ranking retry, ties, member detail, join and le
       return send(body.p_action==='join'?'group2':'group1')
     }
     if(endpoint==='community_ranking'||endpoint==='global_ranking') {
-      if(failRanking) { failRanking=false; return send({message:'ランキング通信エラー'},500) }
+      if(endpoint==='community_ranking'&&failRanking) { failRanking=false; return send({message:'ランキング通信エラー'},500) }
+      if(!mine) return send([])
       const members: Member[]=[
         {...mine!,total:450,growth:20,lifts:{squat:150,bench:100,deadlift:200},points:[{lift:'bench',date:'2026-09-01',value:90},{lift:'bench',date:'2026-10-01',value:100}]},
         {user_id:'other',display_name:'ジム仲間',icon:'🔥',bio:'一緒に頑張ろう',total:450,growth:null,lifts:{squat:160,bench:100,deadlift:190},points:[]},
@@ -39,11 +40,14 @@ test('community profile, create, ranking retry, ties, member detail, join and le
     }
     return send([])
   })
-  await page.goto('/strength?view=community')
+  await page.goto('/strength?view=ranking')
   await page.getByLabel('メールアドレス').fill('test@example.com')
   await page.getByLabel('パスワード').fill('mock-password')
   await page.getByRole('button',{name:'ログイン',exact:true}).click()
-  await page.goto('/strength?view=community')
+  await page.goto('/strength?view=ranking')
+  await expect(page.getByRole('heading',{name:'ランキング'})).toBeVisible()
+  await expect(page.getByRole('button',{name:'全体',exact:true})).toHaveAttribute('aria-pressed','true')
+  await page.getByText('＋ コミュニティに参加・作成',{exact:true}).click()
   await page.getByRole('button',{name:/プロフィールを作る/}).click()
   await page.getByLabel('表示名').fill('コウヘイ')
   await page.getByLabel('ひとこと').fill('500kgを目指す')
@@ -54,6 +58,7 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByRole('button',{name:'＋ コミュニティを作る'}).click()
   await page.getByLabel('コミュニティ名').fill('筋トレ部')
   await page.getByRole('button',{name:'作成する',exact:true}).click()
+  await expect(page.getByRole('button',{name:'筋トレ部',exact:true})).toHaveAttribute('aria-pressed','true')
   await expect(page.getByRole('alert')).toBeVisible()
   await page.getByRole('button',{name:'再試行',exact:true}).click()
   await expect(page.getByRole('button',{name:/1.*コウヘイ.*450 kg/})).toBeVisible()
@@ -70,14 +75,15 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByRole('button',{name:'確定する'}).click()
   await page.getByText('招待コード',{exact:true}).click()
   await expect(page.getByText('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')).toBeVisible()
-  await page.getByText('プロフィール・参加管理',{exact:true}).click()
+  await page.getByText('＋ コミュニティに参加・作成',{exact:true}).click()
   await page.getByRole('button',{name:'招待コードで参加'}).click()
   await page.getByLabel('招待コード',{exact:true}).fill('cccccccc-cccc-4ccc-8ccc-cccccccccccc')
   await page.getByRole('button',{name:'参加する',exact:true}).click()
-  await expect(page.getByRole('combobox',{name:'コミュニティ',exact:true})).toHaveValue('group2')
+  await expect(page.getByRole('button',{name:'友達のジム',exact:true})).toHaveAttribute('aria-pressed','true')
   await page.getByRole('button',{name:'コミュニティから退出'}).click()
   await page.getByRole('button',{name:'確定する'}).click()
-  await expect(page.getByRole('combobox',{name:'コミュニティ',exact:true})).toHaveValue('group1')
+  await expect(page.getByRole('button',{name:'友達のジム',exact:true})).toHaveCount(0)
+  await expect(page.getByRole('button',{name:'全体',exact:true})).toHaveAttribute('aria-pressed','true')
   await page.getByRole('button',{name:'プロフィールメニュー'}).click()
   await page.getByRole('link',{name:'プロフィールを編集'}).click()
   await page.getByLabel('名前',{exact:true}).fill('コウヘイ2')
@@ -86,9 +92,9 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByRole('button',{name:'プロフィールを保存'}).click()
   await expect(page.getByRole('status')).toContainText('保存しました')
   expect(mine).toMatchObject({display_name:'コウヘイ2',icon:'target',global_ranking:true})
-  await page.getByRole('link',{name:'Big3',exact:true}).click()
-  await page.getByRole('button',{name:'全体',exact:true}).click()
-  await expect(page.getByRole('heading',{name:'全体ランキング'})).toBeVisible()
+  await page.getByRole('link',{name:'BIG3',exact:true}).click()
+  await page.getByRole('button',{name:'ランキング',exact:true}).click()
+  await expect(page.getByRole('region',{name:'全体ランキング'})).toBeVisible()
   await expect(page.getByRole('listitem').filter({hasText:'コウヘイ2'})).toContainText('450 kg')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
 })

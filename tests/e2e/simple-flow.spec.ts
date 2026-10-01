@@ -19,8 +19,10 @@ const USER = '11111111-1111-4111-8111-111111111111'
 type SetRow = { id: string; workout_id: string; exercise_id: string; weight_kg: number; reps: number; set_index: number; created_at: string }
 type WorkoutRow = { id: string; user_id: string; performed_at: string; created_at: string }
 async function mockApi(page: Page) {
+  const bodyweights: { recorded_on: string; bodyweight_kg: number }[] = []
   const exercises = [
     { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', muscle_group: 'chest', is_preset: true, created_by: null },
+    { id: 'chin', name: 'チンニング', name_normalized: 'チンニング', muscle_group: 'back', is_preset: true, created_by: null, is_bodyweight: true },
     { id: 'press', name: 'ダンベルベンチプレス', name_normalized: 'ダンベルベンチプレス', muscle_group: 'chest', is_preset: true, created_by: null },
     { id: 'machine', name: 'チェストプレス', name_normalized: 'チェストプレス', muscle_group: 'chest', is_preset: true, created_by: null },
     { id: 'fly', name: 'ダンベルフライ', name_normalized: 'ダンベルフライ', muscle_group: 'chest', is_preset: true, created_by: null },
@@ -51,6 +53,10 @@ async function mockApi(page: Page) {
     if (table === 'user') return respond(session.user)
     if (table === 'logout') return respond({})
     if (table === 'profiles') return respond({ id: USER, display_name: 'テストユーザー' })
+    if (table === 'bodyweight_logs') {
+      if (method === 'POST') { bodyweights.splice(0, bodyweights.length, ...bodyweights.filter((b) => b.recorded_on !== body.recorded_on), body); return respond(null, 201) }
+      return respond(bodyweights)
+    }
     if (table === 'strength_goals') {
       if (method === 'POST') {
         const existing = goals.find((g) => g.id === body.id)
@@ -135,8 +141,11 @@ async function mockApi(page: Page) {
   await page.getByLabel('メールアドレス').fill('test@example.com')
   await page.getByLabel('パスワード').fill('mock-password')
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
+  // The app opens on BIG3; the start button leads to recording.
+  await expect(page.getByRole('region', { name: 'Big3スコア' })).toBeVisible()
+  await page.getByRole('link', { name: /トレーニングを始める/ }).click()
   await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
-  return { sets, workouts, exercises, routines, goals }
+  return { sets, workouts, exercises, routines, goals, bodyweights }
 }
 
 test('mobile: direct logging, body groups, past dates, editing and deletion', async ({ page }) => {
@@ -172,6 +181,8 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await expect(page.getByRole('button', { name: 'ログアウト', exact: true })).toBeVisible()
   await page.getByRole('link', { name: 'Glog トップへ', exact: true }).click()
   await expect(page.getByRole('button', { name: 'ログアウト', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /続きを記録.*今日 1セット/ })).toBeVisible()
+  await page.getByRole('link', { name: /続きを記録/ }).click()
   await page.getByRole('button', { name: '終了', exact: true }).click()
   await expect(page).toHaveURL(/\/history$/)
   await expect(page.getByRole('link', { name: '編集', exact: true })).toHaveCount(0)
@@ -209,7 +220,12 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await page.getByRole('link', { name: '編集', exact: true }).last().click()
   await expect(page.getByLabel('トレーニング日')).toHaveValue('2020-02-04')
   page.on('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: /100kg 10回を削除/ }).click()
+  // Sets are deleted by swiping the row left, as on the recording screen.
+  const row = (await page.getByRole('button', { name: /100kg 10回を編集/ }).boundingBox())!
+  await page.mouse.move(row.x + row.width - 10, row.y + row.height / 2)
+  await page.mouse.down()
+  for (let step = 1; step <= 10; step++) await page.mouse.move(row.x + row.width - 10 - 30 * step, row.y + row.height / 2)
+  await page.mouse.up()
   await expect(page.getByRole('button', { name: /100kg 10回を編集/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'この記録を削除', exact: true }).click()
   await expect(page).toHaveURL(/\/history\?date=2020-02-04$/)
@@ -303,7 +319,7 @@ test('Big3 score has one editable goal and the logo returns home', async ({ page
   for (const [exercise_id, weight_kg] of [['squat', 160], ['bench', 80], ['deadlift', 180]] as const) {
     data.sets.push({ id: 's-' + exercise_id, exercise_id, weight_kg, reps: 5, set_index: 1, workout_id: 'w-score', created_at: now })
   }
-  await page.getByRole('link', { name: 'Big3', exact: true }).click()
+  await page.getByRole('link', { name: 'BIG3', exact: true }).click()
   const score = page.getByRole('region', { name: 'Big3スコア' })
   await expect(score.getByText('472.5', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '目標を設定', exact: true }).click()
@@ -325,5 +341,103 @@ test('Big3 score has one editable goal and the logo returns home', async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.getByRole('link', { name: 'Glog トップへ', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
+  // Home is BIG3. Today's sets were seeded above, so recording continues today's single workout.
+  await page.getByRole('link', { name: /続きを記録.*今日 3セット/ }).click()
+  await expect(page.getByRole('heading', { name: '次はどの種目？' })).toBeVisible()
+})
+
+test('sets are deleted by swiping left like a mail app', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  for (const reps of ['8', '6', '4']) {
+    await page.getByRole('spinbutton', { name: '回数', exact: true }).fill(reps)
+    await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  }
+  await expect.poll(() => data.sets.length).toBe(3)
+  await expect(page.getByRole('button', { name: '直前のセットを取り消す' })).toHaveCount(0)
+  const rows = page.getByRole('listitem')
+  const swipe = async (index: number, distance: number) => {
+    const box = (await rows.nth(index).boundingBox())!
+    const y = box.y + box.height / 2
+    await page.mouse.move(box.x + box.width - 10, y)
+    await page.mouse.down()
+    for (let step = 1; step <= 10; step++) await page.mouse.move(box.x + box.width - 10 - distance * step / 10, y)
+    await page.mouse.up()
+  }
+  // A long swipe deletes the middle set right away.
+  const middle = data.sets[1].id
+  await swipe(1, 300)
+  await expect.poll(() => data.sets.map((s) => s.id)).not.toContain(middle)
+  await expect(rows).toHaveCount(2)
+  await expect(rows.nth(1)).toContainText('2set')
+  // A short swipe only reveals the delete button.
+  await swipe(0, 100)
+  await expect(page.getByText('削除', { exact: true }).first()).toBeInViewport()
+  expect(data.sets).toHaveLength(2)
+  await page.screenshot({ path: 'test-results/swipe-delete-mobile.png' })
+  await page.getByRole('button', { name: /1set .*を削除$/ }).click()
+  await expect.poll(() => data.sets.length).toBe(1)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('reopening the app mid-workout goes straight to recording; otherwise it opens on BIG3', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets.length).toBe(1)
+  await page.goto('/')
+  await expect(page).toHaveURL(/\/log$/)
+  await expect(page.getByRole('button', { name: 'セット完了', exact: true })).toBeVisible()
+  await page.getByRole('link', { name: 'BIG3', exact: true }).click()
+  await expect(page).toHaveURL(/\/$/)
+  await page.screenshot({ path: 'test-results/home-big3-mobile.png' })
+  await page.getByRole('link', { name: /続きを記録/ }).click()
+  await page.getByRole('button', { name: '終了', exact: true }).click()
+  await expect(page).toHaveURL(/\/history$/)
+  await page.goto('/')
+  await expect(page.getByRole('region', { name: 'Big3スコア' })).toBeVisible()
+  await expect(page).toHaveURL(/\/$/)
+  // The editor groups the day's sets under each exercise.
+  await page.goto('/history/' + data.workouts[0].id)
+  await expect(page.getByRole('heading', { name: 'ベンチプレス', exact: true })).toHaveCount(1)
+  await page.screenshot({ path: 'test-results/editor-grouped-mobile.png' })
+})
+
+test('chin-ups ask for bodyweight once and record assisted sets against the total load', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: '背中', exact: true }).click().catch(() => {})
+  await page.getByRole('button', { name: 'チンニング', exact: true }).click()
+  await page.getByLabel('体重（kg）').fill('70')
+  await page.getByRole('button', { name: '体重を保存', exact: true }).click()
+  await expect.poll(() => data.bodyweights.length).toBe(1)
+  await page.getByRole('spinbutton', { name: '加重', exact: true }).fill('-20')
+  await expect(page.getByText(/総重量/)).toContainText('総重量 50 kg')
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets[0]?.weight_kg).toBe(-20)
+  await expect(page.getByRole('listitem').first()).toContainText('−20 kg')
+  await page.screenshot({ path: 'test-results/chinning-mobile.png' })
+})
+
+test('history calendar changes month by swiping left and right', async ({ page }) => {
+  await mockApi(page)
+  await page.getByRole('link', { name: '履歴', exact: true }).click()
+  const now = new Date()
+  const label = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月`
+  const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  await expect(page.getByText(label(now), { exact: true })).toBeVisible()
+  const swipe = async (dx: number) => {
+    const box = (await page.getByLabel(/スワイプで月を切り替え/).boundingBox())!
+    const x = box.x + box.width / 2, y = box.y + box.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    for (let step = 1; step <= 10; step++) await page.mouse.move(x + dx * step / 10, y)
+    await page.mouse.up()
+  }
+  await swipe(150)
+  await expect(page.getByText(label(previous), { exact: true })).toBeVisible()
+  await swipe(-150)
+  await expect(page.getByText(label(now), { exact: true })).toBeVisible()
+  await swipe(-150)
+  await expect(page.getByText(label(now), { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

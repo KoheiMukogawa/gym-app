@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { maxWeightByDate, personalBest, totalVolume } from '../../lib/calc'
+import { e1rmByDate, personalBest, totalVolume } from '../../lib/calc'
 import { toMessage } from '../../lib/errors'
 import { MUSCLE_GROUP_LABELS, type Exercise, type SetWithDate } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
@@ -9,12 +9,15 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from '../auth/SessionProvider'
 import { fetchExercise, fetchExerciseSets } from './queries'
+import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
+import { localDate } from '../../lib/dates'
+import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
 
 export type ExerciseSummary = {
   best: number | null
   volume: number
   setCount: number
-  points: { date: string; max_weight: number }[]
+  points: { date: string; e1rm: number }[]
 }
 
 export function summarizeExercise(sets: SetWithDate[]): ExerciseSummary {
@@ -22,8 +25,13 @@ export function summarizeExercise(sets: SetWithDate[]): ExerciseSummary {
     best: personalBest(sets),
     volume: totalVolume(sets),
     setCount: sets.length,
-    points: maxWeightByDate(sets),
+    points: e1rmByDate(sets),
   }
+}
+
+/** 自重種目は、その日の体重を足した総重量で自己ベストや推移を数える。 */
+export function withTotalLoad(sets: SetWithDate[], logs: BodyweightLog[]): SetWithDate[] {
+  return sets.map((s) => ({ ...s, weight_kg: Math.round((s.weight_kg + (bodyweightOn(logs, localDate(s.performed_at)) ?? 0)) * 10) / 10 }))
 }
 
 export function ExerciseDetailPage() {
@@ -42,10 +50,10 @@ export function ExerciseDetailPage() {
     if (!exerciseId || !userId) return
     setLoading(true)
     setError(null)
-    Promise.all([fetchExercise(exerciseId), fetchExerciseSets(exerciseId, userId)])
-      .then(([ex, s]) => {
+    Promise.all([fetchExercise(exerciseId), fetchExerciseSets(exerciseId, userId), fetchBodyweightLogs(userId)])
+      .then(([ex, s, logs]) => {
         setExercise(ex)
-        setSets(s)
+        setSets(ex?.is_bodyweight ? withTotalLoad(s, logs) : s)
       })
       .catch((e: unknown) => {
         const message = toMessage(e)
@@ -85,7 +93,7 @@ export function ExerciseDetailPage() {
           ← ホーム
         </Link>
         <h1 className="mt-2 text-2xl font-bold">{exercise.name}</h1>
-        <p className="text-xs text-muted">{MUSCLE_GROUP_LABELS[exercise.muscle_group]}</p>
+        <p className="text-xs text-muted">{MUSCLE_GROUP_LABELS[exercise.muscle_group]}{exercise.is_bodyweight && ' · 体重＋加重の総重量で表示'}</p>
       </header>
 
       <section className="grid grid-cols-3 gap-2">
@@ -95,9 +103,9 @@ export function ExerciseDetailPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm text-muted">重量の推移（日ごとの最大）</h2>
+        <h2 className="mb-3 text-sm text-muted">推定1RMの推移（日ごとの最高）</h2>
         {summary.points.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted">まだ記録がありません</p>
+          <p className="py-8 text-center text-sm text-muted">{sets.length === 0 ? 'まだ記録がありません' : '1〜10回のセットを記録すると推定1RMを表示します'}</p>
         ) : (
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -123,11 +131,11 @@ export function ExerciseDetailPage() {
                     borderRadius: 12,
                     color: '#F5F5F5',
                   }}
-                  formatter={(v) => [`${v} kg`, '最大重量']}
+                  formatter={(v) => [`${v} kg`, '推定1RM']}
                 />
                 <Line
                   type="monotone"
-                  dataKey="max_weight"
+                  dataKey="e1rm"
                   stroke="#E8412F"
                   strokeWidth={2}
                   dot={{ r: 3, fill: '#E8412F' }}

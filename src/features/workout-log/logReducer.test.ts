@@ -101,21 +101,37 @@ describe('logReducer', () => {
     expect(state.reps).toBe(1)
   })
 
-  it('undoes the most recent set only', () => {
+  it('removes the chosen set only, even from the middle', () => {
     let state = withExercise()
     state = logReducer(state, { type: 'complete-set', id: 's1' })
     state = logReducer(state, { type: 'adjust-weight', direction: 1 })
     state = logReducer(state, { type: 'complete-set', id: 's2' })
-    state = logReducer(state, { type: 'undo-last-set' })
+    state = logReducer(state, { type: 'remove-set', id: 's1' })
 
-    expect(state.sets).toEqual([
-      { id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 },
-    ])
+    expect(state.sets.map((s) => s.id)).toEqual(['s2'])
   })
 
-  it('ignores undo when nothing has been recorded', () => {
-    const state = logReducer(withExercise(), { type: 'undo-last-set' })
+  it('continues numbering after a removed set without reusing an index', () => {
+    let state = withExercise()
+    state = logReducer(state, { type: 'complete-set', id: 's1' })
+    state = logReducer(state, { type: 'complete-set', id: 's2' })
+    state = logReducer(state, { type: 'remove-set', id: 's1' })
+    state = logReducer(state, { type: 'complete-set', id: 's3' })
+    expect(state.sets.map((s) => s.set_index)).toEqual([2, 3])
+  })
+
+  it('ignores removal of an unknown set', () => {
+    const state = logReducer(withExercise(), { type: 'remove-set', id: 'missing' })
     expect(state.sets).toEqual([])
+  })
+
+  it('loads sets already saved today so numbering continues', () => {
+    let state = logReducer(withExercise(), {
+      type: 'load-sets',
+      sets: [{ id: 'old', exercise_id: 'bench', set_index: 2, weight_kg: 70, reps: 5 }],
+    })
+    state = logReducer(state, { type: 'complete-set', id: 'new' })
+    expect(state.sets.map((s) => s.set_index)).toEqual([2, 3])
   })
 
   it('ignores complete-set when no exercise is selected', () => {

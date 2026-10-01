@@ -5,7 +5,7 @@ export type FeedItem = {
   user_id: string
   display_name: string
   performed_at: string
-  sets: { exercise_id: string; exercise_name: string; weight_kg: number; reps: number }[]
+  sets: { exercise_id: string; exercise_name: string; weight_kg: number; reps: number; is_bodyweight?: boolean }[]
 }
 
 export type WorkoutRow = {
@@ -18,7 +18,7 @@ export type WorkoutRow = {
     weight_kg: number
     reps: number
     set_index: number
-    exercises: { name: string } | null
+    exercises: { name: string; is_bodyweight?: boolean } | null
   }[]
 }
 
@@ -28,7 +28,7 @@ export type WorkoutRow = {
 export const WORKOUT_SELECT = `
   id, user_id, performed_at,
   profiles ( display_name ),
-  workout_sets ( exercise_id, weight_kg, reps, set_index, exercises ( name ) )
+  workout_sets ( exercise_id, weight_kg, reps, set_index, exercises ( name, is_bodyweight ) )
 `
 
 export function mapWorkoutRows(rows: WorkoutRow[], includeEmpty = false): FeedItem[] {
@@ -46,6 +46,7 @@ export function mapWorkoutRows(rows: WorkoutRow[], includeEmpty = false): FeedIt
           exercise_name: s.exercises?.name ?? '種目',
           weight_kg: s.weight_kg,
           reps: s.reps,
+          is_bodyweight: s.exercises?.is_bodyweight ?? false,
         })),
     }))
 }

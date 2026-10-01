@@ -22,6 +22,8 @@ export type Exercise = {
   name_normalized: string
   muscle_group: MuscleGroup
   is_preset: boolean
+  /** チンニング・ディップスなど、体重＋加重（マイナスはアシスト）で負荷を数える種目 */
+  is_bodyweight?: boolean
   created_by: string | null
   created_at: string
 }

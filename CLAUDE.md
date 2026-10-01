@@ -43,7 +43,8 @@
 
 ## 未完了の作業
 
-1. Supabase Authentication → URL Configuration に公開URLをSite URLとして登録（メール/パスワード認証のみなら無くても動作する）
+1. Supabaseダッシュボードで新規サインアップを許可する（Allow new users to sign up をオン、Confirm email はオフ。標準メールはチームのアドレスにしか届かないため）。
+   手順は `docs/setup-supabase.md` の Step 3〜4。ダッシュボード設定のためコードやSQLからは変更できない
 2. 実機スマートフォンでのホーム画面追加とログイン〜1セット記録の確認
 3. 管理者アカウントの `profiles.display_name` が `mukougawakouhei`（メールのローカル部）のまま。
    ユーザー作成時に User Metadata の `display_name` を設定しなかったため。SQLで更新すればよい

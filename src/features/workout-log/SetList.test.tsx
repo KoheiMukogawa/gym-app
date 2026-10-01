@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SetList } from './SetList'
 
@@ -12,9 +12,9 @@ describe('SetList', () => {
         sets={[]}
         exerciseNames={NAMES}
         status={{}}
-        onUndo={vi.fn()}
+        onDelete={vi.fn()}
         onRetry={vi.fn()}
-        undoing={false}
+        deletingId={null}
       />,
     )
     expect(screen.getByText('まだ記録がありません')).toBeInTheDocument()
@@ -29,9 +29,9 @@ describe('SetList', () => {
         ]}
         exerciseNames={NAMES}
         status={{ s1: 'saved', s2: 'saved' }}
-        onUndo={vi.fn()}
+        onDelete={vi.fn()}
         onRetry={vi.fn()}
-        undoing={false}
+        deletingId={null}
       />,
     )
     const items = screen.getAllByRole('listitem')
@@ -40,20 +40,67 @@ describe('SetList', () => {
     expect(items[1]).toHaveTextContent('82.5')
   })
 
-  it('calls onUndo when the undo button is pressed', async () => {
-    const onUndo = vi.fn()
+  it('deletes the chosen set from its delete button', async () => {
+    const onDelete = vi.fn()
+    render(
+      <SetList
+        sets={[
+          { id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 },
+          { id: 's2', exercise_id: 'bench', set_index: 2, weight_kg: 82.5, reps: 6 },
+        ]}
+        exerciseNames={NAMES}
+        status={{ s1: 'saved', s2: 'saved' }}
+        onDelete={onDelete}
+        onRetry={vi.fn()}
+        deletingId={null}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'ベンチプレス 1set 80kg × 8回を削除' }))
+    expect(onDelete).toHaveBeenCalledWith('s1')
+  })
+
+  it('deletes a set with a long swipe to the left', async () => {
+    const onDelete = vi.fn()
     render(
       <SetList
         sets={[{ id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 }]}
         exerciseNames={NAMES}
         status={{ s1: 'saved' }}
-        onUndo={onUndo}
+        onDelete={onDelete}
         onRetry={vi.fn()}
-        undoing={false}
+        deletingId={null}
       />,
     )
-    await userEvent.click(screen.getByRole('button', { name: '直前のセットを取り消す' }))
-    expect(onUndo).toHaveBeenCalled()
+    const content = screen.getByText('1set').parentElement!
+    fireEvent.pointerDown(content, { clientX: 300, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(content, { clientX: 250, clientY: 12, pointerId: 1 })
+    fireEvent.pointerMove(content, { clientX: 20, clientY: 12, pointerId: 1 })
+    fireEvent.pointerUp(content, { clientX: 20, clientY: 12, pointerId: 1 })
+    await act(async () => {})
+    expect(onDelete).toHaveBeenCalledWith('s1')
+  })
+
+  it('does not delete on a short swipe or a vertical scroll', () => {
+    const onDelete = vi.fn()
+    render(
+      <SetList
+        sets={[{ id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 }]}
+        exerciseNames={NAMES}
+        status={{ s1: 'saved' }}
+        onDelete={onDelete}
+        onRetry={vi.fn()}
+        deletingId={null}
+      />,
+    )
+    const content = screen.getByText('1set').parentElement!
+    fireEvent.pointerDown(content, { clientX: 300, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(content, { clientX: 240, clientY: 12, pointerId: 1 })
+    fireEvent.pointerUp(content, { clientX: 240, clientY: 12, pointerId: 1 })
+    fireEvent.pointerDown(content, { clientX: 300, clientY: 10, pointerId: 2 })
+    fireEvent.pointerMove(content, { clientX: 290, clientY: 200, pointerId: 2 })
+    fireEvent.pointerMove(content, { clientX: 0, clientY: 220, pointerId: 2 })
+    fireEvent.pointerUp(content, { clientX: 0, clientY: 220, pointerId: 2 })
+    expect(onDelete).not.toHaveBeenCalled()
   })
 
   it('dims a pending set and shows no retry control', () => {
@@ -62,9 +109,9 @@ describe('SetList', () => {
         sets={[{ id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 }]}
         exerciseNames={NAMES}
         status={{ s1: 'pending' }}
-        onUndo={vi.fn()}
+        onDelete={vi.fn()}
         onRetry={vi.fn()}
-        undoing={false}
+        deletingId={null}
       />,
     )
     expect(screen.getByRole('listitem')).toHaveClass('opacity-50')
@@ -78,9 +125,9 @@ describe('SetList', () => {
         sets={[{ id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 }]}
         exerciseNames={NAMES}
         status={{ s1: 'failed' }}
-        onUndo={vi.fn()}
+        onDelete={vi.fn()}
         onRetry={onRetry}
-        undoing={false}
+        deletingId={null}
       />,
     )
     const retryButton = screen.getByRole('button', { name: /未保存/ })
@@ -89,18 +136,17 @@ describe('SetList', () => {
     expect(onRetry).toHaveBeenCalledWith('s1')
   })
 
-  it('disables the undo control and shows an in-progress label while undoing', () => {
+  it('disables deletion while another set is being deleted', () => {
     render(
       <SetList
         sets={[{ id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 }]}
         exerciseNames={NAMES}
         status={{ s1: 'saved' }}
-        onUndo={vi.fn()}
+        onDelete={vi.fn()}
         onRetry={vi.fn()}
-        undoing={true}
+        deletingId="s1"
       />,
     )
-    const undoButton = screen.getByRole('button', { name: '取り消し中…' })
-    expect(undoButton).toBeDisabled()
+    expect(screen.getByRole('button', { name: /を削除$/ })).toBeDisabled()
   })
 })

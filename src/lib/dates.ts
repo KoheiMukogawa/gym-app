@@ -17,9 +17,12 @@ export function workoutDateISO(date: string, original?: string): string {
   return result.toISOString()
 }
 
-export function validateSet(weight: number, reps: number): void {
-  if (!Number.isFinite(weight) || weight < 0 || weight > 9999.9 || Math.abs(weight * 10 - Math.round(weight * 10)) > 1e-7) {
-    throw new InputError('重量は0〜9999.9kg、小数1桁までで入力してください')
+/** minWeight は自重種目でアシスト（マイナス）を許すときに、体重のマイナス値を渡す。 */
+export function validateSet(weight: number, reps: number, minWeight = 0): void {
+  if (!Number.isFinite(weight) || weight < minWeight || weight > 9999.9 || Math.abs(weight * 10 - Math.round(weight * 10)) > 1e-7) {
+    throw new InputError(minWeight < 0
+      ? `加重は${minWeight}〜9999.9kg、小数1桁までで入力してください（アシストはマイナス）`
+      : '重量は0〜9999.9kg、小数1桁までで入力してください')
   }
   if (!Number.isInteger(reps) || reps < 1 || reps > 9999) throw new InputError('回数は1〜9999の整数で入力してください')
 }

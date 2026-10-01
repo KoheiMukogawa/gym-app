@@ -11,7 +11,10 @@ import { ExercisePicker } from '../exercises/ExercisePicker'
 import { exerciseLabel } from '../exercises/catalog'
 import { createExercise, fetchExercises } from '../exercises/queries'
 import { loadDraft, clearDraft } from '../workout-log/persistence'
-import { createDatedWorkout, fetchEditableWorkout, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutDate, updateWorkoutSet } from './editorQueries'
+import { SwipeRow } from '../../components/SwipeRow'
+import { bodyweightOn, formatAddedLoad, type BodyweightLog } from '../../lib/bodyweight'
+import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
+import { createDatedWorkout, fetchEditableWorkout, findWorkoutOnDate, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutDate, updateWorkoutSet } from './editorQueries'
 
 type Entry = { id: string; exercise_id: string; weight: string; reps: string; existing: boolean }
 const fieldClass = 'min-h-14 min-w-0 w-full rounded-xl border border-border bg-bg px-3 text-lg tabular-nums'
@@ -32,6 +35,7 @@ export function WorkoutEditorPage() {
   const [savedDate, setSavedDate] = useState<string | null>(null)
   const [sets, setSets] = useState<WorkoutSet[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
+  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
@@ -47,10 +51,11 @@ export function WorkoutEditorPage() {
     setLoading(true)
     setLoadError(null)
     try {
-      const [all, workout] = await Promise.all([
-        fetchExercises(), workoutId ? fetchEditableWorkout(userId, workoutId) : Promise.resolve(null),
+      const [all, workout, logs] = await Promise.all([
+        fetchExercises(), workoutId ? fetchEditableWorkout(userId, workoutId) : Promise.resolve(null), fetchBodyweightLogs(userId),
       ])
       setExercises(all)
+      setBodyweightLogs(logs)
       setNotFound(!!workoutId && !workout)
       if (workout) {
         setSavedId(workout.id)
@@ -114,12 +119,18 @@ export function WorkoutEditorPage() {
       if (!entry.weight.trim() || !entry.reps.trim()) throw new InputError('重量と回数を入力してください')
       const weight_kg = Number(entry.weight)
       const reps = Number(entry.reps)
-      validateSet(weight_kg, reps)
+      validateSet(weight_kg, reps, minWeightFor(entry.exercise_id))
       workoutDateISO(date)
       let id = savedId
+      let known = sets
       if (!id) {
-        id = newId.current
-        await createDatedWorkout(userId, id, date)
+        // One workout per day: add to the day's existing record when there is one.
+        id = await findWorkoutOnDate(userId, date)
+        if (id) known = (await fetchEditableWorkout(userId, id))?.workout_sets ?? []
+        else {
+          id = newId.current
+          await createDatedWorkout(userId, id, date)
+        }
         setSavedId(id)
         setSavedDate(workoutDateISO(date))
       } else if (savedDate && date !== localDate(savedDate)) {
@@ -127,7 +138,7 @@ export function WorkoutEditorPage() {
       }
       const old = sets.find((s) => s.id === entry.id)
       const set_index = old?.exercise_id === entry.exercise_id ? old.set_index
-        : 1 + Math.max(0, ...sets.filter((s) => s.exercise_id === entry.exercise_id).map((s) => s.set_index))
+        : 1 + Math.max(0, ...known.filter((s) => s.exercise_id === entry.exercise_id).map((s) => s.set_index))
       const next: WorkoutSet = {
         id: entry.id, workout_id: id, exercise_id: entry.exercise_id, weight_kg, reps, set_index,
         created_at: old?.created_at ?? new Date().toISOString(),
@@ -143,10 +154,31 @@ export function WorkoutEditorPage() {
     })
   }
 
+  function isBodyweightExercise(id: string) {
+    return exercises.some((e) => e.id === id && e.is_bodyweight)
+  }
+  // 自重種目は、その日の体重分までアシスト（マイナス）を入力できる
+  function minWeightFor(id: string) {
+    const bw = isBodyweightExercise(id) ? bodyweightOn(bodyweightLogs, date) : null
+    return bw === null ? 0 : -bw
+  }
+  function loadLabel(set: Pick<WorkoutSet, 'exercise_id' | 'weight_kg'>) {
+    return isBodyweightExercise(set.exercise_id) ? formatAddedLoad(set.weight_kg) : `${set.weight_kg} kg`
+  }
+  async function deleteSet(set: WorkoutSet) {
+    await action(async () => {
+      await removeWorkoutSet(savedId!, set.id)
+      setSets((old) => old.filter((s) => s.id !== set.id))
+      invalidateDraft()
+    })
+  }
+
   if (loading) return <Spinner />
   if (loadError) return <div className="space-y-4 p-4"><p role="alert">{loadError}</p><Button onClick={() => void load()}>再試行</Button></div>
   if (notFound) return <div className="p-4"><p role="alert">この記録は見つからないか、編集できません。</p><Link className="flex min-h-14 items-center text-accent" to="/history">履歴へ戻る</Link></div>
   const names = Object.fromEntries(exercises.map((e) => [e.id, exerciseLabel(e)]))
+  const groups = [...new Set(sets.map((s) => s.exercise_id))].map((id) => ({ id, sets: sets.filter((s) => s.exercise_id === id) }))
+  const entryIsBodyweight = !!entry && isBodyweightExercise(entry.exercise_id)
 
   return (
     <div className="flex flex-col gap-5 py-4">
@@ -165,6 +197,7 @@ export function WorkoutEditorPage() {
         </label>
         {savedId && savedDate && date !== localDate(savedDate) && (
           <Button disabled={busy} onClick={() => void action(async () => {
+            if (await findWorkoutOnDate(userId!, date, savedId)) throw new InputError('この日にはすでに記録があります。その日の記録に追加してください')
             const value = await updateWorkoutDate(userId!, savedId, date, savedDate)
             setSavedDate(value)
             invalidateDraft()
@@ -173,25 +206,26 @@ export function WorkoutEditorPage() {
         )}
       </section>
       {error && <p role="alert" className="px-4 text-sm text-accent">{error}</p>}
-      <section className="flex flex-col gap-2 px-4" aria-label="保存済みのセット">
-        {sets.map((set) => (
-          <div key={set.id} className="flex items-center gap-2 rounded-xl border border-border bg-surface p-3">
-            <button type="button" disabled={busy} className="min-h-14 flex-1 text-left" aria-pressed={entry?.id === set.id}
-              aria-label={names[set.exercise_id] + ' ' + set.weight_kg + 'kg ' + set.reps + '回を編集'}
-              onClick={() => editSet(set)}>
-              <span className="block text-sm text-muted">{names[set.exercise_id] ?? '種目'}</span>
-              <span className="font-semibold tabular-nums">{set.weight_kg} kg × {set.reps} 回</span>
-              <span className="ml-3 text-xs text-muted">{entry?.id === set.id ? '編集中' : drafts.current[set.id] ? '未保存' : '編集'}</span>
-            </button>
-            <button type="button" disabled={busy || !!entry || !!drafts.current[set.id]} aria-label={names[set.exercise_id] + ' ' + set.weight_kg + 'kg ' + set.reps + '回を削除'}
-              className="min-h-14 min-w-14 text-xs text-muted"
-              onClick={() => { if (window.confirm('このセットを削除しますか？')) void action(async () => {
-                await removeWorkoutSet(savedId!, set.id)
-                setSets((old) => old.filter((s) => s.id !== set.id))
-                invalidateDraft()
-              }) }}>削除</button>
-          </div>
+      <section className="flex flex-col gap-3 px-4" aria-label="保存済みのセット">
+        {groups.map((group) => (
+          <section key={group.id} className="rounded-xl border border-border bg-surface p-4">
+            <h2 className="mb-1 text-sm font-semibold">{names[group.id] ?? '種目'}</h2>
+            <ul className="divide-y divide-border">
+              {group.sets.map((set) => (
+                <SwipeRow key={set.id} label={(names[set.exercise_id] ?? '種目') + ' ' + loadLabel(set).replace(' ', '') + ' ' + set.reps + '回を削除'}
+                  disabled={busy || !!entry || !!drafts.current[set.id]} onDelete={() => deleteSet(set)}>
+                  <button type="button" disabled={busy} className="flex min-h-12 flex-1 items-center justify-between text-left" aria-pressed={entry?.id === set.id}
+                    aria-label={(names[set.exercise_id] ?? '種目') + ' ' + loadLabel(set).replace(' ', '') + ' ' + set.reps + '回を編集'}
+                    onClick={() => editSet(set)}>
+                    <span className="text-lg font-semibold tabular-nums">{loadLabel(set)} <span className="text-xs font-normal text-muted">×</span> {set.reps} <span className="text-xs font-normal text-muted">回</span></span>
+                    {(entry?.id === set.id || drafts.current[set.id]) && <span className="text-xs text-accent">{entry?.id === set.id ? '編集中' : '未保存'}</span>}
+                  </button>
+                </SwipeRow>
+              ))}
+            </ul>
+          </section>
         ))}
+        {sets.length > 0 && <p className="text-center text-xs text-muted">セットをタップで編集、左にスワイプで削除</p>}
         {sets.length === 0 && !picking && !entry && <p className="py-4 text-sm text-muted">セットがありません。種目を選んで追加できます。</p>}
       </section>
       {Object.values(drafts.current).filter((draft) => !draft.existing && draft.id !== entry?.id).map((draft) =>
@@ -207,8 +241,8 @@ export function WorkoutEditorPage() {
             {names[entry.exercise_id]} <span className="text-xs font-normal text-muted">種目を変更</span>
           </button>
           <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-2 text-sm text-muted">重量（kg）
-              <input type="number" inputMode="decimal" min="0" max="9999.9" step="0.1" required disabled={busy}
+            <label className="flex flex-col gap-2 text-sm text-muted">{entryIsBodyweight ? '加重（kg）' : '重量（kg）'}
+              <input type="number" inputMode="decimal" min={minWeightFor(entry.exercise_id)} max="9999.9" step="0.1" required disabled={busy}
                 value={entry.weight} onChange={(e) => setEntry({ ...entry, weight: e.target.value })} className={fieldClass} />
             </label>
             <label className="flex flex-col gap-2 text-sm text-muted">回数
@@ -216,6 +250,7 @@ export function WorkoutEditorPage() {
                 value={entry.reps} onChange={(e) => setEntry({ ...entry, reps: e.target.value })} className={fieldClass} />
             </label>
           </div>
+          {entryIsBodyweight && <p className="text-xs text-muted">{minWeightFor(entry.exercise_id) < 0 ? '自重のみは0、加重はプラス、アシストはマイナスで入力します。' : '自重のみは0、加重はプラスで入力します。体重を記録するとアシスト（マイナス）も入力できます。'}</p>}
           <Button type="submit" disabled={busy}>{busy ? '保存中…' : entry.existing ? '変更を保存' : 'セットを追加'}</Button>
         </form>
       )}
