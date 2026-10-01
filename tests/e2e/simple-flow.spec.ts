@@ -305,7 +305,7 @@ test('Big3 score has one editable goal and the logo returns home', async ({ page
   await expect(page.getByText('目標を追加', { exact: true })).toHaveCount(0)
   await page.screenshot({ path: 'test-results/strength-score-mobile.png', fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  await page.getByRole('link', { name: 'GYM LOG トップへ', exact: true }).click()
+  await page.getByRole('link', { name: 'Glog トップへ', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
 })

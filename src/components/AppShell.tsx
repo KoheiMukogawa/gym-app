@@ -16,7 +16,7 @@ export function AppShell() {
   return (
     <div className="mx-auto flex min-h-full max-w-lg flex-col">
       <header className="flex items-center justify-between px-4 pt-2">
-        <Link to="/" aria-label="GYM LOG トップへ" className="flex min-h-14 items-center text-xs font-semibold tracking-[0.25em] text-muted">GYM LOG</Link>
+        <Link to="/" aria-label="Glog トップへ" className="flex min-h-14 items-center text-xs font-semibold tracking-[0.25em] text-muted">Glog</Link>
         <details className="relative">
           <summary className="flex min-h-14 min-w-14 cursor-pointer list-none items-center justify-center text-xl text-muted" aria-label="アカウント">•••</summary>
           <div className="absolute right-0 z-50 w-60 rounded-xl border border-border bg-surface p-3 shadow-xl">

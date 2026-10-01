@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'ジム記録',
-        short_name: 'ジム記録',
+        name: 'Glog',
+        short_name: 'Glog',
         description: '部位から選んで、すぐに筋トレを記録する',
         lang: 'ja',
         start_url: '/',
