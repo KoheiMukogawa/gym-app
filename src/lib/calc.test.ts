@@ -11,6 +11,7 @@ import {
   adjustWeight,
   adjustReps,
 } from './calc'
+import { estimateRepsAt } from './strength'
 import type { SetWithDate } from './types'
 
 describe('normalizeExerciseName', () => {
@@ -179,5 +180,37 @@ describe('suggestReps', () => {
     expect(suggestReps(chin, 'chin', 15, 70)).toEqual({ reps: 6, source: 'estimate' })
     // 体重を無視すると加重10kgだけで換算してしまい、まったく違う答えになる
     expect(suggestReps(chin, 'chin', 15, 0)).toEqual({ reps: 1, source: 'estimate' })
+  })
+})
+
+describe('suggestReps follows the lifter\'s own curve', () => {
+  // 実データ: 60kg×10、80kg×10、90kg×1。中重量で粘れるが高重量で急に落ちるタイプ。
+  const history = [
+    { exercise_id: 'bench', weight_kg: 60, reps: 10 },
+    { exercise_id: 'bench', weight_kg: 80, reps: 10 },
+    { exercise_id: 'bench', weight_kg: 90, reps: 1 },
+  ]
+  it('does not promise more reps at 100kg than were managed at 90kg', () => {
+    // 80kg×10 の推定1RMは106.7kgで、式だけなら100kgで3回と出てしまう
+    expect(estimateRepsAt(106.7, 100)).toBe(3)
+    // 90kg×1 を踏まえれば1回
+    expect(suggestReps(history, 'bench', 100)).toEqual({ reps: 1, source: 'estimate' })
+    expect(suggestReps(history, 'bench', 95)).toEqual({ reps: 1, source: 'estimate' })
+  })
+  it('interpolates between the two surrounding records', () => {
+    // 80kg→10回 と 90kg→1回 の間なので、85kgは5回
+    expect(suggestReps(history, 'bench', 85)).toEqual({ reps: 5, source: 'estimate' })
+    // 60kg と 80kg はどちらも10回なので、その間も10回
+    expect(suggestReps(history, 'bench', 70)).toEqual({ reps: 10, source: 'estimate' })
+  })
+  it('never suggests more reps as the weight goes up', () => {
+    const weights = [62.5, 65, 70, 75, 82.5, 85, 87.5, 92.5, 95, 100, 110]
+    const reps = weights.map((w) => suggestReps(history, 'bench', w)?.reps ?? 0)
+    expect(reps).toEqual([...reps].sort((a, b) => b - a))
+  })
+  it('falls back to the formula where the curve is flat', () => {
+    // 60kg と 80kg がどちらも10回だけだと傾きが取れないので、推定1RMから逆算する
+    const flat = history.slice(0, 2)
+    expect(suggestReps(flat, 'bench', 90)).toEqual({ reps: 6, source: 'estimate' })
   })
 })

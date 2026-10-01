@@ -516,7 +516,7 @@ test('the record tab is gone and reps are filled from records, then from an esti
   // 挙げたことのない重量は、推定1RM（80kg×8 から約99.3kg）から逆算する
   await weight.fill('85')
   await expect(reps).toHaveValue('6')
-  await expect(page.getByText('この重量の目安')).toContainText('推定1RMから')
+  await expect(page.getByText("この重量の目安")).toContainText("これまでの記録から")
   // 推定1RMを超える重量は1回
   await weight.fill('100')
   await expect(reps).toHaveValue('1')

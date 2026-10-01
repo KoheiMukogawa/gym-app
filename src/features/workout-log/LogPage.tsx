@@ -581,7 +581,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         {suggestion && <p className="mb-2 text-center text-xs text-muted" aria-live="polite">
           {suggestion.source === 'record' ? 'この重量の自己ベスト ' : 'この重量の目安 '}
           <strong className="text-fg tabular-nums">{suggestion.reps}</strong> 回
-          {suggestion.source === 'estimate' && <span className="ml-1">（推定1RMから）</span>}
+          {suggestion.source === 'estimate' && <span className="ml-1">（これまでの記録から）</span>}
         </p>}
         <label className="mb-3 block">
           <span className="sr-only">メモ（任意）</span>
