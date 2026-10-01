@@ -147,7 +147,7 @@ export function BodyPage() {
         ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
         : <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+              <LineChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <XAxis dataKey="date" tick={{ fill: '#8A8A93', fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(d: string) => d.slice(5).replace('-', '/')} minTickGap={24} />
                 <YAxis tick={{ fill: '#8A8A93', fontSize: 11 }} axisLine={false} tickLine={false} width={44}

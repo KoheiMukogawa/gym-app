@@ -19,7 +19,7 @@ const USER = '11111111-1111-4111-8111-111111111111'
 type SetRow = { id: string; workout_id: string; exercise_id: string; weight_kg: number; reps: number; set_index: number; created_at: string }
 type WorkoutRow = { id: string; user_id: string; performed_at: string; created_at: string }
 async function mockApi(page: Page) {
-  const bodyweights: { recorded_on: string; bodyweight_kg: number }[] = []
+  const bodyweights: { recorded_on: string; bodyweight_kg: number; body_fat_pct?: number | null }[] = []
   const exercises = [
     { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', muscle_group: 'chest', is_preset: true, created_by: null },
     { id: 'chin', name: 'チンニング', name_normalized: 'チンニング', muscle_group: 'back', is_preset: true, created_by: null, is_bodyweight: true },
@@ -55,6 +55,7 @@ async function mockApi(page: Page) {
     if (table === 'profiles') return respond({ id: USER, display_name: 'テストユーザー' })
     if (table === 'bodyweight_logs') {
       if (method === 'POST') { bodyweights.splice(0, bodyweights.length, ...bodyweights.filter((b) => b.recorded_on !== body.recorded_on), body); return respond(null, 201) }
+      if (method === 'DELETE') { const i = bodyweights.findIndex((b) => b.recorded_on === eq('recorded_on')); if (i >= 0) bodyweights.splice(i, 1); return respond(null) }
       return respond(bodyweights)
     }
     if (table === 'strength_goals') {
@@ -205,7 +206,17 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await page.getByRole('button', { name: '脚', exact: true }).click()
   await page.getByRole('button', { name: 'スクワット', exact: true }).click()
   await page.getByRole('spinbutton', { name: '重量（kg）' }).fill('100')
-  await page.getByRole('button', { name: 'セットを追加', exact: true }).click()
+  // Creating a past workout navigates and refetches it; the optimistic row
+  // alone does not mean that the saved-date reset has finished.
+  await Promise.all([
+    page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return response.request().method() === 'GET' && url.pathname.endsWith('/workouts')
+        && url.searchParams.get('id') === `eq.${data.workouts[1]?.id}`
+    }),
+    page.getByRole('button', { name: 'セットを追加', exact: true }).click(),
+  ])
+  await expect(page.getByRole('heading', { name: '記録を編集', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /100kg 10回を編集/ })).toBeVisible()
   expect(new Date(data.workouts[1].performed_at).getFullYear()).toBe(2020)
   await page.getByLabel('トレーニング日').fill('2020-02-04')
@@ -393,6 +404,10 @@ test('reopening the app mid-workout goes straight to recording; otherwise it ope
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(1)
+  // A server-side mock mutation can precede the client's saved acknowledgement.
+  // Await the enabled memo action and absence of retry before reloading the draft.
+  await expect(page.getByRole('button', { name: /1set .*のメモを追加/ })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '未保存・再試行', exact: true })).toHaveCount(0)
   await page.goto('/')
   await expect(page).toHaveURL(/\/log$/)
   await expect(page.getByRole('button', { name: 'セット完了', exact: true })).toBeVisible()
@@ -497,7 +512,7 @@ test('the record tab is gone and reps are filled from records, then from an esti
   // 記録タブは廃止。ホームのボタンと履歴から入る。
   const tabs = page.getByRole('navigation', { name: 'メイン' })
   await expect(tabs.getByRole('link', { name: '記録', exact: true })).toHaveCount(0)
-  await expect(tabs.getByRole('link')).toHaveCount(3)
+  await expect(tabs.getByRole('link')).toHaveCount(4)
 
   await page.getByRole('link', { name: /本日のトレーニングを追加|続きを記録/ }).click()
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
@@ -539,4 +554,107 @@ test('exports the chosen period as markdown, memos included', async ({ page }) =
   // 80kg×5 の推定1RM は 90.0kg
   await expect(output).toContainText('| 1 | 80.0 kg | 5 | 90.0 kg | 肩甲骨を寄せる |')
   await expect(page.getByRole('button', { name: 'ファイルで保存' })).toBeVisible()
+})
+
+
+test('body composition roundtrip plots values and averages, edits past dates and deletes by swipe', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
+  const data = await mockApi(page)
+  const date = (daysAgo: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() - daysAgo)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const today = date(0), past = date(3), older = date(45), oldest = date(180)
+  data.bodyweights.push(
+    { recorded_on: oldest, bodyweight_kg: 66, body_fat_pct: 18 },
+    { recorded_on: older, bodyweight_kg: 68, body_fat_pct: 17 },
+    { recorded_on: past, bodyweight_kg: 70, body_fat_pct: 16 },
+  )
+  await page.goto('/profile')
+  await expect(page.getByLabel('体重（kg）')).toHaveCount(0)
+  await page.getByRole('link', { name: '体組成を記録する →' }).click()
+  await expect(page.getByLabel('体重（kg）')).toHaveValue('70')
+  await expect(page.getByLabel('体脂肪率（%）')).toHaveValue('16')
+  const trend = page.getByRole('region', { name: '推移' })
+  const list = page.getByRole('region', { name: '最近の記録' })
+  const dots = trend.locator('.recharts-line-dots circle[stroke="#8A8A93"]')
+  const averages = trend.locator('path.recharts-line-curve')
+  const tooltip = trend.locator('.recharts-tooltip-wrapper')
+  const inspectPoint = async (index: number, value: string) => {
+    const dot = dots.nth(index)
+    await dot.scrollIntoViewIfNeeded()
+    const box = (await dot.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await expect(tooltip).toContainText(value)
+  }
+  await page.getByLabel('体重（kg）').fill('70.2')
+  await page.getByLabel('体脂肪率（%）').fill('15.4')
+  await page.getByRole('button', { name: '記録する', exact: true }).click()
+  await expect.poll(() => data.bodyweights.find((b) => b.recorded_on === today)).toMatchObject({ bodyweight_kg: 70.2, body_fat_pct: 15.4 })
+  await expect(page.getByRole('status')).toHaveText('記録しました')
+  await page.reload()
+  await expect(page.getByLabel('体重（kg）')).toBeEnabled()
+  await expect(list.getByRole('button', { name: `${today} の記録を修正` })).toContainText('70.2')
+  await expect(dots).toHaveCount(2)
+  await expect(averages).toHaveCount(2)
+  // Hover the real SVG point and check both rendered series through Recharts' tooltip.
+  await inspectPoint(1, '70.2 kg')
+  await expect(averages.last()).toHaveAttribute('stroke', '#E8412F')
+  await expect(tooltip).toContainText('70.1 kg')
+  // Every Y-axis label must fit inside the SVG on the 390px mobile viewport.
+  const axisLabelsFit = () => trend.locator('svg.recharts-surface').evaluate((svg) => {
+    const bounds = svg.getBoundingClientRect()
+    const labels = [...svg.querySelectorAll('.recharts-yAxis-tick-labels text')]
+    return labels.length > 0 && labels.every((label) => label.getBoundingClientRect().left >= bounds.left)
+  })
+  await expect.poll(axisLabelsFit).toBe(true)
+  await page.screenshot({ path: 'test-results/body-composition-mobile.png', fullPage: true })
+
+  await page.getByLabel('体脂肪率（%）').fill('')
+  await page.getByLabel('体重（kg）').fill('70.8')
+  await page.getByRole('button', { name: '記録する', exact: true }).click()
+  await expect.poll(() => data.bodyweights.find((b) => b.recorded_on === today)).toMatchObject({ bodyweight_kg: 70.8, body_fat_pct: null })
+  expect(data.bodyweights).toHaveLength(4)
+  await inspectPoint(1, '70.8 kg')
+  await list.getByRole('button', { name: `${past} の記録を修正` }).click()
+  await expect(page.getByRole('region', { name: '記録の入力' })).toContainText(`${past}の記録`)
+  await page.getByLabel('体重（kg）').fill('71')
+  await page.getByRole('button', { name: '記録する', exact: true }).click()
+  await expect.poll(() => data.bodyweights.find((b) => b.recorded_on === past)).toMatchObject({ bodyweight_kg: 71, body_fat_pct: 16 })
+  await expect(page.getByRole('region', { name: '記録の入力' })).toContainText('今日の記録')
+  await expect(page.getByLabel('体重（kg）')).toHaveValue('70.8')
+  await inspectPoint(0, '71 kg')
+  await page.getByRole('button', { name: '体脂肪率', exact: true }).click()
+  await expect(dots).toHaveCount(1)
+  await inspectPoint(0, '16 %')
+  await page.getByRole('button', { name: '3ヶ月', exact: true }).click()
+  await expect(dots).toHaveCount(2)
+  await expect(list.getByRole('button', { name: /の記録を修正$/ })).toHaveCount(3)
+  await page.getByRole('button', { name: '1年', exact: true }).click()
+  await expect(dots).toHaveCount(3)
+  await expect(list.getByRole('button', { name: /の記録を修正$/ })).toHaveCount(4)
+  await page.getByRole('button', { name: '1ヶ月', exact: true }).click()
+  await expect(dots).toHaveCount(1)
+  await expect(list.getByRole('button', { name: /の記録を修正$/ })).toHaveCount(2)
+  const row = list.getByRole('button', { name: `${past} の記録を修正` })
+  await row.scrollIntoViewIfNeeded()
+  const bounds = (await row.boundingBox())!
+  const cdp = await page.context().newCDPSession(page)
+  const x = bounds.x + bounds.width - 12, y = bounds.y + bounds.height / 2
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x - 100, y }] })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.detach()
+  await list.getByRole('button', { name: `${past} の記録を削除` }).click()
+  await expect.poll(() => data.bodyweights.some((b) => b.recorded_on === past)).toBe(false)
+  await expect(trend).toContainText('この期間の記録はありません')
+  await expect(row).toHaveCount(0)
+  await page.getByRole('button', { name: '体重', exact: true }).click()
+  await expect(dots).toHaveCount(1)
+  await inspectPoint(0, '70.8 kg')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  expect(errors).toEqual([])
 })
