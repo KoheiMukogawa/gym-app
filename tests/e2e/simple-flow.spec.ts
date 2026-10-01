@@ -168,13 +168,16 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await page.getByRole('spinbutton', { name: '回数', exact: true }).fill('6')
   await expect(page.getByText('92.9 kg', { exact: true })).toBeVisible()
   await page.getByRole('link', { name: '履歴', exact: true }).click()
-  await page.getByRole('link', { name: '記録', exact: true }).click()
+  await page.getByRole('link', { name: 'ホーム', exact: true }).click()
+  await page.getByRole('link', { name: /続きを記録|本日のトレーニングを追加/ }).click()
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveValue('80')
   await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveValue('6')
   const wheel=page.getByLabel('重量をスクロールで選択',{exact:true})
   await wheel.hover()
   await page.mouse.wheel(0,80)
   await expect(page.getByRole('spinbutton',{name:'重量',exact:true})).toHaveValue('85')
+  // 重量を変えると回数が提案値に入れ替わるので、推定1RMの表示を見るために戻す
+  await page.getByRole('spinbutton',{name:'回数',exact:true}).fill('6')
   await expect(page.getByText('98.7 kg',{exact:true})).toBeVisible()
   await page.screenshot({path:'test-results/log-mobile-redesigned.png',fullPage:true})
   await page.getByRole('button', { name: 'プロフィールメニュー', exact: true }).click()
@@ -247,7 +250,7 @@ test('personal exercise creation stays in the chosen body group', async ({ page 
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(1)
   await page.getByRole('button', { name: '終了', exact: true }).click()
-  await page.getByRole('link', { name: '記録', exact: true }).click()
+  await page.getByRole('link', { name: /続きを記録|本日のトレーニングを追加/ }).click()
   await page.getByRole('button', { name: '肩', exact: true }).click()
   await expect(page.getByRole('region', { name: '肩の種目' }).getByRole('button', { name: 'ケーブルサイドレイズ 自分の種目', exact: true })).toBeVisible()
 })
@@ -360,6 +363,8 @@ test('sets are deleted by swiping left like a mail app', async ({ page }) => {
   await expect(page.getByRole('button', { name: '直前のセットを取り消す' })).toHaveCount(0)
   const rows = page.getByRole('listitem')
   const swipe = async (index: number, distance: number) => {
+    // 下部の固定タブに隠れているとマウス操作が届かないので、先に一番下までスクロールする
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
     const box = (await rows.nth(index).boundingBox())!
     const y = box.y + box.height / 2
     await page.mouse.move(box.x + box.width - 10, y)
@@ -452,4 +457,67 @@ test('history calendar changes month by swiping left and right', async ({ page }
   await swipe(-150)
   await expect(page.getByText(label(now), { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('memo field is iOS-zoom safe and grows so long text stays visible', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  const memo = page.getByPlaceholder(/メモ（任意）/)
+
+  // iOS zooms the page when a focused field is under 16px.
+  const fontSize = await memo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+  expect(fontSize).toBeGreaterThanOrEqual(16)
+
+  const oneLine = (await memo.boundingBox())!.height
+  await memo.fill('フォームを意識する。\n肩甲骨を寄せたまま下ろし、最後の1回だけ補助をもらった。')
+  const grown = (await memo.boundingBox())!.height
+  expect(grown).toBeGreaterThan(oneLine)
+  // Every line is visible: nothing is scrolled out of view.
+  expect(await memo.evaluate((el: HTMLTextAreaElement) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1)
+
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets[0]?.note).toContain('肩甲骨')
+  // The saved memo keeps its line break on screen.
+  await expect(page.getByText('肩甲骨を寄せたまま下ろし', { exact: false })).toBeVisible()
+  // The field is clear and back to one line for the next set.
+  await expect(memo).toHaveValue('')
+  expect((await memo.boundingBox())!.height).toBe(oneLine)
+})
+
+test('the record tab is gone and reps are filled from records, then from an estimate', async ({ page }) => {
+  const data = await mockApi(page)
+
+  // 過去に 80kg×5 と 80kg×8、直近に 60kg×12 を挙げている
+  const past = new Date(Date.now() - 7 * 86400000).toISOString()
+  data.workouts.push({ id: 'w-past', user_id: USER, performed_at: past, created_at: past })
+  ;([[80, 5], [80, 8], [60, 12]] as const).forEach(([weight_kg, reps], i) =>
+    data.sets.push({ id: 'p' + i, workout_id: 'w-past', exercise_id: 'bench', weight_kg, reps, set_index: i + 1, created_at: new Date(Date.parse(past) + i * 1000).toISOString() }))
+
+  await page.goto('/')
+  // 記録タブは廃止。ホームのボタンと履歴から入る。
+  const tabs = page.getByRole('navigation', { name: 'メイン' })
+  await expect(tabs.getByRole('link', { name: '記録', exact: true })).toHaveCount(0)
+  await expect(tabs.getByRole('link')).toHaveCount(3)
+
+  await page.getByRole('link', { name: /本日のトレーニングを追加|続きを記録/ }).click()
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+
+  const weight = page.getByRole('spinbutton', { name: '重量', exact: true })
+  const reps = page.getByRole('spinbutton', { name: '回数', exact: true })
+  // 直近が 60kg×12 なので、その重量の自己ベストである12回が入る
+  await expect(weight).toHaveValue('60')
+  await expect(reps).toHaveValue('12')
+
+  // 80kg にすると、その重量の自己ベストである8回に切り替わる
+  await weight.fill('80')
+  await expect(reps).toHaveValue('8')
+  await expect(page.getByText('この重量の自己ベスト')).toContainText('8')
+
+  // 挙げたことのない重量は、推定1RM（80kg×8 から約99.3kg）から逆算する
+  await weight.fill('85')
+  await expect(reps).toHaveValue('6')
+  await expect(page.getByText('この重量の目安')).toContainText('推定1RMから')
+  // 推定1RMを超える重量は1回
+  await weight.fill('100')
+  await expect(reps).toHaveValue('1')
 })

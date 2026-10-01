@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { findPrefill } from '../../lib/calc'
+import { findPrefill, suggestReps } from '../../lib/calc'
 import { validateSet } from '../../lib/dates'
 import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
@@ -27,6 +27,7 @@ import {
   updateSetNote,
 } from './queries'
 import { SetList } from './SetList'
+import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 import { formatAddedLoad, latestBodyweight, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs, parseBodyweight, saveBodyweight } from '../profile/bodyweightQueries'
 
@@ -191,6 +192,11 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const minWeight = isBodyweight && bodyweight !== null ? -bodyweight : 0
   const load = isBodyweight ? totalLoad(state.weight_kg, bodyweight) : state.weight_kg
   const estimated = load === null ? null : estimateOneRepMax(load, state.reps)
+  const loadOffset = isBodyweight ? bodyweight ?? 0 : 0
+  // この重量で狙う回数。実績があればその最大、無ければ推定1RMからの逆算。
+  // 回数の初期値になるので、根拠として画面にも出す。
+  const suggestion = state.currentExerciseId === null ? null
+    : suggestReps([...history, ...state.sets], state.currentExerciseId, state.weight_kg, loadOffset)
 
   async function handleSaveBodyweight() {
     const value = parseBodyweight(bodyweightDraft)
@@ -206,7 +212,9 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
 
   function selectExercise(exerciseId: string) {
     const bw = exercises.some((e) => e.id === exerciseId && e.is_bodyweight)
-    dispatch({ type: 'select-exercise', exerciseId, prefill: findPrefill(history, exerciseId), defaultWeight: bw ? 0 : undefined })
+    // 自重種目は体重を足した総重量で換算する
+    const loadOffset = bw ? latestBodyweight(bodyweightLogs) ?? 0 : 0
+    dispatch({ type: 'select-exercise', exerciseId, prefill: findPrefill(history, exerciseId), defaultWeight: bw ? 0 : undefined, history, loadOffset })
     setPicking(false)
   }
   function moveRoutine(direction: -1 | 1) {
@@ -557,7 +565,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
             unit="kg"
             min={minWeight}
             format={isBodyweight ? formatAddedLoad : undefined}
-            onEnter={(value) => dispatch({ type: 'set-weight', value, min: minWeight })}
+            onEnter={(value) => dispatch({ type: 'set-weight', value, min: minWeight, history, loadOffset })}
           />
           <WheelNumber
             label="回数"
@@ -570,10 +578,15 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
           体重 {bodyweight} kg {formatAddedLoad(state.weight_kg) === '自重' ? '' : formatAddedLoad(state.weight_kg).replace('+', '＋ ').replace('−', '− ')} ＝ 総重量 <strong className="text-fg tabular-nums">{load} kg</strong>
           <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
         </p>}
+        {suggestion && <p className="mb-2 text-center text-xs text-muted" aria-live="polite">
+          {suggestion.source === 'record' ? 'この重量の自己ベスト ' : 'この重量の目安 '}
+          <strong className="text-fg tabular-nums">{suggestion.reps}</strong> 回
+          {suggestion.source === 'estimate' && <span className="ml-1">（推定1RMから）</span>}
+        </p>}
         <label className="mb-3 block">
           <span className="sr-only">メモ（任意）</span>
-          <input type="text" maxLength={200} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="メモ（任意）例: フォーム意識"
-            className="min-h-12 w-full rounded-xl border border-border bg-surface px-4 text-sm text-fg" />
+          <AutoGrowTextarea maxLength={200} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="メモ（任意）例: フォーム意識"
+            className="min-h-12 w-full rounded-xl border border-border bg-surface px-4 py-3 text-fg" />
         </label>
         <p className="mb-4 text-center text-sm text-muted" aria-live="polite">推定1RM <strong className="ml-2 text-xl text-fg tabular-nums">{estimated === null ? '—' : estimated + ' kg'}</strong>{state.reps>10&&<span className="ml-2 text-xs">1〜10回で換算</span>}</p>
         </>}

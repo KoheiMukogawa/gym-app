@@ -167,3 +167,53 @@ describe('nextSet', () => {
     expect(predicted).toEqual(after.sets[1])
   })
 })
+
+describe('reps follow the best ever done at the chosen weight', () => {
+  const history = [
+    { exercise_id: 'bench', weight_kg: 80, reps: 5 },
+    { exercise_id: 'bench', weight_kg: 80, reps: 8 },
+  ]
+  it('fills reps from history when the weight is chosen', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null, history })
+    state = logReducer(state, { type: 'set-weight', value: 80, history })
+    expect(state.reps).toBe(8)
+  })
+  it('estimates reps from past records for a weight never lifted', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null, history })
+    // 80kg×8 の推定1RMは約99.3kg。85kgならその逆算で6回。
+    state = logReducer(state, { type: 'set-weight', value: 85, history })
+    expect(state.reps).toBe(6)
+    // 推定1RM以上の重量は1回
+    state = logReducer(state, { type: 'set-weight', value: 100, history })
+    expect(state.reps).toBe(1)
+  })
+  it('leaves reps alone for a weight too light to estimate from', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null, history })
+    state = logReducer(state, { type: 'set-reps', value: 5 })
+    // 40kg は逆算すると10回を超え、Brzycki式の有効範囲外なので提案しない
+    state = logReducer(state, { type: 'set-weight', value: 40, history })
+    expect(state.weight_kg).toBe(40)
+    expect(state.reps).toBe(5)
+  })
+  it('keeps the current reps for an exercise with no history at all', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'squat', prefill: null, history })
+    state = logReducer(state, { type: 'set-reps', value: 3 })
+    state = logReducer(state, { type: 'set-weight', value: 100, history })
+    expect(state.reps).toBe(3)
+  })
+  it('counts sets recorded earlier in this session', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null, history: [] })
+    state = logReducer(state, { type: 'set-weight', value: 60, history: [] })
+    state = logReducer(state, { type: 'set-reps', value: 12 })
+    state = logReducer(state, { type: 'complete-set', id: 's1' })
+    state = logReducer(state, { type: 'set-weight', value: 80, history: [] })
+    state = logReducer(state, { type: 'set-weight', value: 60, history: [] })
+    expect(state.reps).toBe(12)
+  })
+  it('leaves reps alone when no history is passed', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null })
+    state = logReducer(state, { type: 'set-reps', value: 3 })
+    state = logReducer(state, { type: 'set-weight', value: 80 })
+    expect(state.reps).toBe(3)
+  })
+})

@@ -24,6 +24,20 @@ export function estimateOneRepMax(weightKg: number, reps: number): number | null
   return round1((weightKg * 36) / (37 - reps))
 }
 
+/**
+ * 推定1RMから、その重量で挙げられそうな回数を Brzycki 式の逆算で求める。
+ * 1RM = w × 36 / (37 − r) を r について解くと r = 37 − 36w / 1RM。
+ * 切り捨てて控えめに見積もる。1RM以上の重量は1回、
+ * 10回を超える軽い重量は式の有効範囲外なので提案しない。
+ */
+export function estimateRepsAt(oneRepMax: number, weightKg: number): number | null {
+  if (!Number.isFinite(oneRepMax) || oneRepMax <= 0) return null
+  if (!Number.isFinite(weightKg) || weightKg <= 0) return null
+  const reps = Math.floor(37 - (36 * weightKg) / oneRepMax)
+  if (reps > MAX_E1RM_REPS) return null
+  return Math.max(1, reps)
+}
+
 export function bestSingle(sets: StrengthSet[]): number | null {
   const singles = sets.filter((set) => set.reps === 1).map((set) => set.weight_kg)
   return singles.length === 0 ? null : Math.max(...singles)

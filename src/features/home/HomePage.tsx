@@ -15,27 +15,43 @@ import { currentGoal } from '../strength/currentGoal'
 import { fetchStrengthGoals, fetchStrengthSnapshot, type StrengthGoal, type StrengthSnapshot } from '../strength/queries'
 import { StartTrainingCard } from '../workout-log/StartTrainingCard'
 
+// BIG3画面のリングと同じ濃淡で、スクワット→ベンチ→デッドを見分けられるようにする
 const LIFTS = [
-  { key: 'squat', label: 'スクワット' },
-  { key: 'bench', label: 'ベンチプレス' },
-  { key: 'deadlift', label: 'デッドリフト' },
+  { key: 'squat', label: 'スクワット', opacity: 1 },
+  { key: 'bench', label: 'ベンチプレス', opacity: 0.68 },
+  { key: 'deadlift', label: 'デッドリフト', opacity: 0.4 },
 ] as const
 const kg = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1))
 
-/** Right-hand column next to the calendar: BIG3 total and each lift's estimated 1RM. */
+/** Right-hand column next to the calendar: the BIG3 total and each lift as a bar. */
 function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goal: StrengthGoal | null }) {
   const values = LIFTS.map(({ key }) => snapshot.lifts[key].allTimeE1rm)
   const total = strengthTotal(values)
-  return <Link to="/big3" aria-label="BIG3の詳細へ" className="flex h-full flex-col gap-1.5">
-    <div className="flex-1 rounded-xl border border-border px-3 py-2">
-      <p className="text-[11px] text-muted">BIG3合計</p>
-      <p className="text-2xl font-semibold leading-tight tabular-nums">{total === null ? '—' : kg(total)}<span className="ml-0.5 text-xs font-normal text-muted">kg</span></p>
-      {goal && total !== null && <p className="text-[11px] text-muted">目標 {kg(goal.target_total_kg)} · {Math.min(100, Math.floor((total / goal.target_total_kg) * 100))}%</p>}
+  const ratio = total !== null && goal ? Math.min(1, total / goal.target_total_kg) : null
+  // 3種目の棒は、その中で一番重い種目を基準に長さをそろえる
+  const scale = Math.max(1, ...values.map((v) => v ?? 0))
+  return <Link to="/big3" aria-label="BIG3の詳細へ" className="block rounded-xl border border-border p-3">
+    <p className="text-[11px] text-muted">合計</p>
+    <p className="text-2xl font-semibold leading-tight tabular-nums">
+      {total === null ? '—' : kg(total)}<span className="ml-0.5 text-xs font-normal text-muted">kg</span>
+    </p>
+    {ratio !== null && goal && <>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border" aria-hidden="true">
+        <div className="h-full rounded-full bg-accent" style={{ width: `${ratio * 100}%` }} />
+      </div>
+      <p className="mt-0.5 text-[10px] text-muted">目標 {kg(goal.target_total_kg)} kg</p>
+    </>}
+    <div className="mt-2 space-y-1.5 border-t border-border pt-2">
+      {LIFTS.map((lift, i) => <div key={lift.key}>
+        <div className="flex items-baseline justify-between gap-1">
+          <span className="text-[10px] text-muted">{lift.label}</span>
+          <span className="text-sm font-semibold tabular-nums">{values[i] === null ? '—' : kg(values[i]!)}</span>
+        </div>
+        <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-border" aria-hidden="true">
+          <div className="h-full rounded-full bg-accent" style={{ width: `${((values[i] ?? 0) / scale) * 100}%`, opacity: lift.opacity }} />
+        </div>
+      </div>)}
     </div>
-    {LIFTS.map((lift, i) => <div key={lift.key} className="flex-1 rounded-xl border border-border px-3 py-1.5">
-      <p className="text-[11px] text-muted">{lift.label}</p>
-      <p className="text-lg font-semibold leading-tight tabular-nums">{values[i] === null ? '—' : kg(values[i]!)}<span className="ml-0.5 text-[11px] font-normal text-muted">kg</span></p>
-    </div>)}
   </Link>
 }
 
@@ -61,7 +77,7 @@ function TodayWorkout({ item, bodyweight }: { item: FeedItem; bodyweight: number
             <span className="text-muted">{i + 1}</span>
             <span>{group.bodyweight ? formatAddedLoad(s.weight_kg) : `${s.weight_kg.toFixed(1)} kg`}</span>
             <span><span className="text-muted">×</span> {s.reps} <span className="text-xs text-muted">reps</span></span>
-            {s.note && <span className="col-start-2 col-end-4 break-words text-xs text-muted">{s.note}</span>}
+            {s.note && <span className="col-start-2 col-end-4 whitespace-pre-wrap break-words text-xs text-muted">{s.note}</span>}
           </li>)}
         </ol>
       </section>
@@ -105,7 +121,8 @@ export function HomePage() {
           : <MonthCalendar compact year={year} month={month} activeDates={trainedDays} selectedDate={today} maxDate={today}
               onSelect={(date) => navigate('/history?date=' + date)} />}
       </section>
-      <section aria-label="BIG3">
+      <section aria-label="BIG3" className="self-start">
+        <h2 className="mb-2 text-xl font-semibold">BIG3</h2>
         {strengthError ? <div className="space-y-2"><p role="alert" className="text-xs text-accent">{strengthError}</p><Button variant="ghost" onClick={() => setStrengthAttempt((n) => n + 1)}>再試行</Button></div>
           : snapshot ? <Big3Column snapshot={snapshot} goal={goal} /> : <Spinner />}
       </section>

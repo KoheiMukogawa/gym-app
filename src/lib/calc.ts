@@ -1,6 +1,6 @@
 import type { SetWithDate, WorkoutSet } from './types'
 import { localDate } from './dates'
-import { estimateOneRepMax } from './strength'
+import { bestEstimatedOneRepMax, estimateOneRepMax, estimateRepsAt } from './strength'
 
 export const WEIGHT_STEP = 2.5
 export const MIN_WEIGHT = 0
@@ -33,6 +33,49 @@ export function findPrefill(
   const hit = history.find((s) => s.exercise_id === exerciseId)
   if (!hit) return null
   return { weight_kg: hit.weight_kg, reps: hit.reps }
+}
+
+/**
+ * その種目・その重量で、過去に挙げられた最大レップ数。記録がなければ null。
+ * 重量を選んだときのレップ数の初期値に使う。
+ */
+export function maxRepsAt(
+  history: Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[],
+  exerciseId: string,
+  weightKg: number,
+): number | null {
+  let best: number | null = null
+  for (const set of history) {
+    if (set.exercise_id !== exerciseId) continue
+    // numeric(5,1) 同士なので誤差は出ないが、浮動小数の比較として安全側に倒す
+    if (Math.abs(set.weight_kg - weightKg) > 1e-9) continue
+    if (best === null || set.reps > best) best = set.reps
+  }
+  return best
+}
+
+export type RepSuggestion = { reps: number; source: 'record' | 'estimate' }
+
+/**
+ * その重量で狙う回数の提案。実際に挙げた記録があればその最大回数を優先し、
+ * 無ければ推定1RMから逆算する。どちらも出せなければ null。
+ * loadOffset は自重種目の体重分で、加重と体重を足した総重量で換算するために使う。
+ */
+export function suggestReps(
+  history: Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[],
+  exerciseId: string,
+  weightKg: number,
+  loadOffset = 0,
+): RepSuggestion | null {
+  const record = maxRepsAt(history, exerciseId, weightKg)
+  if (record !== null) return { reps: record, source: 'record' }
+  const loads = history
+    .filter((set) => set.exercise_id === exerciseId)
+    .map((set) => ({ weight_kg: set.weight_kg + loadOffset, reps: set.reps }))
+  const oneRepMax = bestEstimatedOneRepMax(loads)
+  if (oneRepMax === null) return null
+  const reps = estimateRepsAt(oneRepMax, weightKg + loadOffset)
+  return reps === null ? null : { reps, source: 'estimate' }
 }
 
 /** 日付ごとの最大重量を、古い順に返す。 */

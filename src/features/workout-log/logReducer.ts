@@ -1,4 +1,8 @@
-import { adjustReps, adjustWeight, DEFAULT_REPS, DEFAULT_WEIGHT, MIN_REPS, MIN_WEIGHT } from '../../lib/calc'
+import { adjustReps, adjustWeight, DEFAULT_REPS, DEFAULT_WEIGHT, MIN_REPS, MIN_WEIGHT, suggestReps } from '../../lib/calc'
+import type { WorkoutSet } from '../../lib/types'
+
+/** レップ数の初期値を決めるための、過去のセット履歴 */
+type SetHistory = Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[]
 
 export type LoggedSet = {
   id: string
@@ -17,10 +21,10 @@ export type LogState = {
 }
 
 export type LogAction =
-  | { type: 'select-exercise'; exerciseId: string; prefill: { weight_kg: number; reps: number } | null; defaultWeight?: number }
+  | { type: 'select-exercise'; exerciseId: string; prefill: { weight_kg: number; reps: number } | null; defaultWeight?: number; history?: SetHistory; loadOffset?: number }
   | { type: 'adjust-weight'; direction: 1 | -1 }
   | { type: 'adjust-reps'; direction: 1 | -1 }
-  | { type: 'set-weight'; value: number; min?: number }
+  | { type: 'set-weight'; value: number; min?: number; history?: SetHistory; loadOffset?: number }
   | { type: 'set-reps'; value: number }
   | { type: 'complete-set'; id: string; note?: string | null }
   | { type: 'set-note'; id: string; note: string | null }
@@ -41,21 +45,27 @@ export function logReducer(state: LogState, action: LogAction): LogState {
       const last = done[done.length - 1]
       // 同じ種目に戻った場合は、この場で記録した直近の値を引き継ぐ
       const base = last ?? action.prefill
+      const weight = base?.weight_kg ?? action.defaultWeight ?? DEFAULT_WEIGHT
       return {
         ...state,
         currentExerciseId: action.exerciseId,
-        weight_kg: base?.weight_kg ?? action.defaultWeight ?? DEFAULT_WEIGHT,
-        reps: base?.reps ?? DEFAULT_REPS,
+        weight_kg: weight,
+        reps: bestReps(state, action, action.exerciseId, weight) ?? base?.reps ?? DEFAULT_REPS,
       }
     }
     case 'adjust-weight':
       return { ...state, weight_kg: adjustWeight(state.weight_kg, action.direction) }
     case 'adjust-reps':
       return { ...state, reps: adjustReps(state.reps, action.direction) }
-    case 'set-weight':
+    case 'set-weight': {
       // numeric(5,1) の列に保存するため、小数第2位以下は表示と実データがずれる前に丸める
       // 自重種目ではアシスト分のマイナスを許すため、下限を呼び出し側から受け取る
-      return { ...state, weight_kg: Math.max(action.min ?? MIN_WEIGHT, Math.round(action.value * 10) / 10) }
+      const weight = Math.max(action.min ?? MIN_WEIGHT, Math.round(action.value * 10) / 10)
+      // その重量で前に挙げられた回数を初期値にする。記録が無ければ今の回数のまま。
+      const best = state.currentExerciseId === null ? null
+        : bestReps(state, action, state.currentExerciseId, weight)
+      return { ...state, weight_kg: weight, reps: best ?? state.reps }
+    }
     case 'set-reps':
       return { ...state, reps: Math.max(MIN_REPS, Math.round(action.value)) }
     case 'complete-set': {
@@ -71,6 +81,17 @@ export function logReducer(state: LogState, action: LogAction): LogState {
     case 'load-sets':
       return { ...state, sets: action.sets }
   }
+}
+
+/** 過去の履歴と、この場で記録したセットの両方から、その重量で狙う回数を決める。 */
+function bestReps(
+  state: LogState,
+  action: { history?: SetHistory; loadOffset?: number },
+  exerciseId: string,
+  weightKg: number,
+): number | null {
+  if (!action.history) return null
+  return suggestReps([...action.history, ...state.sets], exerciseId, weightKg, action.loadOffset ?? 0)?.reps ?? null
 }
 
 /**
