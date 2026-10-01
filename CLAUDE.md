@@ -1,14 +1,16 @@
 # Claude Code 引き継ぎメモ
 
-最終更新: 2026-08-20
+最終更新: 2026-10-02
 
 ## 現在地
 
-- ブランチ: `feat/gym-app-mvp`
-- 実装計画: `docs/superpowers/plans/2026-08-14-gym-app.md`
-- Task 1〜16 のコード実装が完了済み（計画書のチェックボックス自体は未更新のため、コミット履歴と実装を正とする）
-- 直近完了: Task 15「PWA化とデプロイ」、Task 16「E2Eテスト」
-- 残りは人手が必要な作業のみ（下記「未完了の作業」）
+- ブランチ: `claude/nifty-gates-qp3rlp`
+- MVP Task 1〜16 は完了済み。体組成管理の実装計画は `docs/superpowers/plans/2026-10-02-body-composition.md`
+- 体組成 Task 1〜7 を実装済み: 任意の体脂肪率、本人限定の記録・修正・削除、体組成タブ、期間別グラフと7日平均、Markdown出力
+- `bodyweight_logs.body_fat_pct` は本番DBに適用済み。既存の本人限定RLSは維持
+- プロフィールからは体組成タブへ案内。自重種目の記録画面での体重入力は維持
+- この作業のコミットはローカルのみ。push・merge・本番アプリのデプロイは未実施
+- 次の別フェーズで iPhoneヘルスケアの過去データ取り込みと継続同期を設計・実装する（下記参照）
 
 ## Task 15/16 で追加したもの
 
@@ -20,11 +22,11 @@
 
 ## 検証結果
 
-- `npm run build`: 成功。`dist/manifest.webmanifest` と `dist/sw.js` を生成
-- `npx vitest run --maxWorkers=1 --reporter=dot`: 24 files / 148 tests 全件成功
-- `npm run test:e2e`: **実Supabaseに対してPASS**（ログイン〜1セット記録〜フィード反映）
-- RLS: 実APIでの検証済み。結果は `docs/setup-supabase.md` の「RLS検証結果」を参照
-- 通常の並列 `npm test` は、この環境では無関係な既存テストがタイムアウトすることがある。ワーカー1つなら全件成功するため負荷起因と判断。
+- 体組成の最新検証結果・実行コマンドは `.superpowers/sdd/2026-10-02-body-composition/task-5-7-report.md` を参照
+- モックE2Eは画面→保存→実Recharts SVG/ツールチップ→一覧→過去日修正→スワイプ削除を検証
+- 実SupabaseのE2Eは今回は実行していない。2026-08-20時点ではログイン〜1セット記録〜フィード反映がPASS
+- RLSの既存検証結果は `docs/setup-supabase.md` の「RLS検証結果」を参照
+- 通常の並列 `npm test` は、この環境では無関係な既存テストがタイムアウトすることがある。ワーカー1つで確認する
 
 ## 本番環境
 
@@ -50,6 +52,10 @@
    ユーザー作成時に User Metadata の `display_name` を設定しなかったため。SQLで更新すればよい
 4. E2Eテストを実行すると `e2e@example.com` の記録がフィードに残る。気になる場合は
    `delete from public.workouts where user_id = '<e2eユーザーのid>';` で消す
+
+5. 体組成のヘルスケア連携は未実装。次の別フェーズで過去データ取り込みと継続同期を扱う。
+   設計の起点は `docs/superpowers/specs/2026-10-02-body-composition-design.md` の「将来: ショートカット連携」。
+   Edge Function と個人トークンの発行・ハッシュ保管用テーブルはその回で設計する。
 
 ## 再開時の注意
 
