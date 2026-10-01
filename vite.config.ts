@@ -10,7 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png'],
+      includeAssets: ['glog-icon-32.png', 'glog-icon-180.png', 'glog-icon-192.png', 'glog-icon-512.png', 'glog-icon-maskable.png'],
       manifest: {
         name: 'Glog',
         short_name: 'Glog',
@@ -21,10 +21,10 @@ export default defineConfig({
         background_color: '#0A0A0B',
         theme_color: '#0A0A0B',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/glog-icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/glog-icon-512.png', sizes: '512x512', type: 'image/png' },
           {
-            src: '/icon-512.png',
+            src: '/glog-icon-maskable.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
