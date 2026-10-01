@@ -141,9 +141,9 @@ async function mockApi(page: Page) {
   await page.getByLabel('メールアドレス').fill('test@example.com')
   await page.getByLabel('パスワード').fill('mock-password')
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
-  // The app opens on BIG3; the start button leads to recording.
-  await expect(page.getByRole('region', { name: 'Big3スコア' })).toBeVisible()
-  await page.getByRole('link', { name: /トレーニングを始める/ }).click()
+  // The app opens on the home dashboard; the start button leads to recording.
+  await expect(page.getByRole('region', { name: '今月のトレーニング' })).toBeVisible()
+  await page.getByRole('link', { name: /本日のトレーニングを追加/ }).click()
   await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
   return { sets, workouts, exercises, routines, goals, bodyweights }
 }
@@ -184,7 +184,10 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await expect(page.getByRole('link', { name: /続きを記録.*今日 1セット/ })).toBeVisible()
   await page.getByRole('link', { name: /続きを記録/ }).click()
   await page.getByRole('button', { name: '終了', exact: true }).click()
-  await expect(page).toHaveURL(/\/history$/)
+  // Finishing returns home, which lists today's workout.
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('region', { name: '今日のトレーニング' })).toContainText('ベンチプレス')
+  await page.getByRole('link', { name: '履歴', exact: true }).click()
   await expect(page.getByRole('link', { name: '編集', exact: true })).toHaveCount(0)
   await expect(page.getByText('今月の記録')).toHaveCount(0)
   await page.getByRole('button', { name: /トレーニングあり/ }).click()
@@ -380,7 +383,7 @@ test('sets are deleted by swiping left like a mail app', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
-test('reopening the app mid-workout goes straight to recording; otherwise it opens on BIG3', async ({ page }) => {
+test('reopening the app mid-workout goes straight to recording; otherwise it opens on the home dashboard', async ({ page }) => {
   const data = await mockApi(page)
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
@@ -388,19 +391,25 @@ test('reopening the app mid-workout goes straight to recording; otherwise it ope
   await page.goto('/')
   await expect(page).toHaveURL(/\/log$/)
   await expect(page.getByRole('button', { name: 'セット完了', exact: true })).toBeVisible()
-  await page.getByRole('link', { name: 'BIG3', exact: true }).click()
+  await page.getByRole('link', { name: 'ホーム', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
-  await page.screenshot({ path: 'test-results/home-big3-mobile.png' })
+  await expect(page.getByRole('region', { name: '今月のトレーニング' }).getByRole('button', { name: /トレーニングあり/ })).toHaveCount(1)
+  await expect(page.getByRole('region', { name: '今日のトレーニング' })).toContainText('ベンチプレス')
   await page.getByRole('link', { name: /続きを記録/ }).click()
   await page.getByRole('button', { name: '終了', exact: true }).click()
-  await expect(page).toHaveURL(/\/history$/)
-  await page.goto('/')
-  await expect(page.getByRole('region', { name: 'Big3スコア' })).toBeVisible()
   await expect(page).toHaveURL(/\/$/)
+  await page.goto('/')
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('region', { name: '今月のトレーニング' })).toBeVisible()
+  await page.screenshot({ path: 'test-results/home-dashboard-mobile.png', fullPage: true })
+  // BIG3 lives on its own tab and no longer carries a record button.
+  await page.getByRole('link', { name: 'BIG3', exact: true }).click()
+  await expect(page).toHaveURL(/\/big3$/)
+  await expect(page.getByRole('region', { name: 'Big3スコア' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /本日のトレーニングを追加|続きを記録/ })).toHaveCount(0)
   // The editor groups the day's sets under each exercise.
   await page.goto('/history/' + data.workouts[0].id)
   await expect(page.getByRole('heading', { name: 'ベンチプレス', exact: true })).toHaveCount(1)
-  await page.screenshot({ path: 'test-results/editor-grouped-mobile.png' })
 })
 
 test('chin-ups ask for bodyweight once and record assisted sets against the total load', async ({ page }) => {
@@ -425,8 +434,11 @@ test('history calendar changes month by swiping left and right', async ({ page }
   const label = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月`
   const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   await expect(page.getByText(label(now), { exact: true })).toBeVisible()
+  const calendar = page.getByLabel(/スワイプで月を切り替え/)
   const swipe = async (dx: number) => {
-    const box = (await page.getByLabel(/スワイプで月を切り替え/).boundingBox())!
+    // Wait for the previous slide animation to finish so the swipe starts on the calendar.
+    await expect.poll(() => calendar.evaluate((el) => getComputedStyle(el).transform)).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/)
+    const box = (await calendar.boundingBox())!
     const x = box.x + box.width / 2, y = box.y + box.height / 2
     await page.mouse.move(x, y)
     await page.mouse.down()

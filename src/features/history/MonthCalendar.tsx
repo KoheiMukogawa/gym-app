@@ -7,9 +7,14 @@ type Props = {
   selectedDate?: string
   onSelect?: (date: string) => void
   maxDate?: string
+  /** ホーム用の小さい表示 */
+  compact?: boolean
 }
 
-export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect, maxDate }: Props) {
+export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect, maxDate, compact = false }: Props) {
+  // ホームでは小さな丸いマスにする（トレーニングした日は塗りつぶし）
+  const cell = compact ? 'aspect-square text-[11px] rounded-full' : 'aspect-square text-sm rounded-lg'
+  const selectedRing = compact ? 'ring-1 ring-fg' : 'ring-2 ring-accent ring-offset-2 ring-offset-bg'
   const first = new Date(year, month - 1, 1)
   const daysInMonth = new Date(year, month, 0).getDate()
   const leading = first.getDay()
@@ -22,12 +27,12 @@ export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect
 
   return (
     <div>
-      <div className="mb-2 grid grid-cols-7 text-center text-xs text-muted">
+      <div className={`grid grid-cols-7 text-center text-muted ${compact ? 'mb-1 text-[10px]' : 'mb-2 text-xs'}`}>
         {WEEKDAYS.map((w) => (
           <span key={w}>{w}</span>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className={`grid grid-cols-7 ${compact ? 'gap-0.5' : 'gap-1'}`}>
         {cells.map((day, i) => {
           if (day === null) return <span key={`pad-${i}`} />
           const key = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
@@ -36,12 +41,12 @@ export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect
             aria-label={`${month}月${day}日${isActive ? ' トレーニングあり' : ''}`}
             aria-pressed={selectedDate === key} disabled={!!maxDate && key > maxDate}
             onClick={() => onSelect(key)}
-            className={`flex aspect-square items-center justify-center rounded-lg text-sm tabular-nums disabled:opacity-30 ${selectedDate === key ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : ''} ${isActive ? 'bg-accent font-semibold text-white' : 'text-muted'}`}>{day}</button>
+            className={`flex ${cell} items-center justify-center tabular-nums disabled:opacity-30 ${selectedDate === key ? selectedRing : ''} ${isActive ? 'bg-accent font-semibold text-white' : 'text-muted'}`}>{day}</button>
           return (
             <span
               key={key}
               aria-label={isActive ? `${month}月${day}日 トレーニングあり` : undefined}
-              className={`flex aspect-square items-center justify-center rounded-lg text-sm tabular-nums ${
+              className={`flex ${cell} items-center justify-center tabular-nums ${
                 isActive ? 'bg-accent font-semibold text-white' : 'text-muted'
               }`}
             >

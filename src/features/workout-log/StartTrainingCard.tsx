@@ -5,7 +5,7 @@ import { loadDraft } from './persistence'
 import { fetchTodayWorkout } from './queries'
 
 /** ホーム（BIG3）の一番上に置く、記録画面への入口。今日すでに記録があれば「続きを記録」にする。 */
-export function StartTrainingCard() {
+export function StartTrainingCard({ className = 'mx-4 mt-4' }: { className?: string }) {
   const { userId } = useSession()
   const [setCount, setSetCount] = useState(() => (userId ? loadDraft(userId)?.state.sets.length ?? 0 : 0))
   useEffect(() => {
@@ -16,8 +16,8 @@ export function StartTrainingCard() {
     return () => { active = false }
   }, [userId])
   const started = setCount > 0
-  return <Link to="/log" className="mx-4 mt-4 flex min-h-16 items-center justify-between rounded-2xl bg-accent px-5 font-semibold text-white">
-    <span className="text-lg">{started ? '続きを記録' : 'トレーニングを始める'}</span>
+  return <Link to="/log" className={`${className} flex min-h-16 items-center justify-between rounded-2xl bg-accent px-5 font-semibold text-white`}>
+    <span className="text-lg">{started ? '続きを記録' : '＋ 本日のトレーニングを追加'}</span>
     <span className="text-sm font-normal opacity-90">{started ? `今日 ${setCount}セット →` : '→'}</span>
   </Link>
 }

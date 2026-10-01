@@ -45,22 +45,22 @@ export async function updateWorkoutDate(userId: string, id: string, date: string
   return performed_at
 }
 
-export async function updateWorkoutSet(workoutId: string, set: Pick<WorkoutSet, 'id' | 'exercise_id' | 'weight_kg' | 'reps' | 'set_index'>): Promise<void> {
-  validateSet(set.weight_kg, set.reps)
+export async function updateWorkoutSet(workoutId: string, set: Pick<WorkoutSet, 'id' | 'exercise_id' | 'weight_kg' | 'reps' | 'set_index' | 'note'>, minWeight = 0): Promise<void> {
+  validateSet(set.weight_kg, set.reps, minWeight)
   const { id, exercise_id, weight_kg, reps, set_index } = set
-  const values = { exercise_id, weight_kg, reps, set_index }
+  const values = { exercise_id, weight_kg, reps, set_index, note: set.note ?? null }
   const { error } = await supabase.from('workout_sets').update(values)
     .eq('id', id).eq('workout_id', workoutId).select('id').single()
   if (error) throw error
 }
 
-export async function saveEditableSet(workoutId: string, set: Pick<WorkoutSet, 'id' | 'exercise_id' | 'weight_kg' | 'reps' | 'set_index'>): Promise<void> {
-  validateSet(set.weight_kg, set.reps)
+export async function saveEditableSet(workoutId: string, set: Pick<WorkoutSet, 'id' | 'exercise_id' | 'weight_kg' | 'reps' | 'set_index' | 'note'>, minWeight = 0): Promise<void> {
+  validateSet(set.weight_kg, set.reps, minWeight)
   const { id, exercise_id, weight_kg, reps, set_index } = set
   // A lost response may be retried after the user corrects the input. Upsert
   // the same ID so the database receives the corrected values as well.
   const { error } = await supabase.from('workout_sets').upsert({
-    id, workout_id: workoutId, exercise_id, weight_kg, reps, set_index,
+    id, workout_id: workoutId, exercise_id, weight_kg, reps, set_index, note: set.note ?? null,
   }, { onConflict: 'id' }).select('id').single()
   if (error) throw error
 }

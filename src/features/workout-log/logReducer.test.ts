@@ -120,6 +120,13 @@ describe('logReducer', () => {
     expect(state.sets.map((s) => s.set_index)).toEqual([2, 3])
   })
 
+  it('keeps a memo on the completed set and lets it be edited later', () => {
+    let state = logReducer(withExercise(), { type: 'complete-set', id: 's1', note: '補助あり' })
+    expect(state.sets[0].note).toBe('補助あり')
+    state = logReducer(state, { type: 'set-note', id: 's1', note: null })
+    expect(state.sets[0].note).toBeNull()
+  })
+
   it('ignores removal of an unknown set', () => {
     const state = logReducer(withExercise(), { type: 'remove-set', id: 'missing' })
     expect(state.sets).toEqual([])

@@ -24,6 +24,7 @@ import {
   fetchTodayWorkout,
   fetchUserSetHistory,
   saveSet,
+  updateSetNote,
 } from './queries'
 import { SetList } from './SetList'
 import { formatAddedLoad, latestBodyweight, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
@@ -57,7 +58,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'>
   })
 }
 
-export function LogPage({ home = false, onFinished }: { home?: boolean; onFinished?: () => void }) {
+export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const { userId } = useSession()
   const navigate = useNavigate()
   const { show } = useToast()
@@ -98,6 +99,7 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
   const [offline, setOffline] = useState(isOffline())
   const [finishing, setFinishing] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [memo, setMemo] = useState('')
   const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>([])
   const [bodyweightDraft, setBodyweightDraft] = useState('')
   const [editingBodyweight, setEditingBodyweight] = useState(false)
@@ -322,9 +324,11 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
     try { validateSet(state.weight_kg, state.reps, minWeight) }
     catch (e) { show(toMessage(e)); return }
     const id = crypto.randomUUID()
-    const set = nextSet(state, id)
+    const note = memo.trim() ? memo.trim().slice(0, 200) : null
+    const set = nextSet(state, id, note)
     if (set === null) return
-    dispatch({ type: 'complete-set', id })
+    dispatch({ type: 'complete-set', id, note })
+    setMemo('')
     void persist(set)
   }
 
@@ -332,6 +336,17 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
     const target = state.sets.find((s) => s.id === setId)
     if (!target) return
     void persist(target)
+  }
+
+  // 保存済みのセットはその場でメモを更新する。未保存（再試行待ち）のセットは、
+  // 再試行のときにメモごと保存されるので手元の記録だけ書き換える。
+  async function handleNote(setId: string, note: string) {
+    const value = note.trim() ? note.trim().slice(0, 200) : null
+    if ((statusById[setId] ?? 'saved') === 'saved') {
+      try { await updateSetNote(setId, note) }
+      catch (e) { show(toMessage(e)); throw e }
+    }
+    dispatch({ type: 'set-note', id: setId, note: value })
   }
 
   async function handleDelete(setId: string) {
@@ -430,7 +445,7 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
       )
       clearDraft(userId)
       onFinished?.()
-      navigate(home ? '/history' : '/')
+      navigate('/')
     } finally {
       setFinishing(false)
     }
@@ -515,6 +530,7 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
           exerciseNames={exerciseNames}
           status={statusById}
           onDelete={handleDelete}
+          onNote={handleNote}
           onRetry={handleRetry}
           deletingId={deletingId}
           bodyweightIds={bodyweightIds}
@@ -554,6 +570,11 @@ export function LogPage({ home = false, onFinished }: { home?: boolean; onFinish
           体重 {bodyweight} kg {formatAddedLoad(state.weight_kg) === '自重' ? '' : formatAddedLoad(state.weight_kg).replace('+', '＋ ').replace('−', '− ')} ＝ 総重量 <strong className="text-fg tabular-nums">{load} kg</strong>
           <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
         </p>}
+        <label className="mb-3 block">
+          <span className="sr-only">メモ（任意）</span>
+          <input type="text" maxLength={200} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="メモ（任意）例: フォーム意識"
+            className="min-h-12 w-full rounded-xl border border-border bg-surface px-4 text-sm text-fg" />
+        </label>
         <p className="mb-4 text-center text-sm text-muted" aria-live="polite">推定1RM <strong className="ml-2 text-xl text-fg tabular-nums">{estimated === null ? '—' : estimated + ' kg'}</strong>{state.reps>10&&<span className="ml-2 text-xs">1〜10回で換算</span>}</p>
         </>}
         <Button size="lg" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>

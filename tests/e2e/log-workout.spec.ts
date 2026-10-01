@@ -14,7 +14,7 @@ test.describe('中核の記録導線', () => {
     await page.getByLabel('パスワード').fill(PASSWORD)
     await page.getByRole('button', { name: 'ログイン' }).click()
 
-    await page.getByRole('link', { name: /トレーニングを始める|続きを記録/ }).click()
+    await page.getByRole('link', { name: /本日のトレーニングを追加|続きを記録/ }).click()
     await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
     await page.getByRole('button', { name: /ベンチプレス/ }).first().click()
 
