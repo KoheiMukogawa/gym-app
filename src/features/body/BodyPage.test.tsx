@@ -20,6 +20,9 @@ vi.mock('recharts', () => ({
 }))
 
 const today = new Date().toLocaleDateString('sv-SE')
+const previousDay = new Date(today + 'T12:00:00')
+previousDay.setDate(previousDay.getDate() - 1)
+const pastDate = previousDay.toLocaleDateString('sv-SE')
 const renderPage = async () => {
   render(<MemoryRouter><BodyPage /></MemoryRouter>)
   await waitFor(() => expect(fetchBodyweightLogs).toHaveBeenCalled())
@@ -60,24 +63,24 @@ describe('BodyPage', () => {
   })
 
   it('prefills the latest values so an unchanged day is one tap', async () => {
-    fetchBodyweightLogs.mockResolvedValue([{ recorded_on: '2026-09-30', bodyweight_kg: 69.8, body_fat_pct: 16 }])
+    fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
     expect(await screen.findByLabelText('体重（kg）')).toHaveValue(69.8)
     expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(16)
   })
 
   it('edits a past day when its row is tapped', async () => {
-    fetchBodyweightLogs.mockResolvedValue([{ recorded_on: '2026-09-30', bodyweight_kg: 69.8, body_fat_pct: 16 }])
+    fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
-    await userEvent.click(await screen.findByRole('button', { name: '2026-09-30 の記録を修正' }))
-    expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent('2026-09-30')
+    await userEvent.click(await screen.findByRole('button', { name: pastDate + ' の記録を修正' }))
+    expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent(pastDate)
 
     const weight = screen.getByLabelText('体重（kg）')
     await userEvent.clear(weight)
     await userEvent.type(weight, '69.5')
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
 
-    await waitFor(() => expect(saveBodyComposition).toHaveBeenCalledWith('u1', { date: '2026-09-30', bodyweightKg: 69.5, bodyFatPct: 16 }))
+    await waitFor(() => expect(saveBodyComposition).toHaveBeenCalledWith('u1', { date: pastDate, bodyweightKg: 69.5, bodyFatPct: 16 }))
     // 保存したら今日の入力に戻る
     expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent('今日')
   })
@@ -97,11 +100,11 @@ describe('BodyPage', () => {
   })
   it('restores latest values when cancelling or saving a past edit', async () => {
     fetchBodyweightLogs.mockResolvedValue([
-      { recorded_on: '2026-09-30', bodyweight_kg: 69.8, body_fat_pct: 16 },
+      { recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 },
       { recorded_on: today, bodyweight_kg: 71, body_fat_pct: 17 },
     ])
     await renderPage()
-    const past = await screen.findByRole('button', { name: '2026-09-30 の記録を修正' })
+    const past = await screen.findByRole('button', { name: pastDate + ' の記録を修正' })
     await userEvent.click(past)
     await userEvent.click(screen.getByRole('button', { name: '今日に戻る' }))
     expect(screen.getByLabelText('体重（kg）')).toHaveValue(71)
