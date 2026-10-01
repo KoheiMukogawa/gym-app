@@ -82,20 +82,22 @@ enum型が存在するように見えても、それだけでは0002が成功し
 り、アプリを接続したりすると、全メンバーが互いのデータを自由に書き換えられる無防備な状態のまま運用が
 始まってしまう。
 
-## Step 3: メール確認を有効にする
+## Step 3: メール確認を無効にする
 
-アプリの「アカウントを作成」画面（`/signup`）から誰でも登録できる運用のため、存在しないメールアドレスでの登録を防ぐ目的でメール確認を有効にする。
+Supabase標準のメール送信は、Supabaseのチーム（Organization → Team）に入っているアドレスにしか届かない。
+このままメール確認を有効にすると、それ以外の人には確認メールが届かず登録を完了できないため、無効にする。
 
 1. ダッシュボード左メニュー **Authentication** → **Sign In / Providers** → **Email** を開く。
-2. **Confirm email** をオン（有効）にする。
+2. **Confirm email** をオフ（無効）にする。
 3. 保存する。
 
-確認メール内のリンクは `<公開URL>/profile` に戻るため、**Authentication** → **URL Configuration** で次も設定する。
+無効にすると、登録フォーム（名前・アイコン・全体ランキングへの参加・メール・パスワード）を送信した時点でログイン状態になり、そのまま記録を始められる。
+
+メール確認を有効にしたい場合は、先に **Authentication** → **Emails** → **SMTP Settings** で外部のメール送信サービス（Resend、Brevo など。少人数なら無料枠で足りる）を設定し、
+**Authentication** → **URL Configuration** に次を登録する。
 
 - **Site URL**: `https://gym-app-ruddy-nine.vercel.app`
-- **Redirect URLs**: `https://gym-app-ruddy-nine.vercel.app/**`（ローカル確認もするなら `http://localhost:5173/**` も追加）
-
-メール確認をオフにした場合は、登録直後にそのままログイン状態になり `/profile` へ遷移する。
+- **Redirect URLs**: `https://gym-app-ruddy-nine.vercel.app/**`
 
 ## Step 4: 新規サインアップを許可する
 
@@ -104,7 +106,7 @@ enum型が存在するように見えても、それだけでは0002が成功し
 3. 保存する。
 
 オフのままだと、アプリの登録画面では「現在、新規登録の受付は準備中です。」と表示される（Supabaseが `signup_disabled` を返すため）。
-登録時に入力した名前とアイコンは User Metadata として渡され、Step 2 のトリガー（`0009_onboarding_global_ranking.sql` で更新）が `profiles` と `community_profiles` を自動作成する。
+登録時に入力した名前とアイコンは User Metadata として渡され、Step 2 のトリガー（`0011_signup_global_ranking.sql` で更新）が `profiles` と `community_profiles` を自動作成する。全体ランキングへの参加も登録時に選べる。
 
 ## Step 5: （任意）管理者がアカウントを手動で作成する
 
@@ -115,7 +117,7 @@ enum型が存在するように見えても、それだけでは0002が成功し
 3. メンバーごとに以下を設定してアカウントを作成する。
    - Email: メンバーのメールアドレス
    - Password: 初期パスワード（本人に別途伝え、必要なら後で変更してもらう）
-   - **Auto Confirm User** をオンにする（Step 3でメール確認を有効にしているため、オンにしないと本人が確認メールを開くまでログインできない）
+   - **Auto Confirm User** をオンにする（メール確認を有効にしている場合、オンにしないと本人が確認メールを開くまでログインできない）
    - **User Metadata** に以下のJSONを設定し、表示名を渡す。
 
      ```json
