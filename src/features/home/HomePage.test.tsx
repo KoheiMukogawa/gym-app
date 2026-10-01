@@ -35,7 +35,7 @@ beforeEach(() => {
 })
 
 describe('HomePage', () => {
-  it('shows the record button, today\'s workout, days trained this month and BIG3 bars', async () => {
+  it('shows the calendar with BIG3 beside it, the add button and today\'s sets numbered with RM', async () => {
     const today = new Date().getDate()
     // On the 1st there is no earlier day this month, so only today's workout exists.
     fetchMonthWorkouts.mockResolvedValue(today > 1 ? [item('w-today', at(today)), item('w-earlier', at(today - 1, 8))] : [item('w-today', at(today))])
@@ -45,14 +45,19 @@ describe('HomePage', () => {
     fetchStrengthSnapshot.mockResolvedValue(buildStrengthSnapshot([...EXERCISES], [], rows))
     render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-    expect(screen.getByRole('link', { name: /トレーニングを始める/ })).toHaveAttribute('href', '/log')
+    expect(screen.getByRole('link', { name: /本日のトレーニングを追加/ })).toHaveAttribute('href', '/log')
     const todaySection = screen.getByRole('region', { name: '今日のトレーニング' })
     expect(await within(todaySection).findByText('ベンチプレス')).toBeInTheDocument()
+    // 80 kg × 5 → Brzycki 80 × 36 / 32 = 90
+    expect(within(todaySection).getByText('90')).toBeInTheDocument()
+    expect(within(todaySection).getByRole('listitem')).toHaveTextContent('180.0 kg× 5 reps')
+    expect(within(todaySection).getByRole('link', { name: '今日の記録を編集' })).toHaveAttribute('href', '/history/w-today')
     const month = screen.getByRole('region', { name: '今月のトレーニング' })
-    expect(await within(month).findByLabelText(`今月 ${today > 1 ? 2 : 1}日トレーニング`)).toBeInTheDocument()
+    const trained = await within(month).findAllByRole('button', { name: /トレーニングあり/ })
+    expect(trained).toHaveLength(today > 1 ? 2 : 1)
     const big3 = screen.getByRole('region', { name: 'BIG3' })
     expect(await within(big3).findByText('430')).toBeInTheDocument()
-    expect(within(big3).getByRole('link', { name: /詳しく見る/ })).toHaveAttribute('href', '/big3')
+    expect(within(big3).getByRole('link', { name: 'BIG3の詳細へ' })).toHaveAttribute('href', '/big3')
   })
 
   it('keeps a retryable error on screen instead of an empty month', async () => {

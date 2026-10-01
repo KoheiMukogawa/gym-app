@@ -12,7 +12,9 @@ type Props = {
 }
 
 export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect, maxDate, compact = false }: Props) {
-  const cell = compact ? 'h-7 text-xs rounded-md' : 'aspect-square text-sm rounded-lg'
+  // ホームでは小さな丸いマスにする（トレーニングした日は塗りつぶし）
+  const cell = compact ? 'aspect-square text-[11px] rounded-full' : 'aspect-square text-sm rounded-lg'
+  const selectedRing = compact ? 'ring-1 ring-fg' : 'ring-2 ring-accent ring-offset-2 ring-offset-bg'
   const first = new Date(year, month - 1, 1)
   const daysInMonth = new Date(year, month, 0).getDate()
   const leading = first.getDay()
@@ -39,7 +41,7 @@ export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect
             aria-label={`${month}月${day}日${isActive ? ' トレーニングあり' : ''}`}
             aria-pressed={selectedDate === key} disabled={!!maxDate && key > maxDate}
             onClick={() => onSelect(key)}
-            className={`flex ${cell} items-center justify-center tabular-nums disabled:opacity-30 ${selectedDate === key ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : ''} ${isActive ? 'bg-accent font-semibold text-white' : 'text-muted'}`}>{day}</button>
+            className={`flex ${cell} items-center justify-center tabular-nums disabled:opacity-30 ${selectedDate === key ? selectedRing : ''} ${isActive ? 'bg-accent font-semibold text-white' : 'text-muted'}`}>{day}</button>
           return (
             <span
               key={key}

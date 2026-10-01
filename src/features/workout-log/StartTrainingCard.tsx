@@ -17,7 +17,7 @@ export function StartTrainingCard({ className = 'mx-4 mt-4' }: { className?: str
   }, [userId])
   const started = setCount > 0
   return <Link to="/log" className={`${className} flex min-h-16 items-center justify-between rounded-2xl bg-accent px-5 font-semibold text-white`}>
-    <span className="text-lg">{started ? '続きを記録' : 'トレーニングを始める'}</span>
+    <span className="text-lg">{started ? '続きを記録' : '＋ 本日のトレーニングを追加'}</span>
     <span className="text-sm font-normal opacity-90">{started ? `今日 ${setCount}セット →` : '→'}</span>
   </Link>
 }

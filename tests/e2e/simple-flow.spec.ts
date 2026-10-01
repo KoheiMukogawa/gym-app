@@ -143,7 +143,7 @@ async function mockApi(page: Page) {
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
   // The app opens on the home dashboard; the start button leads to recording.
   await expect(page.getByRole('region', { name: '今月のトレーニング' })).toBeVisible()
-  await page.getByRole('link', { name: /トレーニングを始める/ }).click()
+  await page.getByRole('link', { name: /本日のトレーニングを追加/ }).click()
   await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
   return { sets, workouts, exercises, routines, goals, bodyweights }
 }
@@ -393,7 +393,7 @@ test('reopening the app mid-workout goes straight to recording; otherwise it ope
   await expect(page.getByRole('button', { name: 'セット完了', exact: true })).toBeVisible()
   await page.getByRole('link', { name: 'ホーム', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByLabel('今月 1日トレーニング')).toBeVisible()
+  await expect(page.getByRole('region', { name: '今月のトレーニング' }).getByRole('button', { name: /トレーニングあり/ })).toHaveCount(1)
   await expect(page.getByRole('region', { name: '今日のトレーニング' })).toContainText('ベンチプレス')
   await page.getByRole('link', { name: /続きを記録/ }).click()
   await page.getByRole('button', { name: '終了', exact: true }).click()
@@ -406,7 +406,7 @@ test('reopening the app mid-workout goes straight to recording; otherwise it ope
   await page.getByRole('link', { name: 'BIG3', exact: true }).click()
   await expect(page).toHaveURL(/\/big3$/)
   await expect(page.getByRole('region', { name: 'Big3スコア' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /トレーニングを始める|続きを記録/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /本日のトレーニングを追加|続きを記録/ })).toHaveCount(0)
   // The editor groups the day's sets under each exercise.
   await page.goto('/history/' + data.workouts[0].id)
   await expect(page.getByRole('heading', { name: 'ベンチプレス', exact: true })).toHaveCount(1)
