@@ -28,9 +28,9 @@ const ITEM: FeedItem = {
   sets: [{ exercise_id: 'bench', exercise_name: 'ベンチプレス', weight_kg: 80, reps: 8 }],
 }
 
-function renderHistoryPage() {
+function renderHistoryPage(path = '/history') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
         <HistoryPage />
       </ToastProvider>
@@ -76,7 +76,7 @@ describe('HistoryPage error handling', () => {
   it('retries the fetch on tap and renders the history once it succeeds', async () => {
     fetchMonthWorkouts.mockRejectedValueOnce(new Error('network error'))
     fetchMonthWorkouts.mockResolvedValueOnce([ITEM])
-    renderHistoryPage()
+    renderHistoryPage('/history?date=2026-08-14')
     const user = userEvent.setup()
 
     const retryButton = await screen.findByRole('button', { name: '再試行' })
@@ -108,7 +108,7 @@ describe('HistoryPage error handling', () => {
     fetchMonthWorkouts.mockResolvedValueOnce([])
     renderHistoryPage()
 
-    await screen.findByText('まだ記録がありません')
+    await screen.findByText('日付を選ぶと記録を確認・追加できます')
     expect(fetchMonthWorkouts).toHaveBeenCalledWith(USER, expect.any(Number), expect.any(Number))
   })
 })
@@ -196,6 +196,14 @@ describe('HistoryPage calendar — marks the local (JST) day, not the UTC day', 
 
     expect(await screen.findByLabelText('8月14日 トレーニングあり')).toBeInTheDocument()
     expect(screen.queryByLabelText('8月13日 トレーニングあり')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '編集' })).not.toBeInTheDocument()
+    expect(screen.queryByText('今月の記録')).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByLabelText('8月14日 トレーニングあり'))
+    expect(await screen.findByRole('link', { name: '編集' })).toHaveAttribute('href', '/history/w-late-utc-evening')
+    await userEvent.setup().click(screen.getByLabelText('8月13日'))
+    expect(await screen.findByText('この日の記録はありません')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '＋ この日に記録を追加' })).toHaveAttribute('href', '/history/new?date=2026-08-13')
+
   })
 
   // Edge case near the EARLY edge of the divergent window: a workout logged at

@@ -32,7 +32,7 @@ export function HistoryPage() {
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [userId, year, number, attempt])
-  const visible = selected ? items.filter((item) => localDate(item.performed_at) === selected) : items
+  const visible = selected ? items.filter((item) => localDate(item.performed_at) === selected) : []
   function move(direction: number) {
     setParams({}, { replace: true })
     setMonth(new Date(year, number - 1 + direction, 1))
@@ -52,14 +52,12 @@ export function HistoryPage() {
     </div> : <>
       <MonthCalendar year={year} month={number} activeDates={items.map((item) => localDate(item.performed_at))}
         selectedDate={selected} maxDate={localDate()} onSelect={(date) => setParams({ date }, { replace: true })} />
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between"><h2 className="text-sm text-muted">{selected ? selected + ' の記録' : '今月の記録'}</h2>
-          {selected && <button className="min-h-14 text-sm text-muted" onClick={() => setParams({}, { replace: true })}>月全体を見る</button>}
-        </div>
+      {selected ? <section className="flex flex-col gap-3">
+        <h2 className="text-sm text-muted">{selected} の記録</h2>
         {visible.length ? visible.map((item) => <WorkoutCard key={item.workout_id} item={item} editable />)
-          : <p className="py-4 text-center text-sm text-muted">{selected ? 'この日の記録はありません' : 'まだ記録がありません'}</p>}
+          : <p className="py-4 text-center text-sm text-muted">この日の記録はありません</p>}
         {selected && <Link to={'/history/new?date=' + selected} className="flex min-h-14 items-center justify-center rounded-xl border border-accent text-accent">＋ この日に記録を追加</Link>}
-      </section>
+      </section> : <p className="text-center text-sm text-muted">日付を選ぶと記録を確認・追加できます</p>}
     </>}
   </div>
 }
