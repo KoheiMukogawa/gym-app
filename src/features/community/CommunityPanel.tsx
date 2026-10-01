@@ -67,10 +67,10 @@ export function CommunityPanel() {
   return <section className="space-y-5" aria-label="ランキング">
     <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4" role="group" aria-label="ランキングの範囲">{[{ id: GLOBAL, name: '全体' }, ...groups].map((g) => <button key={g.id} disabled={busy} aria-pressed={selected === g.id}
       className={`min-h-14 shrink-0 rounded-full border px-5 text-sm ${selected === g.id ? 'border-accent bg-surface text-fg' : 'border-border text-muted'}`}
-      onClick={() => { setSelected(g.id); setConfirm(null); setError(null) }}>{g.name}</button>)}
+      onClick={() => { setSelected(g.id); setManaging(false); setConfirm(null); setError(null) }}>{g.name}</button>)}
       <button type="button" aria-label="コミュニティに参加・作成" aria-expanded={managing} disabled={busy}
         className={`flex min-h-14 w-14 shrink-0 items-center justify-center rounded-full border text-xl ${managing ? 'border-accent text-fg' : 'border-border text-muted'}`}
-        onClick={() => { setManaging((v) => !v); setError(null) }}>⊕</button></div>
+        onClick={() => { setManaging((v) => !v); setError(null) }}>＋</button></div>
     {error && <p role="alert" className="text-sm text-accent">{error}</p>}
     {managing && <div className="space-y-4 rounded-xl border border-border p-3">
     {draft ? <form className="space-y-3 rounded-2xl border border-border p-4" onSubmit={(e) => { e.preventDefault(); void run(async () => { await saveProfile(draft); window.dispatchEvent(new Event('glog-profile-updated')); setMine(draft); setDraft(null); setRankAttempt((n) => n + 1) }) }}>
@@ -86,14 +86,14 @@ export function CommunityPanel() {
     {!mine && <p className="text-sm text-muted">表示名を設定すると、コミュニティを作成・参加できます。</p>}
     <p className="text-xs leading-relaxed text-muted">参加すると、プロフィールとBIG3の数値・推移をメンバーに共有します。全トレーニング履歴は公開されません。</p>
     <div className="flex gap-2">{(['create','join'] as const).map((f) => <button key={f} disabled={!mine || busy} className="min-h-14 flex-1 rounded-xl border border-border text-sm disabled:opacity-40" onClick={() => { requestId.current = crypto.randomUUID(); setForm(f); setValue(''); setError(null) }}>{f === 'create' ? '＋ コミュニティを作る' : '招待コードで参加'}</button>)}</div>
-    {form && <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => { const id = await manage(form, value.trim(), form === 'create' ? requestId.current : null); setSelected(id); setForm(null); setValue(''); setAttempt((n) => n + 1) }) }}>
+    {form && <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void run(async () => { const id = await manage(form, value.trim(), form === 'create' ? requestId.current : null); setSelected(id); setForm(null); setValue(''); setManaging(false); setAttempt((n) => n + 1) }) }}>
       <label className="text-sm">{form === 'create' ? 'コミュニティ名' : '招待コード'}<input className={field} value={value} onChange={(e) => setValue(e.target.value)} required maxLength={form === 'create' ? 40 : 36} disabled={busy} autoCapitalize="none" /></label>
       <Button type="submit" disabled={busy || !value.trim()}>{busy ? '処理中…' : form === 'create' ? '作成する' : '参加する'}</Button>
       <Button type="button" variant="ghost" disabled={busy} onClick={() => { setForm(null); setError(null) }}>キャンセル</Button>
     </form>}
     </div>}
-    {selected === GLOBAL && <GlobalRanking />}
-    {group && <>
+    {!managing && selected === GLOBAL && <GlobalRanking />}
+    {!managing && group && <>
       <div className="flex border-b border-border">{(['total','growth'] as const).map((m) => <button key={m} className={`min-h-14 flex-1 text-sm ${mode === m ? 'border-b-2 border-accent text-fg' : 'text-muted'}`} aria-pressed={mode === m} onClick={() => setMode(m)}>{m === 'total' ? 'BIG3合計' : '今月の伸び'}</button>)}</div>
       {rankLoading ? <Spinner /> : rankError ? <div><p role="alert">{rankError}</p><Button variant="ghost" onClick={() => setRankAttempt((n) => n + 1)}>再試行</Button></div> : <div className="divide-y divide-border">{rankMembers(members, mode).map((m) => <button key={m.user_id} onClick={() => setPerson(m.user_id)} className={`flex min-h-20 w-full items-center gap-3 px-2 text-left ${m.user_id === userId ? 'bg-surface' : ''}`}>
         <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span><Avatar icon={m.icon} name={m.display_name}/><span className="min-w-0 flex-1 break-words text-sm">{m.display_name}{m.user_id === userId && <span className="ml-2 text-xs text-muted">自分</span>}</span>
