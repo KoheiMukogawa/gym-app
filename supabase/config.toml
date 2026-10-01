@@ -1,0 +1,3 @@
+# Custom personal Bearer credentials are checked by body-metrics, not the JWT gateway.
+[functions.body-metrics]
+verify_jwt = false

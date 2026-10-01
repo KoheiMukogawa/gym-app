@@ -30,3 +30,6 @@ test-results
 
 # 実際の接続情報。.env.test.example をコピーして作る。
 .env.test
+
+# Supabase CLI local cache
+supabase/.temp/
