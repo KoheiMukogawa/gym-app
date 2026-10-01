@@ -11,7 +11,7 @@ function formatDate(iso: string): string {
   }).format(new Date(iso))
 }
 
-export function WorkoutCard({ item }: { item: FeedItem }) {
+export function WorkoutCard({ item, editable = false }: { item: FeedItem; editable?: boolean }) {
   const byExercise = new Map<string, { name: string; count: number; max: number }>()
   for (const s of item.sets) {
     const current = byExercise.get(s.exercise_id)
@@ -26,8 +26,8 @@ export function WorkoutCard({ item }: { item: FeedItem }) {
   return (
     <article className="rounded-xl border border-border bg-surface p-4">
       <header className="mb-3 flex items-baseline justify-between">
-        <span className="font-semibold">{item.display_name}</span>
-        <span className="text-xs text-muted">{formatDate(item.performed_at)}</span>
+        <span className="font-semibold">{editable ? formatDate(item.performed_at) : item.display_name}</span>
+        {editable ? <Link to={`/history/${item.workout_id}`} className="flex min-h-14 items-center px-3 text-sm text-accent">編集</Link> : <span className="text-xs text-muted">{formatDate(item.performed_at)}</span>}
       </header>
 
       <ul className="flex flex-col">

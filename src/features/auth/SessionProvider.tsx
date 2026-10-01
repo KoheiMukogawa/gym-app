@@ -17,20 +17,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const loadProfile = useCallback(async (id: string) => {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single()
-    if (error) {
+  const loadProfile = useCallback(async (id: string, propagateError = false) => {
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single()
+      if (error) throw error
+      setProfile((data as Profile) ?? null)
+    } catch (error: unknown) {
       // profiles の行が無いままログインできてしまう状態は、原因の手がかりが残らないと追えない。
       // docs/setup-supabase.md のトリガー手動フォールバックを取りこぼすと実際に起きる。
       console.error(`profiles の取得に失敗しました (user: ${id})`, error)
       setProfile(null)
-      return
+      if (propagateError) throw error
     }
-    setProfile((data as Profile) ?? null)
   }, [])
 
   const refreshProfile = useCallback(async () => {
-    if (userId) await loadProfile(userId)
+    if (userId) await loadProfile(userId, true)
   }, [userId, loadProfile])
 
   useEffect(() => {
@@ -62,7 +64,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [loadProfile])
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
   }, [])
 
   return (

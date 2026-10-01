@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:mock": "playwright test --config playwright.mock.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

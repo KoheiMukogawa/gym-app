@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type Props = {
   label: string
@@ -6,11 +6,13 @@ type Props = {
   unit: string
   onStep: (direction: 1 | -1) => void
   onEnter: (value: number) => void
+  direct?: boolean
 }
 
-export function NumberStepper({ label, value, unit, onStep, onEnter }: Props) {
+export function NumberStepper({ label, value, unit, onStep, onEnter, direct = false }: Props) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState(String(value))
+  useEffect(() => { if (direct) setDraft(String(value)) }, [value, direct])
   const committedRef = useRef(false)
 
   function commit() {
@@ -40,7 +42,19 @@ export function NumberStepper({ label, value, unit, onStep, onEnter }: Props) {
 
       <div className="flex-1 text-center">
         <div className="text-xs text-muted">{label}</div>
-        {editing ? (
+        {direct ? (
+          <input type="number" inputMode={unit === 'kg' ? 'decimal' : 'numeric'}
+            aria-label={label} min={unit === 'kg' ? 0 : 1} max={unit === 'kg' ? 9999.9 : 9999} step={unit === 'kg' ? 0.1 : 1}
+            value={draft} onFocus={(e) => e.target.select()} onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+              const parsed = Number(draft)
+              if (draft.trim() && Number.isFinite(parsed)) onEnter(parsed)
+              else setDraft(String(value))
+            }}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            className="min-h-14 w-full min-w-0 rounded-lg bg-surface text-center text-4xl font-bold tabular-nums outline-none focus:ring-1 focus:ring-accent"
+          />
+        ) : editing ? (
           <input
             autoFocus
             type="number"

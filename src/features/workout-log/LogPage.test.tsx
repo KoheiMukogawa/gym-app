@@ -5,6 +5,10 @@ import { LogPage } from './LogPage'
 import { ToastProvider } from '../../components/ui/Toast'
 import { saveDraft, loadDraft } from './persistence'
 import type { Exercise } from '../../lib/types'
+vi.mock('../routines/queries', async (original) => ({
+  ...await original<typeof import('../routines/queries')>(),
+  fetchRoutines: async () => [], fetchExerciseOrder: async () => [],
+}))
 
 const USER = 'user-1'
 

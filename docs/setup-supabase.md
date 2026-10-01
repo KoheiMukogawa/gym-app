@@ -8,6 +8,8 @@ Supabaseを使ったことがない人でも上から順に実行すれば完了
 - `supabase/migrations/0001_init.sql` — テーブル定義
 - `supabase/migrations/0002_rls.sql` — Row Level Security ポリシーとプロフィール自動作成トリガー
 - `supabase/migrations/0003_seed_exercises.sql` — プリセット種目55件の投入
+- `supabase/migrations/0004_strength_goals.sql` — Big3 Total目標テーブルとRLS
+- `supabase/migrations/0005_big3_exercise_mappings.sql` — ユーザー別Big3対象種目とRLS
 
 ## Step 1: Supabaseプロジェクトを作成する
 
@@ -19,7 +21,7 @@ Supabaseを使ったことがない人でも上から順に実行すれば完了
 
 ## Step 2: マイグレーションSQLを適用する
 
-Supabaseダッシュボードの左メニューから **SQL Editor** を開き、以下の3ファイルの中身を
+Supabaseダッシュボードの左メニューから **SQL Editor** を開き、以下の5ファイルの中身を
 **この順番で** 1つずつ貼り付けて実行する（「Run」ボタン）。
 
 1. `supabase/migrations/0001_init.sql` を貼り付けて実行する。
@@ -30,6 +32,24 @@ Supabaseダッシュボードの左メニューから **SQL Editor** を開き�
      (`on_auth_user_created` / `handle_new_user`) も作成される。
 3. `supabase/migrations/0003_seed_exercises.sql` を貼り付けて実行する。
    - プリセット種目55件（`is_preset = true`, `created_by = null`）が `exercises` テーブルに投入される。
+4. `supabase/migrations/0004_strength_goals.sql` を貼り付けて実行する。
+   - `strength_goals` テーブルが作成され、目標は本人だけが参照・作成・更新・削除できるRLSが設定される。
+
+5. `supabase/migrations/0005_big3_exercise_mappings.sql` を貼り付けて実行する。
+   - `big3_exercise_mappings` が作成される。主キーは `(user_id, lift_type)`、`lift_type` は squat / bench / deadlift のみ。
+   - `exercise_id` は既存 `exercises` を参照し、設定中の種目削除はRESTRICTで防ぐ。
+   - 本人のみ参照・作成・更新・削除できるRLSが設定される。
+
+既存の本番プロジェクトで `0001`〜`0003` が適用済みなら `0004` → `0005` を追加実行する。
+`0004` まで適用済みなら `0005_big3_exercise_mappings.sql` だけを追加実行する。
+過去のマイグレーションは再実行・変更しない。アプリの新バージョン導入前に適用する。
+
+Strength画面の「Big3の対象種目」からスクワット・ベンチプレス・デッドリフトに使う種目を選択する。
+たとえばデッドリフトに「コンベンショナルデッドリフト」を指定すると、その種目の全履歴からPR・e1RM・Totalを再計算する。
+既存のワークアウトやセットは変更しない。設定はいつでも変更でき、「標準を使う」で解除できる。
+未設定の場合は従来のプリセットを使うため、ユーザーごとの初期データ投入は不要。
+明示した種目・履歴が取得できない場合は値が「—」となり、別の種目を自動で集計しない。
+Total目標は引き続きDBで管理し、Strength画面から登録する（500 / 530 / 570 / 600kg等）。
 
 **`0002_rls.sql` はSQL Editor上で1つのトランザクションとして実行される。途中の文が1つでも失敗すると、
 このファイル内の変更は（成功したように見えた文も含めて）すべてロールバックされる。** つまり途中でエラーが
@@ -120,15 +140,15 @@ Supabaseダッシュボードの **SQL Editor** で以下のクエリを順に�
 
   期待値: `55`
 
-- [ ] 4テーブルすべてでRow Level Securityが有効になっている
+- [ ] 6テーブルすべてでRow Level Securityが有効になっている
 
   ```sql
   select tablename, rowsecurity from pg_tables
   where schemaname = 'public'
-    and tablename in ('profiles', 'exercises', 'workouts', 'workout_sets');
+    and tablename in ('profiles', 'exercises', 'workouts', 'workout_sets', 'strength_goals', 'big3_exercise_mappings');
   ```
 
-  期待値: 4行すべて `rowsecurity = true`
+  期待値: 6行すべて `rowsecurity = true`
 
 - [ ] （任意）Step 5で作成したユーザーの数だけ `profiles` に行ができていることを確認する
 
@@ -157,3 +177,13 @@ SQL Editorでの `set local role` による疑似検証ではなく、アプリ�
 
 再検証する場合は `.env.e2e` に認証情報を用意し、E2Eアカウントのアクセストークンを取得したうえで
 `/rest/v1/workout_sets` への他ユーザー宛INSERTが403になることを確認すればよい。
+
+## Big3種目設定の検証
+
+- `npm test` で標準へのフォールバック、明示設定の優先、全指標とTotal、欠損履歴、保存・リセット・再取得失敗を検証する。
+- DB制約とRLSは `supabase/tests/0005_big3_exercise_mappings.sql` で検証できる。
+  `0001`〜`0005` 適用済みの使い捨てローカル／テストDBに、postgresとして実行する。
+  例: `psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/0005_big3_exercise_mappings.sql`
+  テスト用ユーザー・種目を作成し、重複、無効な区分・参照、upsert、他ユーザーの参照／書換え禁止、解除を検証して全変更をROLLBACKする。本番では実行しない。
+- 2026-09-29: PGliteの一時PostgreSQL環境で、Supabaseのauth.users / auth.uid()とauthenticated権限を模したうえで全5マイグレーションと上記SQLを検証。
+  実際のSupabase REST APIでの検証は未実施。適用後は本人アカウントで設定が再読み込み後も保持され、別ユーザーには見えないことを確認する。

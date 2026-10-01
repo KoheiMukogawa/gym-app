@@ -76,6 +76,24 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
   })
 
+  it('keeps the edited name and allows retry when profile refresh fails', async () => {
+    eq.mockResolvedValue({ error: null })
+    refreshProfile.mockRejectedValueOnce(new Error('network error'))
+      .mockResolvedValueOnce(undefined)
+    renderPage()
+    const user = userEvent.setup()
+    const input = screen.getByRole('textbox', { name: '表示名' })
+    await user.clear(input)
+    await user.type(input, '変更後')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByText('表示名を変更しました')).not.toBeInTheDocument()
+    expect(input).toHaveValue('変更後')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+    expect(await screen.findByText('表示名を変更しました')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('signs out once when the logout button is tapped', async () => {
     signOut.mockResolvedValueOnce(undefined)
     renderPage()

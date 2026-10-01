@@ -4,9 +4,12 @@ type Props = {
   year: number
   month: number // 1-12
   activeDates: string[] // YYYY-MM-DD
+  selectedDate?: string
+  onSelect?: (date: string) => void
+  maxDate?: string
 }
 
-export function MonthCalendar({ year, month, activeDates }: Props) {
+export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect, maxDate }: Props) {
   const first = new Date(year, month - 1, 1)
   const daysInMonth = new Date(year, month, 0).getDate()
   const leading = first.getDay()
@@ -29,6 +32,11 @@ export function MonthCalendar({ year, month, activeDates }: Props) {
           if (day === null) return <span key={`pad-${i}`} />
           const key = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
           const isActive = active.has(key)
+          if (onSelect) return <button key={key} type="button"
+            aria-label={`${month}月${day}日${isActive ? ' トレーニングあり' : ''}`}
+            aria-pressed={selectedDate === key} disabled={!!maxDate && key > maxDate}
+            onClick={() => onSelect(key)}
+            className={`flex aspect-square items-center justify-center rounded-lg text-sm tabular-nums disabled:opacity-30 ${selectedDate === key ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : ''} ${isActive ? 'bg-accent font-semibold text-white' : 'text-muted'}`}>{day}</button>
           return (
             <span
               key={key}

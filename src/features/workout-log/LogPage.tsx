@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { findPrefill } from '../../lib/calc'
+import { validateSet } from '../../lib/dates'
 import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
@@ -9,7 +10,10 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from '../auth/SessionProvider'
 import { ExercisePicker } from '../exercises/ExercisePicker'
-import { createExercise, fetchExercises, fetchRecentExerciseIds } from '../exercises/queries'
+import { createExercise, fetchExercises } from '../exercises/queries'
+import { exerciseLabel } from '../exercises/catalog'
+import { RoutinePanel } from '../routines/RoutinePanel'
+import type { ActiveRoutine } from '../routines/queries'
 import { initialLogState, logReducer, nextSet, type LoggedSet } from './logReducer'
 import { clearDraft, loadDraft, saveDraft, type SetStatus } from './persistence'
 import {
@@ -49,7 +53,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'>
   })
 }
 
-export function LogPage() {
+export function LogPage({ home = false }: { home?: boolean }) {
   const { userId } = useSession()
   const navigate = useNavigate()
   const { show } = useToast()
@@ -72,9 +76,12 @@ export function LogPage() {
     return demoted
   })
   const [exercises, setExercises] = useState<Exercise[]>([])
-  const [recentIds, setRecentIds] = useState<string[]>([])
+  const [routine, setRoutine] = useState<ActiveRoutine | null>(draft?.routine ?? null)
+  const [editingRoutine, setEditingRoutine] = useState(false)
   const [history, setHistory] = useState<Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [picking, setPicking] = useState(draft?.state.currentExerciseId == null)
   const [justSaved, setJustSaved] = useState(false)
   const [offline, setOffline] = useState(isOffline())
@@ -114,8 +121,8 @@ export function LogPage() {
   // workoutId は state 化したので、作成直後の値も取りこぼさずに書き込まれる。
   useEffect(() => {
     if (!userId) return
-    saveDraft(userId, { state, workoutId, status: statusById })
-  }, [state, workoutId, statusById, userId])
+    saveDraft(userId, { state, workoutId, status: statusById, routine })
+  }, [state, workoutId, statusById, userId, routine])
 
   useEffect(() => {
     const update = () => setOffline(isOffline())
@@ -135,17 +142,35 @@ export function LogPage() {
 
   useEffect(() => {
     if (!userId) return
-    Promise.all([fetchExercises(), fetchRecentExerciseIds(userId), fetchUserSetHistory(userId)])
-      .then(([ex, recent, hist]) => {
+    let active = true
+    setLoading(true)
+    setLoadError(null)
+    Promise.all([fetchExercises(), fetchUserSetHistory(userId)])
+      .then(([ex, hist]) => {
+        if (!active) return
         setExercises(ex)
-        setRecentIds(recent)
         setHistory(hist)
       })
-      .catch((e) => show(toMessage(e)))
-      .finally(() => setLoading(false))
-  }, [userId, show])
+      .catch((e) => { if (active) setLoadError(toMessage(e)) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [userId, loadAttempt])
 
-  const exerciseNames = Object.fromEntries(exercises.map((e) => [e.id, e.name]))
+  const exerciseNames = Object.fromEntries(exercises.map((e) => [e.id, exerciseLabel(e)]))
+
+  function selectExercise(exerciseId: string) {
+    dispatch({ type: 'select-exercise', exerciseId, prefill: findPrefill(history, exerciseId) })
+    setPicking(false)
+  }
+  function moveRoutine(direction: -1 | 1) {
+    if (!routine) return
+    const index = routine.index + direction
+    if (index < 0 || index >= routine.exerciseIds.length) return
+    const id = routine.exerciseIds[index]
+    if (!exercises.some((e) => e.id === id)) { show('この種目は見つかりません。ルーティンを編集してください。'); return }
+    setRoutine({ ...routine, index })
+    selectExercise(id)
+  }
 
   function showJustSaved() {
     if (justSavedTimerRef.current) clearTimeout(justSavedTimerRef.current)
@@ -249,6 +274,8 @@ export function LogPage() {
   )
 
   function handleCompleteSet() {
+    try { validateSet(state.weight_kg, state.reps) }
+    catch (e) { show(toMessage(e)); return }
     const id = crypto.randomUUID()
     const set = nextSet(state, id)
     if (set === null) return
@@ -303,6 +330,7 @@ export function LogPage() {
   async function handleCreateExercise(name: string, group: MuscleGroup) {
     if (!userId) throw new Error('サインインしていません')
     const created = await createExercise({ name, muscle_group: group, userId })
+    setRoutine(null)
     setExercises((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'ja')))
     dispatch({ type: 'select-exercise', exerciseId: created.id, prefill: null })
     setPicking(false)
@@ -356,20 +384,27 @@ export function LogPage() {
         10_000,
       )
       clearDraft(userId)
-      navigate('/')
+      navigate(home ? '/history' : '/')
     } finally {
       setFinishing(false)
     }
   }
 
   if (loading) return <Spinner />
+  if (loadError) return <div className="space-y-4 p-4"><p role="alert" className="text-sm text-accent">{loadError}</p><Button onClick={() => setLoadAttempt((n) => n + 1)}>再試行</Button></div>
 
   if (picking) {
     return (
       <div className="min-h-full">
         {offline && <OfflineBanner />}
         <header className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-lg font-semibold">種目を選ぶ</h1>
+          <div>
+            <p className="mb-1 text-xs text-muted">{new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}</p>
+            <h1 className="text-2xl font-semibold tracking-tight">{state.sets.length ? '次はどの種目？' : '今日のトレーニング'}</h1>
+            <p className="mt-2 text-sm text-muted">種目を選んで、そのまま記録。</p>
+          </div>
+          {state.sets.length > 0 && <button type="button" onClick={() => setPicking(false)} className="min-h-14 px-2 text-sm text-muted">戻る</button>}
+          {state.sets.length > 0 && (
           <button
             type="button"
             onClick={() => void handleFinish()}
@@ -378,20 +413,24 @@ export function LogPage() {
           >
             {finishing ? '終了中…' : '終了'}
           </button>
+          )}
         </header>
-        <ExercisePicker
+        {userId && <RoutinePanel userId={userId} exercises={exercises}
+          onEditingChange={setEditingRoutine}
+          onExerciseCreated={(exercise) => setExercises((old) => [...old, exercise])}
+          onStart={(selected) => {
+            setRoutine({ name: selected.name, exerciseIds: [...selected.exercise_ids], index: 0 })
+            selectExercise(selected.exercise_ids[0])
+          }} />}
+        {!editingRoutine && <ExercisePicker
           exercises={exercises}
-          recentIds={recentIds}
+          userId={userId}
           onSelect={(e) => {
-            dispatch({
-              type: 'select-exercise',
-              exerciseId: e.id,
-              prefill: findPrefill(history, e.id),
-            })
-            setPicking(false)
+            setRoutine(null)
+            selectExercise(e.id)
           }}
           onCreate={handleCreateExercise}
-        />
+        />}
       </div>
     )
   }
@@ -415,8 +454,17 @@ export function LogPage() {
           {finishing ? '終了中…' : '終了'}
         </button>
       </header>
+      {routine && <section className="mx-4 mb-3 rounded-xl border border-border bg-surface px-3" aria-label="進行中のルーティン">
+        <div className="pt-3 text-sm">{routine.name} <span className="text-muted">{routine.index + 1} / {routine.exerciseIds.length}種目</span></div>
+        <div className="flex justify-between gap-2">
+          <button className="min-h-14 text-sm text-muted disabled:opacity-30" disabled={routine.index === 0} onClick={() => moveRoutine(-1)}>前の種目</button>
+          {routine.index < routine.exerciseIds.length - 1
+            ? <button className="min-h-14 text-sm text-accent" onClick={() => moveRoutine(1)}>次の種目へ →</button>
+            : <span className="flex min-h-14 items-center text-xs text-muted">最後の種目です</span>}
+        </div>
+      </section>}
 
-      <div className="flex-1 overflow-y-auto px-4 pb-80">
+      <div className="flex-1 overflow-y-auto px-4 pb-[26rem]">
         <SetList
           sets={state.sets}
           exerciseNames={exerciseNames}
@@ -427,9 +475,10 @@ export function LogPage() {
         />
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-border bg-bg px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+      <div className={`fixed inset-x-0 mx-auto max-w-lg border-t border-border bg-bg px-4 pb-4 pt-4 ${home ? 'bottom-[calc(4rem+env(safe-area-inset-bottom))]' : 'bottom-0'}`}>
         <div className="mb-4 flex flex-col gap-4">
           <NumberStepper
+            direct
             label="重量"
             value={state.weight_kg}
             unit="kg"
@@ -437,6 +486,7 @@ export function LogPage() {
             onEnter={(value) => dispatch({ type: 'set-weight', value })}
           />
           <NumberStepper
+            direct
             label="回数"
             value={state.reps}
             unit="回"

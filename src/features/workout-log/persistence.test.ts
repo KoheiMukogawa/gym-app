@@ -25,6 +25,17 @@ function today(): string {
 }
 
 describe('workout draft persistence', () => {
+  it('restores the current routine step only for its owner', () => {
+    const routine = { name: '胸の日', exerciseIds: ['press', 'bench'], index: 1 }
+    saveDraft(USER, { state: STATE, workoutId: 'w1', status: STATUS, routine })
+    expect(loadDraft(USER)?.routine).toEqual(routine)
+    expect(loadDraft('other-user')).toBeNull()
+  })
+  it('ignores a malformed routine without losing recorded sets', () => {
+    saveDraft(USER, { state: STATE, workoutId: 'w1', status: STATUS, routine: { name: '胸', exerciseIds: ['bench'], index: 2 } })
+    expect(loadDraft(USER)?.routine).toBeUndefined()
+    expect(loadDraft(USER)?.state.sets).toEqual(STATE.sets)
+  })
   beforeEach(() => {
     localStorage.clear()
   })
