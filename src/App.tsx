@@ -11,6 +11,7 @@ import { WorkoutEditorPage } from './features/history/WorkoutEditorPage'
 import { Big3Page } from './features/community/Big3Page'
 import { HomePage } from './features/home/HomePage'
 import { ExportPage } from './features/export/ExportPage'
+import { BodyPage } from './features/body/BodyPage'
 
 // 以前のBIG3のURL（/strength?view=...）は /big3 に移した。
 function StrengthRedirect() {
@@ -33,6 +34,7 @@ export default function App() {
                 <Route path="/log" element={null} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/export" element={<ExportPage />} />
+                <Route path="/body" element={<BodyPage />} />
                 <Route path="/strength" element={<StrengthRedirect />} />
                 <Route path="/history" element={<HistoryPage />} />
                 <Route path="/history/new" element={<WorkoutEditorPage key="new" />} />
