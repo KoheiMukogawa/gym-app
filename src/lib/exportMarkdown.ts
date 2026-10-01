@@ -80,7 +80,10 @@ export function buildWorkoutMarkdown(input: {
   for (const item of days) {
     const bodyweight = bodyweightOn(bodyweightLogs, localDate(item.performed_at))
     lines.push(`### ${dateLabel(item.performed_at)}`, '')
-    if (bodyweight !== null) lines.push(`体重: ${kg(bodyweight)} kg`, '')
+    const fat = bodyweightLogs.find((entry) => entry.recorded_on === localDate(item.performed_at))?.body_fat_pct
+    if (bodyweight !== null) {
+      lines.push(fat == null ? `体重: ${kg(bodyweight)} kg` : `体重: ${kg(bodyweight)} kg / 体脂肪率: ${fat.toFixed(1)} %`, '')
+    }
     // 種目ごとにまとめる（記録した順）
     const groups: { id: string; name: string; rows: Row[] }[] = []
     for (const row of rowsOf(item)) {

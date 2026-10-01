@@ -82,4 +82,18 @@ describe('buildWorkoutMarkdown', () => {
     })
     expect(md.indexOf('### 2026-09-10')).toBeLessThan(md.indexOf('### 2026-09-20'))
   })
+  it('exports same-date body fat without carrying it to later workouts', () => {
+    const logs = [{ recorded_on: '2026-09-10', bodyweight_kg: 70, body_fat_pct: 15.4 }]
+    const md = buildWorkoutMarkdown({ ...base, bodyweightLogs: logs, items: [item('2026-09-10', [set({})])] })
+    expect(md).toContain('体重: 70.0 kg / 体脂肪率: 15.4 %')
+    const later = buildWorkoutMarkdown({ ...base, bodyweightLogs: logs, items: [item('2026-09-11', [set({})])] })
+    expect(later).toContain('体重: 70.0 kg')
+    expect(later).not.toContain('体脂肪率:')
+  })
+  it('exports weight alone when same-date fat is null', () => {
+    const md = buildWorkoutMarkdown({ ...base, bodyweightLogs: [{ recorded_on: '2026-09-10', bodyweight_kg: 70, body_fat_pct: null }], items: [item('2026-09-10', [set({})])] })
+    expect(md).toContain('体重: 70.0 kg')
+    expect(md).not.toContain('体脂肪率:')
+  })
+
 })
