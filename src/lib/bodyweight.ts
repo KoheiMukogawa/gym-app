@@ -1,4 +1,4 @@
-export type BodyweightLog = { recorded_on: string; bodyweight_kg: number }
+export type BodyweightLog = { recorded_on: string; bodyweight_kg: number; body_fat_pct?: number | null }
 
 /**
  * その日に有効な体重。recorded_on 以前で最も新しい記録を使い、
