@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { HistoryPage } from './HistoryPage'
@@ -222,5 +222,52 @@ describe('HistoryPage calendar — marks the local (JST) day, not the UTC day', 
 
     expect(await screen.findByLabelText('8月14日 トレーニングあり')).toBeInTheDocument()
     expect(screen.queryByLabelText('8月13日 トレーニングあり')).not.toBeInTheDocument()
+  })
+})
+
+describe('HistoryPage month swipe', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useSession.mockReturnValue({ userId: USER, profile: null, loading: false, signOut: vi.fn(), refreshProfile: vi.fn() })
+    fetchMonthWorkouts.mockResolvedValue([])
+  })
+
+  function swipe(dx: number) {
+    const area = screen.getByLabelText(/スワイプで月を切り替え/)
+    fireEvent.pointerDown(area, { clientX: 200, clientY: 100, pointerId: 1 })
+    fireEvent.pointerMove(area, { clientX: 200 + dx / 2, clientY: 102, pointerId: 1 })
+    fireEvent.pointerMove(area, { clientX: 200 + dx, clientY: 102, pointerId: 1 })
+    fireEvent.pointerUp(area, { clientX: 200 + dx, clientY: 102, pointerId: 1 })
+  }
+
+  it('moves to the previous month on a right swipe and back on a left swipe, but never into the future', async () => {
+    const now = new Date()
+    const label = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月`
+    const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    renderHistoryPage()
+    expect(await screen.findByText(label(now))).toBeInTheDocument()
+    await screen.findByLabelText(/スワイプで月を切り替え/)
+
+    swipe(-120)
+    expect(screen.getByText(label(now))).toBeInTheDocument()
+
+    swipe(120)
+    expect(await screen.findByText(label(previous))).toBeInTheDocument()
+    await screen.findByLabelText(/スワイプで月を切り替え/)
+
+    swipe(-120)
+    expect(await screen.findByText(label(now))).toBeInTheDocument()
+  })
+
+  it('ignores short or vertical drags', async () => {
+    const now = new Date()
+    renderHistoryPage()
+    await screen.findByLabelText(/スワイプで月を切り替え/)
+    swipe(40)
+    const area = screen.getByLabelText(/スワイプで月を切り替え/)
+    fireEvent.pointerDown(area, { clientX: 200, clientY: 100, pointerId: 2 })
+    fireEvent.pointerMove(area, { clientX: 215, clientY: 200, pointerId: 2 })
+    fireEvent.pointerUp(area, { clientX: 320, clientY: 260, pointerId: 2 })
+    await waitFor(() => expect(screen.getByText(`${now.getFullYear()}年${now.getMonth() + 1}月`)).toBeInTheDocument())
   })
 })

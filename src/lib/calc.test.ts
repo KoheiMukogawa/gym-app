@@ -5,6 +5,7 @@ import {
   personalBest,
   findPrefill,
   maxWeightByDate,
+  e1rmByDate,
   adjustWeight,
   adjustReps,
 } from './calc'
@@ -116,5 +117,20 @@ describe('adjustReps', () => {
 
   it('never goes below 1', () => {
     expect(adjustReps(1, -1)).toBe(1)
+  })
+})
+
+describe('e1rmByDate', () => {
+  const base = { id: 's', workout_id: 'w', exercise_id: 'e', set_index: 1, created_at: '' }
+  it('keeps the best estimated 1RM per day and skips sets over 10 reps', () => {
+    expect(e1rmByDate([
+      { ...base, weight_kg: 100, reps: 1, performed_at: '2026-08-10T03:00:00Z' },
+      { ...base, weight_kg: 90, reps: 5, performed_at: '2026-08-10T04:00:00Z' },
+      { ...base, weight_kg: 60, reps: 15, performed_at: '2026-08-03T03:00:00Z' },
+      { ...base, weight_kg: 80, reps: 8, performed_at: '2026-08-03T04:00:00Z' },
+    ])).toEqual([
+      { date: '2026-08-03', e1rm: 99.3 },
+      { date: '2026-08-10', e1rm: 101.3 },
+    ])
   })
 })

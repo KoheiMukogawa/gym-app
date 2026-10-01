@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { maxWeightByDate, personalBest, totalVolume } from '../../lib/calc'
+import { e1rmByDate, personalBest, totalVolume } from '../../lib/calc'
 import { toMessage } from '../../lib/errors'
 import { MUSCLE_GROUP_LABELS, type Exercise, type SetWithDate } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
@@ -17,7 +17,7 @@ export type ExerciseSummary = {
   best: number | null
   volume: number
   setCount: number
-  points: { date: string; max_weight: number }[]
+  points: { date: string; e1rm: number }[]
 }
 
 export function summarizeExercise(sets: SetWithDate[]): ExerciseSummary {
@@ -25,7 +25,7 @@ export function summarizeExercise(sets: SetWithDate[]): ExerciseSummary {
     best: personalBest(sets),
     volume: totalVolume(sets),
     setCount: sets.length,
-    points: maxWeightByDate(sets),
+    points: e1rmByDate(sets),
   }
 }
 
@@ -103,9 +103,9 @@ export function ExerciseDetailPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm text-muted">重量の推移（日ごとの最大）</h2>
+        <h2 className="mb-3 text-sm text-muted">推定1RMの推移（日ごとの最高）</h2>
         {summary.points.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted">まだ記録がありません</p>
+          <p className="py-8 text-center text-sm text-muted">{sets.length === 0 ? 'まだ記録がありません' : '1〜10回のセットを記録すると推定1RMを表示します'}</p>
         ) : (
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -131,11 +131,11 @@ export function ExerciseDetailPage() {
                     borderRadius: 12,
                     color: '#F5F5F5',
                   }}
-                  formatter={(v) => [`${v} kg`, '最大重量']}
+                  formatter={(v) => [`${v} kg`, '推定1RM']}
                 />
                 <Line
                   type="monotone"
-                  dataKey="max_weight"
+                  dataKey="e1rm"
                   stroke="#E8412F"
                   strokeWidth={2}
                   dot={{ r: 3, fill: '#E8412F' }}

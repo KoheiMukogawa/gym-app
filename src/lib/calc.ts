@@ -1,4 +1,6 @@
 import type { SetWithDate, WorkoutSet } from './types'
+import { localDate } from './dates'
+import { estimateOneRepMax } from './strength'
 
 export const WEIGHT_STEP = 2.5
 export const MIN_WEIGHT = 0
@@ -45,6 +47,21 @@ export function maxWeightByDate(sets: SetWithDate[]): { date: string; max_weight
   }
   return [...byDate.entries()]
     .map(([date, max_weight]) => ({ date, max_weight }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** 日ごとの最高推定1RM（1〜10回のセットのみ）を、古い順に返す。日付は端末の暦日。 */
+export function e1rmByDate(sets: SetWithDate[]): { date: string; e1rm: number }[] {
+  const byDate = new Map<string, number>()
+  for (const s of sets) {
+    const e1rm = estimateOneRepMax(s.weight_kg, s.reps)
+    if (e1rm === null) continue
+    const date = localDate(s.performed_at)
+    const current = byDate.get(date)
+    if (current === undefined || e1rm > current) byDate.set(date, e1rm)
+  }
+  return [...byDate.entries()]
+    .map(([date, e1rm]) => ({ date, e1rm }))
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 

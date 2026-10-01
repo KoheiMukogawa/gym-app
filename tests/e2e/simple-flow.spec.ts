@@ -417,3 +417,27 @@ test('chin-ups ask for bodyweight once and record assisted sets against the tota
   await expect(page.getByRole('listitem').first()).toContainText('−20 kg')
   await page.screenshot({ path: 'test-results/chinning-mobile.png' })
 })
+
+test('history calendar changes month by swiping left and right', async ({ page }) => {
+  await mockApi(page)
+  await page.getByRole('link', { name: '履歴', exact: true }).click()
+  const now = new Date()
+  const label = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月`
+  const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  await expect(page.getByText(label(now), { exact: true })).toBeVisible()
+  const swipe = async (dx: number) => {
+    const box = (await page.getByLabel(/スワイプで月を切り替え/).boundingBox())!
+    const x = box.x + box.width / 2, y = box.y + box.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    for (let step = 1; step <= 10; step++) await page.mouse.move(x + dx * step / 10, y)
+    await page.mouse.up()
+  }
+  await swipe(150)
+  await expect(page.getByText(label(previous), { exact: true })).toBeVisible()
+  await swipe(-150)
+  await expect(page.getByText(label(now), { exact: true })).toBeVisible()
+  await swipe(-150)
+  await expect(page.getByText(label(now), { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})

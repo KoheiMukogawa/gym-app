@@ -103,7 +103,7 @@ describe('ExerciseDetailPage chart wiring', () => {
   })
 
   // Coverage: pins the chart's dataKeys and data shape to ExerciseSummary's
-  // actual field names ('date' / 'max_weight'), so a rename or typo in either
+  // actual field names ('date' / 'e1rm'), so a rename or typo in either
   // the summary shape or the JSX fails loudly instead of silently rendering an
   // empty chart (which no jsdom pixel test could catch).
   it('wires XAxis/Line dataKeys and chart data to the summary points, not a typo', async () => {
@@ -114,7 +114,8 @@ describe('ExerciseDetailPage chart wiring', () => {
     await screen.findByRole('heading', { name: 'ベンチプレス' })
 
     expect(captured.xAxisDataKey).toBe('date')
-    expect(captured.lineDataKey).toBe('max_weight')
-    expect(captured.lineChartData).toEqual([{ date: '2026-08-08', max_weight: 80 }])
+    expect(captured.lineDataKey).toBe('e1rm')
+    // 80kg × 8回 → Brzycki 80 × 36 / 29 = 99.3
+    expect(captured.lineChartData).toEqual([{ date: '2026-08-08', e1rm: 99.3 }])
   })
 })
