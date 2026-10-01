@@ -82,30 +82,40 @@ enum型が存在するように見えても、それだけでは0002が成功し
 り、アプリを接続したりすると、全メンバーが互いのデータを自由に書き換えられる無防備な状態のまま運用が
 始まってしまう。
 
-## Step 3: メール確認を無効にする
+## Step 3: メール確認を有効にする
 
-管理者（あなた）がメンバーのアカウントを手動で発行する運用のため、メール確認は不要にする。
+アプリの「アカウントを作成」画面（`/signup`）から誰でも登録できる運用のため、存在しないメールアドレスでの登録を防ぐ目的でメール確認を有効にする。
 
-1. ダッシュボード左メニュー **Authentication** → **Providers** → **Email** を開く。
-2. **Confirm email** の設定をオフ（無効）にする。
+1. ダッシュボード左メニュー **Authentication** → **Sign In / Providers** → **Email** を開く。
+2. **Confirm email** をオン（有効）にする。
 3. 保存する。
 
-## Step 4: 新規サインアップを無効にする
+確認メール内のリンクは `<公開URL>/profile` に戻るため、**Authentication** → **URL Configuration** で次も設定する。
 
-このアプリは10人以下のプライベートグループ専用のため、誰でも自由にサインアップできる状態は避ける。
+- **Site URL**: `https://gym-app-ruddy-nine.vercel.app`
+- **Redirect URLs**: `https://gym-app-ruddy-nine.vercel.app/**`（ローカル確認もするなら `http://localhost:5173/**` も追加）
 
-1. **Authentication** → **Sign In / Providers**（または **Authentication** → **Settings**、UIのバージョンにより名称が異なる）を開く。
-2. **Allow new users to sign up** をオフ（無効）にする。
+メール確認をオフにした場合は、登録直後にそのままログイン状態になり `/profile` へ遷移する。
+
+## Step 4: 新規サインアップを許可する
+
+1. **Authentication** → **Sign In / Providers**（UIのバージョンによっては **Authentication** → **Settings**）を開く。
+2. **Allow new users to sign up** をオン（有効）にする。
 3. 保存する。
 
-## Step 5: メンバーのアカウントを作成する
+オフのままだと、アプリの登録画面では「現在、新規登録の受付は準備中です。」と表示される（Supabaseが `signup_disabled` を返すため）。
+登録時に入力した名前とアイコンは User Metadata として渡され、Step 2 のトリガー（`0009_onboarding_global_ranking.sql` で更新）が `profiles` と `community_profiles` を自動作成する。
+
+## Step 5: （任意）管理者がアカウントを手動で作成する
+
+本人がアプリから登録できない場合などに使う。
 
 1. **Authentication** → **Users** を開く。
 2. **Add user** をクリックする。
 3. メンバーごとに以下を設定してアカウントを作成する。
    - Email: メンバーのメールアドレス
    - Password: 初期パスワード（本人に別途伝え、必要なら後で変更してもらう）
-   - **Auto Confirm User** をオンにする（Step 3でメール確認を無効にしていても、念のためオンにしておく）
+   - **Auto Confirm User** をオンにする（Step 3でメール確認を有効にしているため、オンにしないと本人が確認メールを開くまでログインできない）
    - **User Metadata** に以下のJSONを設定し、表示名を渡す。
 
      ```json
@@ -113,7 +123,7 @@ enum型が存在するように見えても、それだけでは0002が成功し
      ```
 
      これにより、Step 2で作成したトリガーが `public.profiles.display_name` にこの値を自動的にセットする。
-メンバーの人数分（最大10人まで）繰り返す。
+必要な人数分繰り返す。
 
 ## Step 6: APIキーを控えて `.env.local` に設定する
 
