@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
-import { bodyweightOn, formatAddedLoad, type BodyweightLog } from '../../lib/bodyweight'
+import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
 import { localDate } from '../../lib/dates'
 import { toMessage } from '../../lib/errors'
-import { estimateOneRepMax, strengthTotal } from '../../lib/strength'
+import { strengthTotal } from '../../lib/strength'
 import { useSession } from '../auth/SessionProvider'
 import type { FeedItem } from '../feed/queries'
+import { WorkoutSetDetails } from '../feed/WorkoutSetDetails'
 import { MonthCalendar } from '../history/MonthCalendar'
 import { useMonthWorkouts } from '../history/useMonthWorkouts'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
@@ -55,36 +56,12 @@ function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goal: Stre
   </Link>
 }
 
-/** Today's sets grouped by exercise, numbered like a training log: "1  58.0 kg × 10 reps". */
+/** Keep the home card's shortcut to editing today's record. */
 function TodayWorkout({ item, bodyweight }: { item: FeedItem; bodyweight: number | null }) {
-  const groups: { id: string; name: string; bodyweight: boolean; sets: FeedItem['sets'] }[] = []
-  for (const set of item.sets) {
-    const group = groups.find((g) => g.id === set.exercise_id)
-    if (group) group.sets.push(set)
-    else groups.push({ id: set.exercise_id, name: set.exercise_name, bodyweight: !!set.is_bodyweight, sets: [set] })
-  }
-  return <Link to={`/history/${item.workout_id}`} aria-label="今日の記録を編集" className="flex flex-col gap-2">
-    {groups.map((group) => {
-      const loads = group.sets.map((s) => s.weight_kg + (group.bodyweight ? bodyweight ?? 0 : 0))
-      const rms = group.sets.map((s, i) => estimateOneRepMax(loads[i], s.reps)).filter((v): v is number => v !== null)
-      return <section key={group.id} className="rounded-xl border border-border bg-surface px-4 py-3">
-        <div className="mb-1 flex items-baseline justify-between gap-2">
-          <h3 className="font-semibold">{group.name}</h3>
-          {rms.length > 0 && <span className="shrink-0 text-sm text-muted">RM <strong className="text-fg tabular-nums">{kg(Math.max(...rms))}</strong> kg</span>}
-        </div>
-        <ol className="space-y-0.5 text-sm tabular-nums">
-          {group.sets.map((s, i) => <li key={i} className="grid grid-cols-[1.5rem_1fr_auto] items-baseline gap-2">
-            <span className="text-muted">{i + 1}</span>
-            <span>{group.bodyweight ? formatAddedLoad(s.weight_kg) : `${s.weight_kg.toFixed(1)} kg`}</span>
-            <span><span className="text-muted">×</span> {s.reps} <span className="text-xs text-muted">reps</span></span>
-            {s.note && <span className="col-start-2 col-end-4 whitespace-pre-wrap break-words text-xs text-muted">{s.note}</span>}
-          </li>)}
-        </ol>
-      </section>
-    })}
+  return <Link to={`/history/${item.workout_id}`} aria-label="今日の記録を編集" className="block">
+    <WorkoutSetDetails item={item} bodyweight={bodyweight} />
   </Link>
 }
-
 export function HomePage() {
   const { userId } = useSession()
   const navigate = useNavigate()

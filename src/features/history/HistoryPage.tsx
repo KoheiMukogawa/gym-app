@@ -107,7 +107,7 @@ export function HistoryPage() {
       </div>
       {selected ? <section className="flex flex-col gap-3">
         <h2 className="text-sm text-muted">{selected} の記録</h2>
-        {loading && !visible.length ? <Spinner /> : visible.length ? visible.map((item) => <WorkoutCard key={item.workout_id} item={item} editable bodyweight={bodyweightOn(bodyweightLogs, localDate(item.performed_at))} />)
+        {loading && !visible.length ? <Spinner /> : visible.length ? visible.map((item) => <WorkoutCard key={item.workout_id} item={item} editable detailed bodyweight={bodyweightOn(bodyweightLogs, localDate(item.performed_at))} />)
           : <p className="py-4 text-center text-sm text-muted">この日の記録はありません</p>}
         {selected && <Link to={visible.length ? '/history/' + visible[0].workout_id : '/history/new?date=' + selected} className="flex min-h-14 items-center justify-center rounded-xl border border-accent text-accent">＋ この日に記録を追加</Link>}
       </section> : <p className="text-center text-sm text-muted">日付を選ぶと記録を確認・追加できます</p>}

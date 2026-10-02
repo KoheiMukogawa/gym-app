@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatAddedLoad } from '../../lib/bodyweight'
 import type { FeedItem } from './queries'
+import { WorkoutSetDetails } from './WorkoutSetDetails'
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat('ja-JP', {
@@ -12,7 +13,7 @@ function formatDate(iso: string): string {
 }
 
 /** bodyweight はその日の体重。自重種目のボリュームを総重量（体重＋加重）で数えるのに使う。 */
-export function WorkoutCard({ item, editable = false, bodyweight = null }: { item: FeedItem; editable?: boolean; bodyweight?: number | null }) {
+export function WorkoutCard({ item, editable = false, bodyweight = null, detailed = false }: { item: FeedItem; editable?: boolean; bodyweight?: number | null; detailed?: boolean }) {
   const byExercise = new Map<string, { name: string; count: number; max: number; bodyweight: boolean }>()
   for (const s of item.sets) {
     const current = byExercise.get(s.exercise_id)
@@ -33,7 +34,7 @@ export function WorkoutCard({ item, editable = false, bodyweight = null }: { ite
         {editable ? <Link to={`/history/${item.workout_id}`} className="flex min-h-14 items-center px-3 text-sm text-accent">編集</Link> : <span className="text-xs text-muted">{formatDate(item.performed_at)}</span>}
       </header>
 
-      <ul className="flex flex-col">
+      {detailed ? <WorkoutSetDetails item={item} bodyweight={bodyweight} /> : <ul className="flex flex-col">
         {[...byExercise.entries()].map(([id, e]) => (
           <li key={id} className="flex min-h-14 items-center justify-between text-sm">
             <Link
@@ -47,7 +48,7 @@ export function WorkoutCard({ item, editable = false, bodyweight = null }: { ite
             </span>
           </li>
         ))}
-      </ul>
+      </ul>}
 
       <footer className="mt-3 flex items-baseline justify-between border-t border-border pt-3 text-xs text-muted">
         <span>{item.sets.length}セット</span>

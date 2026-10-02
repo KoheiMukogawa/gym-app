@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { HistoryPage } from './HistoryPage'
@@ -114,6 +114,27 @@ describe('HistoryPage error handling', () => {
 
     await screen.findByText('日付を選ぶと記録を確認・追加できます')
     expect(fetchMonthWorkouts).toHaveBeenCalledWith(USER, expect.any(Number), expect.any(Number))
+  })
+
+  it('shows every set and its note for the selected day, with editing still available', async () => {
+    fetchMonthWorkouts.mockResolvedValue([{ ...ITEM, sets: [
+      { exercise_id: 'bench', exercise_name: 'ベンチプレス', weight_kg: 80, reps: 8, note: 'フォーム良好' },
+      { exercise_id: 'squat', exercise_name: 'スクワット', weight_kg: 100, reps: 5 },
+      { exercise_id: 'bench', exercise_name: 'ベンチプレス', weight_kg: 70, reps: 10, note: '最後まで丁寧に' },
+    ] }])
+    renderHistoryPage('/history?date=2026-08-14')
+    const bench = await screen.findByRole('region', { name: 'ベンチプレス' })
+    const rows = within(bench).getAllByRole('listitem')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('80.0 kg')
+    expect(rows[0]).toHaveTextContent('8 reps')
+    expect(rows[0]).toHaveTextContent('フォーム良好')
+    expect(rows[1]).toHaveTextContent('70.0 kg')
+    expect(rows[1]).toHaveTextContent('10 reps')
+    expect(rows[1]).toHaveTextContent('最後まで丁寧に')
+    expect(within(screen.getByRole('region', { name: 'スクワット' })).getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByRole('link', { name: '編集' })).toHaveAttribute('href', '/history/w1')
+    expect(screen.getByRole('link', { name: '＋ この日に記録を追加' })).toHaveAttribute('href', '/history/w1')
   })
 })
 
