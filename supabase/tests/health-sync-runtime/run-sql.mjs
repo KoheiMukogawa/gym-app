@@ -18,12 +18,12 @@ try {
  create function public.test_profile() returns trigger language plpgsql as $$
  begin insert into public.profiles values(new.id,new.raw_user_meta_data->>'display_name'); return new; end $$;
  create trigger test_profile after insert on auth.users for each row execute function public.test_profile();
- create table public.bodyweight_logs(user_id uuid references public.profiles(id),recorded_on date,
- bodyweight_kg numeric(4,1) check(bodyweight_kg between 20 and 300),
+ create table public.bodyweight_logs(user_id uuid not null default auth.uid() references public.profiles(id) on delete cascade,recorded_on date not null,
+ bodyweight_kg numeric(4,1) not null check(bodyweight_kg between 20 and 300),
  body_fat_pct numeric(4,1) check(body_fat_pct between 1 and 70),primary key(user_id,recorded_on));
  alter table public.bodyweight_logs enable row level security;
  create policy own_body on public.bodyweight_logs to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
- grant all on public.bodyweight_logs to authenticated,service_role;
+ grant select,insert,update,delete on public.bodyweight_logs to authenticated;
  `)
  await db.exec(readFileSync(resolve(root,'supabase/migrations/20261001192350_health_sync.sql'),'utf8'))
  await db.exec(readFileSync(resolve(root,'supabase/tests/health_sync.sql'),'utf8'))

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SwipeRow } from '../../components/SwipeRow'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
@@ -9,13 +8,16 @@ import { toMessage } from '../../lib/errors'
 import { useSession } from '../auth/SessionProvider'
 import { deleteBodyLog, fetchBodyweightLogs, parseBodyweight, saveBodyComposition } from '../profile/bodyweightQueries'
 
+import { HealthSyncPanel } from './HealthSyncPanel'
+import { BodyTrendChart } from './BodyTrendChart'
+
 const field = 'min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg tabular-nums'
 const METRICS: { key: BodyMetric; label: string; unit: string }[] = [
   { key: 'bodyweight_kg', label: '体重', unit: 'kg' },
   { key: 'body_fat_pct', label: '体脂肪率', unit: '%' },
 ]
-const PERIODS: { months: number; label: string }[] = [
-  { months: 1, label: '1ヶ月' }, { months: 3, label: '3ヶ月' }, { months: 12, label: '1年' },
+const PERIODS: { months: number | null; label: string }[] = [
+  { months: 1, label: '1ヶ月' }, { months: 3, label: '3ヶ月' }, { months: 12, label: '1年' }, { months: null, label: '全期間' },
 ]
 
 export function BodyPage() {
@@ -24,7 +26,7 @@ export function BodyPage() {
   const [weight, setWeight] = useState('')
   const [fat, setFat] = useState('')
   const [metric, setMetric] = useState<BodyMetric>('bodyweight_kg')
-  const [months, setMonths] = useState(1)
+  const [months, setMonths] = useState<number | null>(1)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,6 +36,8 @@ export function BodyPage() {
   // null は今日の記録。過去の日をタップするとその日を直す
   const [editing, setEditing] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const [listLimit, setListLimit] = useState(50)
+  const [healthBusy, setHealthBusy] = useState(false)
 
   function prefill(rows: BodyweightLog[]) {
     const latest = rows.at(-1)
@@ -53,6 +57,7 @@ export function BodyPage() {
       .then((rows) => {
         if (!active) return
         setLogs(rows)
+        setListLimit(50)
         // 直近の値で今日の入力を初期表示する
         prefill(rows)
       })
@@ -100,14 +105,20 @@ export function BodyPage() {
     finally { setDeleting(null) }
   }
 
-  const visible = withinPeriod(logs, months)
-  const visibleDates = new Set(visible.map((row) => row.recorded_on))
+  const visible = useMemo(() => months === null ? logs : withinPeriod(logs, months), [logs, months])
   // 表示期間より前の記録も、境界日の7日平均に含める。
-  const points = movingAverage(logs, metric).filter((point) => visibleDates.has(point.date))
+  const points = useMemo(() => {
+    const visibleDates = new Set(visible.map((row) => row.recorded_on))
+    return movingAverage(logs, metric).filter((point) => visibleDates.has(point.date))
+  }, [logs, metric, visible])
   const unit = METRICS.find((m) => m.key === metric)!.unit
 
   return <div className="flex flex-col gap-5 p-4">
     <h1 className="text-2xl font-semibold">体組成</h1>
+    <Button variant="ghost" disabled={loading || busy || deleting !== null || healthBusy} onClick={() => setAttempt((value) => value + 1)}>
+      {loading ? '読み込み中…' : '記録を再読み込み'}
+    </Button>
+    <HealthSyncPanel userId={userId} refreshVersion={attempt} onBusyChange={setHealthBusy} />
 
     <section className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4" aria-label="記録の入力">
       <div className="flex items-baseline justify-between gap-2">
@@ -139,26 +150,13 @@ export function BodyPage() {
           onClick={() => setMetric(m.key)}>{m.label}</button>)}
       </div>
       <div className="flex gap-2">
-        {PERIODS.map((p) => <button key={p.months} type="button" aria-pressed={months === p.months}
+        {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
           className={`min-h-14 flex-1 rounded-xl border text-sm ${months === p.months ? 'border-accent text-fg' : 'border-border text-muted'}`}
-          onClick={() => setMonths(p.months)}>{p.label}</button>)}
+          onClick={() => { setMonths(p.months); setListLimit(50) }}>{p.label}</button>)}
       </div>
       {loading ? <Spinner /> : loadError ? null : points.length === 0
         ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
-        : <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-                <XAxis dataKey="date" tick={{ fill: '#8A8A93', fontSize: 11 }} axisLine={false} tickLine={false}
-                  tickFormatter={(d: string) => d.slice(5).replace('-', '/')} minTickGap={24} />
-                <YAxis tick={{ fill: '#8A8A93', fontSize: 11 }} axisLine={false} tickLine={false} width={44}
-                  domain={['dataMin - 1', 'dataMax + 1']} />
-                <Tooltip contentStyle={{ background: '#17171A', border: '1px solid #2A2A2F', borderRadius: 12, color: '#F5F5F5' }}
-                  formatter={(v, name) => [`${v} ${unit}`, name === 'average' ? '7日平均' : '記録']} />
-                <Line type="monotone" dataKey="value" stroke="#8A8A93" strokeWidth={1} dot={{ r: 2, fill: '#8A8A93' }} />
-                <Line type="monotone" dataKey="average" stroke="#E8412F" strokeWidth={2.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>}
+        : <BodyTrendChart points={points} unit={unit} showYear={months === null} />}
       <p className="text-xs text-muted">細い線がその日の記録、太い線が7日移動平均です。体重は日々ぶれるので、増減は太い線で読みます。</p>
     </section>
 
@@ -166,7 +164,7 @@ export function BodyPage() {
       <h2 className="text-sm font-semibold">最近の記録</h2>
       {loading ? <Spinner /> : loadError ? null : visible.length === 0 ? <p className="py-4 text-center text-sm text-muted">まだ記録がありません</p>
         : <ul className="divide-y divide-border rounded-xl border border-border bg-surface px-4">
-            {[...visible].reverse().map((l) => <SwipeRow key={l.recorded_on} label={`${l.recorded_on} の記録を削除`}
+            {[...visible].reverse().slice(0, listLimit).map((l) => <SwipeRow key={l.recorded_on} label={`${l.recorded_on} の記録を削除`}
               disabled={busy || deleting !== null} deleting={deleting === l.recorded_on} onDelete={() => remove(l.recorded_on)}>
               <button type="button" aria-label={`${l.recorded_on} の記録を修正`} disabled={busy || loading || loadError !== null || deleting !== null}
                 className="flex min-h-14 flex-1 items-center justify-between gap-2 text-left"
@@ -184,6 +182,8 @@ export function BodyPage() {
               </button>
             </SwipeRow>)}
           </ul>}
+      {!loading && !loadError && visible.length > listLimit && <Button variant="ghost" onClick={() => setListLimit((value) => value + 50)}>さらに50件表示</Button>}
+      {!loading && !loadError && visible.length > 0 && <p className="text-xs text-muted">{Math.min(listLimit, visible.length)} / {visible.length}件を表示</p>}
       <p className="text-center text-xs text-muted">タップで修正、左にスワイプで削除</p>
     </section>
 

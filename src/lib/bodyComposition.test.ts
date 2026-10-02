@@ -65,3 +65,13 @@ describe('parseBodyFat', () => {
     expect(parseBodyFat('abc')).toBeNull()
   })
 })
+
+
+describe('calendar period boundaries', () => {
+  it.each([['2026-03-31',1,'2026-02-28'],['2024-03-31',1,'2024-02-29'],['2024-02-29',12,'2023-02-28'],['2026-05-31',3,'2026-02-28']])('clamps %s minus %i months to %s', (today, months, boundary) => {
+    const before = new Date(boundary + 'T12:00:00')
+    before.setDate(before.getDate() - 1)
+    const logs = [log(before.toLocaleDateString('sv-SE'),70),log(boundary,71),log(today,72)]
+    expect(withinPeriod(logs,months,today).map((row) => row.recorded_on)).toEqual([boundary,today])
+  })
+})

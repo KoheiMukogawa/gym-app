@@ -117,8 +117,9 @@ describe('BodyPage', () => {
   })
 
   it('includes preceding records in the seven-day average at the period boundary', async () => {
-    const boundary = new Date(today + 'T12:00:00')
-    boundary.setMonth(boundary.getMonth() - 1)
+    const now = new Date(today + 'T12:00:00')
+    const priorMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
+    const boundary = new Date(now.getFullYear(), now.getMonth() - 1, Math.min(now.getDate(), priorMonthDays), 12)
     const before = new Date(boundary)
     before.setDate(before.getDate() - 1)
     const date = boundary.toLocaleDateString('sv-SE')
@@ -163,4 +164,30 @@ describe('BodyPage', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('記録しました')
   })
 
+})
+
+it('reloads externally synced records and exposes ancient graph and list', async () => {
+  await renderPage()
+  fetchBodyweightLogs.mockResolvedValue([{ recorded_on: '2015-01-02', bodyweight_kg: 65, body_fat_pct: 14 }])
+  await userEvent.click(screen.getByRole('button', { name: '記録を再読み込み' }))
+  await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(65))
+  await userEvent.click(screen.getByRole('button', { name: '全期間' }))
+  expect(JSON.parse(screen.getByTestId('trend-points').textContent!)).toEqual([{ date:'2015-01-02', value:65, average:65 }])
+  expect(screen.getByRole('button', { name: '2015-01-02 の記録を修正' })).toBeInTheDocument()
+})
+it('shows all-period history in progressive batches and resets on period change', async () => {
+  fetchBodyweightLogs.mockResolvedValue(Array.from({length:105},(_,i) => {
+    const day=new Date('2015-01-01T12:00:00'); day.setDate(day.getDate()+i)
+    return { recorded_on:day.toLocaleDateString('sv-SE'), bodyweight_kg:70, body_fat_pct:null }
+  }))
+  await renderPage(); await userEvent.click(screen.getByRole('button',{name:'全期間'}))
+  const list=within(screen.getByRole('region',{name:'最近の記録'}))
+  expect(list.getAllByRole('button',{name:/の記録を修正/})).toHaveLength(50)
+  await userEvent.click(screen.getByRole('button',{name:'さらに50件表示'}))
+  expect(list.getAllByRole('button',{name:/の記録を修正/})).toHaveLength(100)
+  await userEvent.click(screen.getByRole('button',{name:'さらに50件表示'}))
+  expect(list.getAllByRole('button',{name:/の記録を修正/})).toHaveLength(105)
+  await userEvent.click(screen.getByRole('button',{name:'1ヶ月'}))
+  await userEvent.click(screen.getByRole('button',{name:'全期間'}))
+  expect(list.getAllByRole('button',{name:/の記録を修正/})).toHaveLength(50)
 })

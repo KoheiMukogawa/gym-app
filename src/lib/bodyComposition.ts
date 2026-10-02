@@ -39,7 +39,11 @@ export function movingAverage(logs: BodyweightLog[], metric: BodyMetric, windowD
 /** 今日から months ヶ月前までの記録。境界日はふくむ。 */
 export function withinPeriod(logs: BodyweightLog[], months: number, today = new Date().toLocaleDateString('sv-SE')): BodyweightLog[] {
   const base = new Date(today + 'T12:00:00')
+  const day = base.getDate()
+  base.setDate(1)
   base.setMonth(base.getMonth() - months)
+  const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate()
+  base.setDate(Math.min(day, lastDay))
   const from = base.toLocaleDateString('sv-SE')
   return logs.filter((logEntry) => logEntry.recorded_on >= from)
 }

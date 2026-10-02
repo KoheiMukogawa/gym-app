@@ -10,7 +10,8 @@
 - `bodyweight_logs.body_fat_pct` は本番DBに適用済み。既存の本人限定RLSは維持
 - プロフィールからは体組成タブへ案内。自重種目の記録画面での体重入力は維持
 - この作業のコミットはローカルのみ。push・merge・本番アプリのデプロイは未実施
-- 次の別フェーズで iPhoneヘルスケアの過去データ取り込みと継続同期を設計・実装する（下記参照）
+- Health同期のTasks1〜5をローカル実装: 個人トークン管理、期間バッチEdge、折り畳み接続UIと日本語Shortcut手順、全期間グラフと1000件ずつの履歴取得・50件ずつの一覧
+- Health同期の本番migration/Function/アプリ公開とiPhone実機確認は未実施。具体的な適用・停止手順は `docs/health-sync-release.md`
 
 ## Task 15/16 で追加したもの
 
@@ -22,6 +23,7 @@
 
 ## 検証結果
 
+- Health同期の検証結果は `.superpowers/sdd/2026-10-02-health-sync/task-3-5-report.md` とbackend reportを参照。SQLのPGliteは同時セッションや本番PostgREST/gatewayを再現しない
 - 体組成の最新検証結果・実行コマンドは `.superpowers/sdd/2026-10-02-body-composition/task-5-7-report.md` を参照
 - モックE2Eは画面→保存→実Recharts SVG/ツールチップ→一覧→過去日修正→スワイプ削除を検証
 - 実SupabaseのE2Eは今回は実行していない。2026-08-20時点ではログイン〜1セット記録〜フィード反映がPASS
@@ -53,9 +55,10 @@
 4. E2Eテストを実行すると `e2e@example.com` の記録がフィードに残る。気になる場合は
    `delete from public.workouts where user_id = '<e2eユーザーのid>';` で消す
 
-5. 体組成のヘルスケア連携は未実装。次の別フェーズで過去データ取り込みと継続同期を扱う。
-   設計の起点は `docs/superpowers/specs/2026-10-02-body-composition-design.md` の「将来: ショートカット連携」。
-   Edge Function と個人トークンの発行・ハッシュ保管用テーブルはその回で設計する。
+5. Health同期はローカル実装済み・本番適用待ち。設計は `docs/superpowers/specs/2026-10-02-health-sync-design.md`。
+   公開前に本番PostgREST権限、同時セッションのロック、Function gatewayを確認する。
+   iPhoneの実際のアクション・単位・親子エラー停止・日次実行は未確認。署名済みShortcutファイルの配布はない。
+   本人のHealth測定を送る操作は明示許可後に本人の少数日で行う。トークンや本文を共有ログへ残さない。
 
 ## 再開時の注意
 
