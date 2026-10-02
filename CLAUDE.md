@@ -12,6 +12,8 @@
 - この作業のコミットはローカルのみ。push・merge・本番アプリのデプロイは未実施
 - Health同期のTasks1〜5をローカル実装: 個人トークン管理、期間バッチEdge、折り畳み接続UIと日本語Shortcut手順、全期間グラフと1000件ずつの履歴取得・50件ずつの一覧
 - Health同期の本番migration/Function/アプリ公開とiPhone実機確認は未実施。具体的な適用・停止手順は `docs/health-sync-release.md`
+- DOTSランキングをローカル実装: 記録日の前後14日以内の体重で種目ごとにDOTSを出し、全体・コミュニティにDOTSタブ、プロフィールで参加と係数を設定。設計は `docs/superpowers/specs/2026-10-02-dots-ranking-design.md`
+- DOTSのmigration `20261002120000_dots_ranking.sql` は本番未適用。既存の `global_ranking` / `community_ranking` を置き換えるため、適用は本人の明示許可後に行う
 
 ## Task 15/16 で追加したもの
 
@@ -29,6 +31,8 @@
 - 実SupabaseのE2Eは今回は実行していない。2026-08-20時点ではログイン〜1セット記録〜フィード反映がPASS
 - RLSの既存検証結果は `docs/setup-supabase.md` の「RLS検証結果」を参照
 - 通常の並列 `npm test` は、この環境では無関係な既存テストがタイムアウトすることがある。ワーカー1つで確認する
+- モックE2Eも並列だと体組成・Health系がタイムアウトすることがある。`--workers=1` で確認する
+- ランキング系SQLは `node supabase/tests/sql-runtime/run-sql.mjs` で、全migrationを適用した一時PGliteに対して実行できる（初回は `npm ci --prefix supabase/tests/sql-runtime`）
 
 ## 本番環境
 
