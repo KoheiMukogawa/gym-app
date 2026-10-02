@@ -95,9 +95,20 @@ describe('SessionProvider', () => {
 
     renderProvider()
 
-    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
-    expect(screen.getByTestId('profile')).toHaveTextContent('たろう')
+    await waitFor(() => expect(screen.getByTestId('profile')).toHaveTextContent('たろう'))
+    expect(screen.getByTestId('loading')).toHaveTextContent('false')
     expect(errorSpy).not.toHaveBeenCalled()
+  })
+
+  it('opens the app once the session is known, without waiting for the profile', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } } })
+    single.mockReturnValue(new Promise(() => {}))
+
+    renderProvider()
+
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
+    expect(screen.getByTestId('userId')).toHaveTextContent('user-1')
+    expect(screen.getByTestId('profile')).toHaveTextContent('null')
   })
 
   it('stops loading when there is no session', async () => {

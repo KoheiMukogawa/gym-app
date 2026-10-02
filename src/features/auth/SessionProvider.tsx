@@ -41,8 +41,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .then(({ data }) => {
         const id = data.session?.user.id ?? null
         setUserId(id)
-        if (id) loadProfile(id).finally(() => setLoading(false))
-        else setLoading(false)
+        // Show the app as soon as the session is known; the display name fills in when it arrives.
+        if (id) void loadProfile(id)
+        setLoading(false)
       })
       .catch((error: unknown) => {
         // getSession は内部でストレージのロックを取りに行き、取得できないと例外を投げる
