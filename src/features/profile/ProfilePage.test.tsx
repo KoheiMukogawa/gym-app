@@ -29,6 +29,14 @@ it('requires a formula before opting in, then saves profile and DOTS settings', 
   expect(rpc).toHaveBeenLastCalledWith('save_dots_settings', { p_opt_in: true, p_formula: 'female' })
 })
 
+it('saves only the profile when the DOTS settings are unchanged', async () => {
+  profile.mockResolvedValue({ ...base, dots_opt_in: false, dots_formula: null })
+  renderPage()
+  await userEvent.click(await screen.findByRole('button', { name: 'プロフィールを保存' }))
+  expect(await screen.findByRole('status')).toHaveTextContent('保存しました')
+  expect(rpc.mock.calls.map((c) => c[0])).toEqual(['save_glog_profile'])
+})
+
 it('loads an existing choice and keeps the formula when opting out', async () => {
   profile.mockResolvedValue({ ...base, dots_opt_in: true, dots_formula: 'male' })
   renderPage()
@@ -44,7 +52,8 @@ it('keeps the error on screen when only the DOTS settings fail to save', async (
   profile.mockResolvedValue({ ...base, dots_opt_in: true, dots_formula: 'male' })
   rpc.mockResolvedValueOnce({ error: null }).mockResolvedValueOnce({ error: { message: 'DOTSの係数を選んでください' } })
   renderPage()
-  await userEvent.click(await screen.findByRole('button', { name: 'プロフィールを保存' }))
+  await userEvent.click(await screen.findByRole('radio', { name: '女性用' }))
+  await userEvent.click(screen.getByRole('button', { name: 'プロフィールを保存' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('DOTSの係数を選んでください')
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })
