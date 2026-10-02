@@ -7,6 +7,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { GlobalRanking } from './GlobalRanking'
 import { communityMessage, formatMetric, listCommunities, manage, profile, ranking, rankMembers, saveProfile, type Community, type CommunityProfile, type Member, type RankMetric } from './queries'
 import { DotsNotice, MetricTabs } from './RankingParts'
+import { RankingParticipation } from './RankingParticipation'
 
 const field = 'min-h-14 w-full rounded-xl border border-border bg-bg px-3 text-fg'
 const lifts = [{ key: 'squat', name: 'スクワット' }, { key: 'bench', name: 'ベンチプレス' }, { key: 'deadlift', name: 'デッドリフト' }] as const
@@ -96,11 +97,11 @@ export function CommunityPanel() {
     </div>}
     {!managing && selected === GLOBAL && <GlobalRanking />}
     {!managing && group && <>
-      <MetricTabs value={mode} onChange={setMode} />
-      {rankLoading ? <Spinner /> : rankError ? <div><p role="alert">{rankError}</p><Button variant="ghost" onClick={() => setRankAttempt((n) => n + 1)}>再試行</Button></div> : !rows.length ? <p className="py-6 text-center text-sm text-muted">DOTSの参加者はまだいません</p> : <div className="divide-y divide-border">{rows.map((m) => <button key={m.user_id} onClick={() => setPerson(m.user_id)} className={`flex min-h-20 w-full items-center gap-3 px-2 text-left ${m.user_id === userId ? 'bg-surface' : ''}`}>
+      <MetricTabs value={mode} onChange={metric => { setMode(metric); setPerson(null) }} />
+      {rankLoading ? <Spinner /> : rankError ? <div><p role="alert">{rankError}</p><Button variant="ghost" onClick={() => setRankAttempt((n) => n + 1)}>再試行</Button></div> : <RankingParticipation key={selected} mode={mode} onJoined={() => { setRankAttempt(n => n + 1); setAttempt(n => n + 1) }}>{!rows.length ? <p className="min-h-64 py-6 text-center text-sm text-muted">{mode === 'dots' ? 'DOTSの参加者はまだいません' : '参加者はまだいません'}</p> : <div className="divide-y divide-border">{rows.map((m) => <button key={m.user_id} onClick={() => setPerson(m.user_id)} className={`flex min-h-20 w-full items-center gap-3 px-2 text-left ${m.user_id === userId ? 'bg-surface' : ''}`}>
         <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span><Avatar icon={m.icon} name={m.display_name}/><span className="min-w-0 flex-1 break-words text-sm">{m.display_name}{m.user_id === userId && <span className="ml-2 text-xs text-muted">自分</span>}</span>
         <span className="shrink-0 text-lg font-semibold tabular-nums">{formatMetric(m[mode], mode)}</span>
-      </button>)}</div>}
+      </button>)}</div>}</RankingParticipation>}
       {detail && <section className="space-y-4 rounded-2xl border border-border bg-surface p-4" aria-label="メンバーの記録">
         <div className="flex items-center justify-between gap-2"><h2 className="break-words font-semibold"><Avatar icon={detail.icon} name={detail.display_name}/> {detail.display_name}</h2><button className="min-h-14 shrink-0 px-2 text-sm text-muted" onClick={() => setPerson(null)}>閉じる</button></div>
         {detail.bio && <p className="break-words text-sm text-muted">{detail.bio}</p>}
