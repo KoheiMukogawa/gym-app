@@ -134,10 +134,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
 
   return <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
     <header className="flex items-center justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-semibold">体組成</h1>
-        <p className="mt-1 text-sm text-muted">日々の変化を、ひと目で。</p>
-      </div>
+      <h1 className="text-2xl font-semibold">体組成</h1>
       <button type="button" aria-label="記録を再読み込み" title="記録を再読み込み"
         disabled={loading || busy || deleting !== null || healthBusy}
         onClick={() => setAttempt((value) => value + 1)}
@@ -151,10 +148,14 @@ function OwnedBodyPage({ userId }: { userId: string }) {
 
     <section aria-label="最新の記録" className="rounded-2xl border border-border bg-surface px-4 py-3">
       <h2 className="sr-only">最新の記録</h2>
-      <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-4">
-        <p className="text-sm text-muted tabular-nums">
-          {!loading && !loadError && latest ? <time dateTime={latest.date}>{latest.date.slice(5).replace('-', '/')}</time> : '最新'}
-        </p>
+      {/* Three equal, centered columns so neither side of the card is left empty. */}
+      <div className="grid grid-cols-3 divide-x divide-border text-center">
+        <div className="flex flex-col items-center justify-center">
+          <p className="text-lg font-semibold tabular-nums">
+            {!loading && !loadError && latest ? <time dateTime={latest.date}>{latest.date.slice(5).replace('-', '/')}</time> : '—'}
+          </p>
+          <p className="text-xs text-muted">記録日</p>
+        </div>
         <LatestValue label="体重" unit="kg" value={loading || loadError ? null : latest?.weight ?? null}
           change={latest?.weightChange ?? null} pending={loading} />
         <LatestValue label="体脂肪率" unit="%" value={loading || loadError ? null : latest?.fat ?? null}
@@ -163,11 +164,15 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     </section>
 
     <section className="flex flex-col gap-3" aria-label="推移">
-      <h2 className="text-sm font-semibold">推移</h2>
-      <div className="flex gap-2">
-        {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
-          className={`min-h-14 flex-1 rounded-xl border text-sm ${months === p.months ? 'border-accent text-fg' : 'border-border text-muted'}`}
-          onClick={() => setMonths(p.months)}>{p.label}</button>)}
+      {/* The period picker shares the heading row; each button keeps a 56px tap height. */}
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">推移</h2>
+        <div className="flex" role="group" aria-label="表示期間">
+          {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
+            className="flex min-h-14 items-center px-1 text-sm" onClick={() => setMonths(p.months)}>
+            <span className={`rounded-full px-2.5 py-1 ${months === p.months ? 'bg-border font-semibold text-fg' : 'text-muted'}`}>{p.label}</span>
+          </button>)}
+        </div>
       </div>
       {loading ? <Spinner /> : loadError ? null : points.length === 0
         ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
@@ -219,10 +224,10 @@ function LatestValue({ label, unit, value, change, pending }: {
   label: string; unit: string; value: number | null; change: number | null; pending: boolean
 }) {
   const spoken = value === null ? `${label} 未記録` : `${label} ${value}${unit}、前回比${change === null ? 'なし' : ` ${signed(change)}${unit}`}`
-  return <div role="group" aria-label={pending ? `${label} 読み込み中` : spoken} className="min-w-0">
+  return <div role="group" aria-label={pending ? `${label} 読み込み中` : spoken} className="flex min-w-0 flex-col items-center justify-center">
     <p className="text-2xl font-semibold tracking-tight tabular-nums">
-      {pending ? '…' : value ?? '—'}<span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>
+      {pending ? '…' : value === null ? <span className="text-muted">—</span> : <>{value}<span className="ml-0.5 text-xs font-normal text-muted">{unit}</span></>}
     </p>
-    <p className="text-xs text-muted tabular-nums">{pending ? '\u00a0' : value === null ? '未記録' : change === null ? '前回比 —' : `前回比 ${signed(change)}`}</p>
+    <p className="text-xs text-muted tabular-nums">{pending ? '\u00a0' : value === null ? `${label} 未記録` : change === null ? '前回比 —' : `前回比 ${signed(change)}`}</p>
   </div>
 }
