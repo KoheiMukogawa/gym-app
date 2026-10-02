@@ -104,14 +104,15 @@ describe('StrengthPage', () => {
     expect(await screen.findByText('480')).toBeInTheDocument()
     expect(screen.queryByText('Big3の対象種目')).not.toBeInTheDocument()
     expect(screen.queryByText('Rep PR')).not.toBeInTheDocument()
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('combobox', { name: '詳細を見る記録日' })).toHaveLength(3)
     expect(fetchExercises).not.toHaveBeenCalled()
   })
   it('preserves existing mapped calculations', async () => {
     fetchStrengthSnapshot.mockResolvedValue(mapped)
     renderPage()
     expect(await screen.findByText('500')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /デッドリフト コンベンショナルデッドリフト/ })).toHaveAttribute('href', '/exercises/conventional')
+    expect(screen.getByRole('link', { name: /デッドリフト 詳細/ })).toHaveAttribute('href', '/exercises/conventional')
+    expect(screen.getByText('コンベンショナルデッドリフト')).toBeInTheDocument()
     expect(saveBig3ExerciseMapping).not.toHaveBeenCalled()
   })
   it('recovers from a load failure using retry', async () => {

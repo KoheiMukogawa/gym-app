@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { e1rmByDate, personalBest, totalVolume } from '../../lib/calc'
 import { toMessage } from '../../lib/errors'
 import { MUSCLE_GROUP_LABELS, type Exercise, type SetWithDate } from '../../lib/types'
@@ -12,6 +12,7 @@ import { fetchExercise, fetchExerciseSets } from './queries'
 import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
 import { localDate } from '../../lib/dates'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
+import { ChartDatePicker, ExerciseDayDetails } from './ExerciseDayDetails'
 
 export type ExerciseSummary = {
   best: number | null
@@ -41,6 +42,7 @@ export function ExerciseDetailPage() {
   const [exercise, setExercise] = useState<Exercise | null>(null)
   const [sets, setSets] = useState<SetWithDate[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedDate, setSelectedDate] = useState('')
   // トーストは6秒で自然消滅するため、消えた後も画面に残る「取得失敗」の
   // 事実を exercise とは別に持つ。これが無いと、失敗時に exercise が null のままで
   // 「この種目は存在しない」という誤った表示になってしまう。
@@ -49,6 +51,7 @@ export function ExerciseDetailPage() {
   const load = useCallback(() => {
     if (!exerciseId || !userId) return
     setLoading(true)
+    setSelectedDate('')
     setError(null)
     Promise.all([fetchExercise(exerciseId), fetchExerciseSets(exerciseId, userId), fetchBodyweightLogs(userId)])
       .then(([ex, s, logs]) => {
@@ -109,7 +112,8 @@ export function ExerciseDetailPage() {
         ) : (
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={summary.points} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+              <LineChart data={summary.points} margin={{ top: 8, right: 8, bottom: 0, left: -16 }} onClick={state => { const date = String(state?.activeLabel ?? ''); if (summary.points.some(p => p.date === date)) setSelectedDate(date) }}>
+                {selectedDate && <ReferenceLine x={selectedDate} stroke="#E8412F" strokeDasharray="3 3" />}
                 <CartesianGrid stroke="#2A2A2F" vertical={false} />
                 <XAxis
                   dataKey="date"
@@ -145,6 +149,8 @@ export function ExerciseDetailPage() {
           </div>
         )}
       </section>
+      {summary.points.length > 0 && <ChartDatePicker dates={summary.points.map(p => p.date)} value={selectedDate} onChange={setSelectedDate} />}
+      {selectedDate && <ExerciseDayDetails key={`${exercise.id}:${selectedDate}`} exerciseId={exercise.id} date={selectedDate} />}
     </div>
   )
 }

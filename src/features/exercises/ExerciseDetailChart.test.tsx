@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ExerciseDetailPage } from './ExerciseDetailPage'
 import { ToastProvider } from '../../components/ui/Toast'
@@ -12,6 +12,10 @@ const { fetchExercise, fetchExerciseSets } = vi.hoisted(() => ({
 }))
 vi.mock('../profile/bodyweightQueries', () => ({ fetchBodyweightLogs: async () => [] }))
 vi.mock('./queries', () => ({ fetchExercise, fetchExerciseSets }))
+vi.mock('./ExerciseDayDetails', () => ({
+  ChartDatePicker: () => null,
+  ExerciseDayDetails: ({ date }: { date: string }) => <div>選択日: {date}</div>,
+}))
 
 const { useSession } = vi.hoisted(() => ({ useSession: vi.fn() }))
 vi.mock('../auth/SessionProvider', () => ({ useSession }))
@@ -37,9 +41,10 @@ vi.mock('recharts', () => ({
   CartesianGrid: () => null,
   Tooltip: () => null,
   YAxis: () => null,
-  LineChart: ({ data, children }: { data: unknown; children: ReactNode }) => {
+  ReferenceLine: () => null,
+  LineChart: ({ data, children, onClick }: { data: unknown; children: ReactNode; onClick: (state: { activeLabel: string }) => void }) => {
     captured.lineChartData = data
-    return children
+    return <div>{children}<button onClick={() => onClick({ activeLabel: '2026-08-08' })}>記録点</button></div>
   },
   XAxis: ({ dataKey }: { dataKey: unknown }) => {
     captured.xAxisDataKey = dataKey
@@ -117,5 +122,7 @@ describe('ExerciseDetailPage chart wiring', () => {
     expect(captured.lineDataKey).toBe('e1rm')
     // 80kg × 8回 → Brzycki 80 × 36 / 29 = 99.3
     expect(captured.lineChartData).toEqual([{ date: '2026-08-08', e1rm: 99.3 }])
+    fireEvent.click(screen.getByRole('button', { name: '記録点' }))
+    expect(screen.getByText('選択日: 2026-08-08')).toBeInTheDocument()
   })
 })
