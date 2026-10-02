@@ -43,6 +43,13 @@ it('points a non-participant to the profile setting', async () => {
   expect(screen.getByText(/体重の公開に同意した人だけ表示しています/)).toBeInTheDocument()
 })
 
+it('tells a user missing from the global list that both rankings must be joined', async () => {
+  show([member('a', '軽量', { dots: 375.5, dots_opt_in: true })])
+  await openDots()
+  expect(screen.getByRole('link', { name: '全体ランキングとDOTSの両方に参加すると表示されます' })).toHaveAttribute('href', '/profile')
+  expect(screen.queryByRole('link', { name: 'DOTSランキングへの参加はプロフィールで設定' })).not.toBeInTheDocument()
+})
+
 it('points a participant without a score to the body tab', async () => {
   show([member('me', '自分', { dots_opt_in: true })])
   await openDots()

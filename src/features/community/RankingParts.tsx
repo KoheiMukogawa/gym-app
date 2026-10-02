@@ -12,7 +12,10 @@ export function MetricTabs({ value, onChange }: { value: RankMetric; onChange: (
 export function DotsNotice({ me }: { me: Member | undefined }) {
   return <div className="space-y-1">
     <p className="text-xs leading-relaxed text-muted">記録日の前後14日以内の体重でDOTSを計算します。体重の公開に同意した人だけ表示しています。</p>
-    {!me?.dots_opt_in
+    {!me
+      // Only the global list can omit the viewer: it also requires joining the global ranking.
+      ? <Link to="/profile" className="flex min-h-14 items-center text-sm text-accent">全体ランキングとDOTSの両方に参加すると表示されます</Link>
+      : !me.dots_opt_in
       ? <Link to="/profile" className="flex min-h-14 items-center text-sm text-accent">DOTSランキングへの参加はプロフィールで設定</Link>
       : me.dots === null
         ? <Link to="/body" className="flex min-h-14 items-center text-sm text-accent">3種目それぞれ、記録日の前後14日以内の体重が必要です</Link>
