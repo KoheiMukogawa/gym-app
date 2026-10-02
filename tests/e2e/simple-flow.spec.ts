@@ -557,7 +557,7 @@ test('exports the chosen period as markdown, memos included', async ({ page }) =
 })
 
 
-test('body composition roundtrip plots values and averages, edits past dates and deletes by swipe', async ({ page }) => {
+test('body composition roundtrip plots both metrics on one chart, edits and deletes past dates from the chart', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
@@ -567,6 +567,7 @@ test('body composition roundtrip plots values and averages, edits past dates and
     d.setDate(d.getDate() - daysAgo)
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }
+  const short = (day: string) => day.slice(5).replace('-', '/')
   const today = date(0), past = date(3), older = date(45), oldest = date(180)
   data.bodyweights.push(
     { recorded_on: oldest, bodyweight_kg: 66, body_fat_pct: 18 },
@@ -579,13 +580,15 @@ test('body composition roundtrip plots values and averages, edits past dates and
   await expect(page.getByLabel('体重（kg）')).toHaveValue('70')
   await expect(page.getByLabel('体脂肪率（%）')).toHaveValue('16')
   const trend = page.getByRole('region', { name: '推移' })
-  const list = page.getByRole('region', { name: '最近の記録' })
-  const dots = trend.locator('.recharts-line-dots circle[stroke="#8A8A93"]')
-  const averages = trend.locator('path.recharts-line-curve')
+  const form = page.getByRole('region', { name: '記録の入力' })
+  const weightDots = trend.locator('.recharts-line-dots circle[fill="#E8412F"]')
+  const fatDots = trend.locator('.recharts-line-dots circle[fill="#3B82F6"]')
+  const weightAverage = trend.locator('path.recharts-line-curve[stroke="#E8412F"]')
+  const fatAverage = trend.locator('path.recharts-line-curve[stroke="#3B82F6"]')
   const tooltip = trend.locator('.recharts-tooltip-wrapper')
-  const inspectPoint = async (index: number, value: string) => {
-    const dot = dots.nth(index)
-    // Viewport intersection alone can leave a point behind the fixed mobile nav.
+  // Viewport intersection alone can leave a point behind the fixed mobile nav.
+  const pointCenter = async (index: number) => {
+    const dot = weightDots.nth(index)
     await dot.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }))
     await expect.poll(() => dot.evaluate((element) => {
       const bounds = element.getBoundingClientRect()
@@ -593,9 +596,21 @@ test('body composition roundtrip plots values and averages, edits past dates and
         ?.closest('.recharts-wrapper'))
     })).toBe(true)
     const box = (await dot.boundingBox())!
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await expect(tooltip).toContainText(value)
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
   }
+  const inspectPoint = async (index: number, ...texts: string[]) => {
+    const { x, y } = await pointCenter(index)
+    await page.mouse.move(x, y)
+    for (const text of texts) await expect(tooltip).toContainText(text)
+  }
+  const tapPoint = async (index: number) => {
+    const { x, y } = await pointCenter(index)
+    await page.mouse.click(x, y)
+  }
+  await expect(page.getByRole('region', { name: '最近の記録' })).toHaveCount(0)
+  await expect(trend.getByRole('button', { name: '体脂肪率', exact: true })).toHaveCount(0)
+  await expect(trend.getByRole('region', { name: '最新の記録' })).toContainText('体重・左の目盛り')
+  await expect(trend.getByRole('region', { name: '最新の記録' })).toContainText('体脂肪率・右の目盛り')
   await page.getByLabel('体重（kg）').fill('70.2')
   await page.getByLabel('体脂肪率（%）').fill('15.4')
   await page.getByRole('button', { name: '記録する', exact: true }).click()
@@ -603,18 +618,23 @@ test('body composition roundtrip plots values and averages, edits past dates and
   await expect(page.getByRole('status')).toHaveText('記録しました')
   await page.reload()
   await expect(page.getByLabel('体重（kg）')).toBeEnabled()
-  await expect(list.getByRole('button', { name: `${today} の記録を修正` })).toContainText('70.2')
-  await expect(dots).toHaveCount(2)
-  await expect(averages).toHaveCount(2)
-  // Hover the real SVG point and check both rendered series through Recharts' tooltip.
-  await inspectPoint(1, '70.2 kg')
-  await expect(averages.last()).toHaveAttribute('stroke', '#E8412F')
-  await expect(tooltip).toContainText('70.1 kg')
-  // Every Y-axis label must fit inside the SVG on the 390px mobile viewport.
+  const latest = page.getByRole('region', { name: '最新の記録' })
+  await expect(latest.getByLabel('体重 70.2kg、前回比 +0.2kg')).toBeVisible()
+  await expect(latest.getByLabel('体脂肪率 15.4%、前回比 -0.6%')).toBeVisible()
+  await expect(weightDots).toHaveCount(2)
+  await expect(fatDots).toHaveCount(2)
+  await expect(weightAverage).toHaveCount(1)
+  await expect(fatAverage).toHaveCount(1)
+  // Hovering a day shows both metrics and both averages through Recharts' tooltip.
+  await inspectPoint(1, '70.2 kg', '70.1 kg', '15.4 %', '15.7 %')
+  // Both Y axes must keep their labels inside the SVG on the 390px mobile viewport.
   const axisLabelsFit = () => trend.locator('svg.recharts-surface').evaluate((svg) => {
     const bounds = svg.getBoundingClientRect()
     const labels = [...svg.querySelectorAll('.recharts-yAxis-tick-labels text')]
-    return labels.length > 0 && labels.every((label) => label.getBoundingClientRect().left >= bounds.left)
+    return labels.length > 0 && labels.every((label) => {
+      const box = label.getBoundingClientRect()
+      return box.left >= bounds.left && box.right <= bounds.right
+    })
   })
   await expect.poll(axisLabelsFit).toBe(true)
   await page.screenshot({ path: 'test-results/body-composition-mobile.png', fullPage: true })
@@ -624,42 +644,34 @@ test('body composition roundtrip plots values and averages, edits past dates and
   await page.getByRole('button', { name: '記録する', exact: true }).click()
   await expect.poll(() => data.bodyweights.find((b) => b.recorded_on === today)).toMatchObject({ bodyweight_kg: 70.8, body_fat_pct: null })
   expect(data.bodyweights).toHaveLength(4)
+  await expect(fatDots).toHaveCount(1)
+  await expect(latest.getByLabel('体脂肪率 未記録')).toBeVisible()
   await inspectPoint(1, '70.8 kg')
-  await list.getByRole('button', { name: `${past} の記録を修正` }).click()
-  await expect(page.getByRole('region', { name: '記録の入力' })).toContainText(`${past}の記録`)
+  // Tapping a day on the chart opens it in the form.
+  await tapPoint(0)
+  await expect(form).toContainText(`${short(past)}の記録`)
+  await expect(page.getByLabel('体重（kg）')).toHaveValue('70')
   await page.getByLabel('体重（kg）').fill('71')
   await page.getByRole('button', { name: '記録する', exact: true }).click()
   await expect.poll(() => data.bodyweights.find((b) => b.recorded_on === past)).toMatchObject({ bodyweight_kg: 71, body_fat_pct: 16 })
-  await expect(page.getByRole('region', { name: '記録の入力' })).toContainText('今日の記録')
+  await expect(form).toContainText('今日の記録')
   await expect(page.getByLabel('体重（kg）')).toHaveValue('70.8')
-  await inspectPoint(0, '71 kg')
-  await page.getByRole('button', { name: '体脂肪率', exact: true }).click()
-  await expect(dots).toHaveCount(1)
-  await inspectPoint(0, '16 %')
+  await inspectPoint(0, '71 kg', '16 %')
   await page.getByRole('button', { name: '3ヶ月', exact: true }).click()
-  await expect(dots).toHaveCount(2)
-  await expect(list.getByRole('button', { name: /の記録を修正$/ })).toHaveCount(3)
+  await expect(weightDots).toHaveCount(3)
   await page.getByRole('button', { name: '1年', exact: true }).click()
-  await expect(dots).toHaveCount(3)
-  await expect(list.getByRole('button', { name: /の記録を修正$/ })).toHaveCount(4)
+  await expect(weightDots).toHaveCount(4)
   await page.getByRole('button', { name: '1ヶ月', exact: true }).click()
-  await expect(dots).toHaveCount(1)
-  await expect(list.getByRole('button', { name: /の記録を修正$/ })).toHaveCount(2)
-  const row = list.getByRole('button', { name: `${past} の記録を修正` })
-  await row.scrollIntoViewIfNeeded()
-  const bounds = (await row.boundingBox())!
-  const cdp = await page.context().newCDPSession(page)
-  const x = bounds.x + bounds.width - 12, y = bounds.y + bounds.height / 2
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x - 100, y }] })
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-  await cdp.detach()
-  await list.getByRole('button', { name: `${past} の記録を削除` }).click()
+  await expect(weightDots).toHaveCount(2)
+  // Deleting asks once more before removing the day.
+  await tapPoint(0)
+  await expect(form).toContainText(`${short(past)}の記録`)
+  await form.getByRole('button', { name: `${past} の記録を削除` }).click()
+  expect(data.bodyweights.some((b) => b.recorded_on === past)).toBe(true)
+  await form.getByRole('button', { name: '削除する', exact: true }).click()
   await expect.poll(() => data.bodyweights.some((b) => b.recorded_on === past)).toBe(false)
-  await expect(trend).toContainText('この期間の記録はありません')
-  await expect(row).toHaveCount(0)
-  await page.getByRole('button', { name: '体重', exact: true }).click()
-  await expect(dots).toHaveCount(1)
+  await expect(weightDots).toHaveCount(1)
+  await expect(form).toContainText('今日の記録')
   await inspectPoint(0, '70.8 kg')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(errors).toEqual([])
