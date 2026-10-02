@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { BodyPage } from './BodyPage'
 
-const { fetchBodyweightLogs, saveBodyComposition, deleteBodyLog } = vi.hoisted(() => ({
+const { session, fetchBodyweightLogs, saveBodyComposition, deleteBodyLog } = vi.hoisted(() => ({
+  session: { userId: 'u1' as string | null },
   fetchBodyweightLogs: vi.fn(), saveBodyComposition: vi.fn(), deleteBodyLog: vi.fn(),
 }))
 vi.mock('../profile/bodyweightQueries', async (original) => ({
   ...await original<typeof import('../profile/bodyweightQueries')>(),
   fetchBodyweightLogs, saveBodyComposition, deleteBodyLog,
 }))
-vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1' }) }))
+vi.mock('../auth/SessionProvider', () => ({ useSession: () => session }))
 
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => children,
@@ -31,6 +32,7 @@ const renderPage = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  session.userId = 'u1'
   fetchBodyweightLogs.mockResolvedValue([])
   saveBodyComposition.mockImplementation(async (_u: string, i: { date?: string; bodyweightKg: number; bodyFatPct: number | null }) =>
     ({ recorded_on: i.date ?? today, bodyweight_kg: i.bodyweightKg, body_fat_pct: i.bodyFatPct }))
@@ -190,4 +192,85 @@ it('shows all-period history in progressive batches and resets on period change'
   await userEvent.click(screen.getByRole('button',{name:'1ヶ月'}))
   await userEvent.click(screen.getByRole('button',{name:'全期間'}))
   expect(list.getAllByRole('button',{name:/の記録を修正/})).toHaveLength(50)
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: Error) => void
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
+}
+
+describe('BodyPage account changes', () => {
+  const ownerARows = [
+    { recorded_on: pastDate, bodyweight_kg: 69, body_fat_pct: 15 },
+    { recorded_on: today, bodyweight_kg: 70, body_fat_pct: 16 },
+  ]
+  const ownerBRows = [{ recorded_on: today, bodyweight_kg: 81, body_fat_pct: 22 }]
+  const page = () => <MemoryRouter><BodyPage /></MemoryRouter>
+
+  it('clears the old owner inputs immediately and keeps them empty when the new fetch fails', async () => {
+    const pending = deferred<typeof ownerBRows>()
+    fetchBodyweightLogs.mockResolvedValueOnce(ownerARows).mockReturnValueOnce(pending.promise)
+    const view = render(page())
+    await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(70))
+    await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
+
+    session.userId = 'u2'
+    view.rerender(page())
+    expect(screen.getByLabelText('体重（kg）')).toHaveValue(null)
+    expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(null)
+    expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent('今日')
+    expect(screen.queryByRole('button', { name: pastDate + ' の記録を修正' })).not.toBeInTheDocument()
+    expect(fetchBodyweightLogs).toHaveBeenLastCalledWith('u2')
+
+    await act(async () => pending.reject(new Error('owner B fetch failed')))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByLabelText('体重（kg）')).toHaveValue(null)
+    expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(null)
+    expect(screen.queryByTestId('trend-points')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '記録する' })).toBeDisabled()
+  })
+
+  it('keeps the new owner data when the old owner save completes late', async () => {
+    const pending = deferred<(typeof ownerARows)[number]>()
+    fetchBodyweightLogs.mockResolvedValueOnce(ownerARows).mockResolvedValueOnce(ownerBRows)
+    saveBodyComposition.mockReturnValueOnce(pending.promise)
+    const view = render(page())
+    await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(70))
+    await userEvent.click(screen.getByRole('button', { name: '記録する' }))
+    expect(saveBodyComposition).toHaveBeenCalledWith('u1', { bodyweightKg: 70, bodyFatPct: 16 })
+
+    session.userId = 'u2'
+    view.rerender(page())
+    await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(81))
+    await act(async () => pending.resolve({ recorded_on: today, bodyweight_kg: 71, body_fat_pct: 17 }))
+    expect(screen.getByLabelText('体重（kg）')).toHaveValue(81)
+    expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(22)
+    expect(JSON.parse(screen.getByTestId('trend-points').textContent!)).toEqual([{ date: today, value: 81, average: 81 }])
+    expect(screen.queryByRole('button', { name: pastDate + ' の記録を修正' })).not.toBeInTheDocument()
+    expect(screen.queryByText('記録しました')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '記録する' })).toBeEnabled()
+  })
+
+  it('keeps the new owner data when the old owner deletion completes late', async () => {
+    const pending = deferred<void>()
+    fetchBodyweightLogs.mockResolvedValueOnce(ownerARows).mockResolvedValueOnce(ownerBRows)
+    deleteBodyLog.mockReturnValueOnce(pending.promise)
+    const view = render(page())
+    await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(70))
+    await userEvent.click(screen.getByRole('button', { name: today + ' の記録を削除' }))
+    expect(deleteBodyLog).toHaveBeenCalledWith('u1', today)
+
+    session.userId = 'u2'
+    view.rerender(page())
+    await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(81))
+    await act(async () => pending.resolve())
+    expect(screen.getByLabelText('体重（kg）')).toHaveValue(81)
+    expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(22)
+    expect(JSON.parse(screen.getByTestId('trend-points').textContent!)).toEqual([{ date: today, value: 81, average: 81 }])
+    expect(screen.getByRole('button', { name: today + ' の記録を修正' })).toHaveTextContent('81')
+    expect(screen.queryByRole('button', { name: pastDate + ' の記録を修正' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '記録する' })).toBeEnabled()
+  })
 })

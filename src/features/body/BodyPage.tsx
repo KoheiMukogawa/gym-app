@@ -22,6 +22,11 @@ const PERIODS: { months: number | null; label: string }[] = [
 
 export function BodyPage() {
   const { userId } = useSession()
+  // アカウントが変わったら入力・履歴・進行中の操作を新しい画面に引き継がない。
+  return userId ? <OwnedBodyPage key={userId} userId={userId} /> : null
+}
+
+function OwnedBodyPage({ userId }: { userId: string }) {
   const [logs, setLogs] = useState<BodyweightLog[]>([])
   const [weight, setWeight] = useState('')
   const [fat, setFat] = useState('')
