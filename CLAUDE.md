@@ -4,7 +4,7 @@
 
 ## 現在地
 
-- ブランチ: `claude/nifty-gates-qp3rlp`
+- ブランチ: `master`（DOTSランキングまでローカルでマージ済み。originへのpushは未実施）
 - MVP Task 1〜16 は完了済み。体組成管理の実装計画は `docs/superpowers/plans/2026-10-02-body-composition.md`
 - 体組成 Task 1〜7 を実装済み: 任意の体脂肪率、本人限定の記録・修正・削除、体組成タブ、期間別グラフと7日平均、Markdown出力
 - `bodyweight_logs.body_fat_pct` は本番DBに適用済み。既存の本人限定RLSは維持
