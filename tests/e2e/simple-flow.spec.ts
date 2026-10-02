@@ -585,7 +585,13 @@ test('body composition roundtrip plots values and averages, edits past dates and
   const tooltip = trend.locator('.recharts-tooltip-wrapper')
   const inspectPoint = async (index: number, value: string) => {
     const dot = dots.nth(index)
-    await dot.scrollIntoViewIfNeeded()
+    // Viewport intersection alone can leave a point behind the fixed mobile nav.
+    await dot.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }))
+    await expect.poll(() => dot.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      return Boolean(document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+        ?.closest('.recharts-wrapper'))
+    })).toBe(true)
     const box = (await dot.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await expect(tooltip).toContainText(value)
