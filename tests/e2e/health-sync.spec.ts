@@ -88,28 +88,27 @@ test('Health connection, historical sync, keep/overwrite and revoke use real mob
   await expect(page.getByLabel('体重（kg）')).toBeEnabled()
   await expect(page.getByText(/書き込み 2件/)).toBeVisible()
   await page.getByRole('button',{name:'全期間',exact:true}).click()
-  const trend=page.getByRole('region',{name:'推移'}),list=page.getByRole('region',{name:'最近の記録'})
-  const dots=trend.locator('.recharts-line-dots circle[stroke="#8A8A93"]')
-  const curves=trend.locator('path.recharts-line-curve'),tooltip=trend.locator('.recharts-tooltip-wrapper')
-  await expect(dots).toHaveCount(2);await expect(curves).toHaveCount(2)
+  const trend=page.getByRole('region',{name:'推移'})
+  const dots=trend.locator('.recharts-line-dots circle[fill="#E8412F"]'),fatDots=trend.locator('.recharts-line-dots circle[fill="#3B82F6"]')
+  const curves=trend.locator('path.recharts-line-curve[stroke="#E8412F"]'),tooltip=trend.locator('.recharts-tooltip-wrapper')
+  await expect(dots).toHaveCount(2);await expect(fatDots).toHaveCount(1);await expect(curves).toHaveCount(1)
   await expect(trend.locator('.recharts-xAxis-tick-labels')).toContainText('2015/')
-  await expect(list.getByRole('button',{name:'2015-01-02 の記録を修正'})).toContainText('14')
-  const inspect=async (value:string,average:string) => {
-    const dot=dots.nth(1);await dot.scrollIntoViewIfNeeded();const box=(await dot.boundingBox())!
+  const inspect=async (index:number,...texts:string[]) => {
+    const dot=dots.nth(index);await dot.scrollIntoViewIfNeeded();const box=(await dot.boundingBox())!
     await page.mouse.move(box.x+box.width/2,box.y+box.height/2)
-    await expect(tooltip).toContainText(value);await expect(tooltip).toContainText(average)
+    for(const text of texts) await expect(tooltip).toContainText(text)
   }
-  await inspect('62 kg','61 kg')
+  await inspect(0,'60 kg','14 %')
+  await inspect(1,'62 kg','61 kg')
   expect(await data.sync(credential,[{date:'2015-01-02',weight_kg:99}], 'keep')).toEqual({status:200,body:{inserted:0,updated:0,skipped:1}})
   await page.getByRole('button',{name:'記録を再読み込み',exact:true}).click()
   await expect(page.getByText(/書き込み 0件/)).toBeVisible()
-  await expect(list.getByRole('button',{name:'2015-01-02 の記録を修正'})).toContainText('60')
+  await inspect(0,'60 kg','14 %')
   expect(await data.sync(credential,[{date:'2015-01-02',weight_kg:64}], 'overwrite')).toEqual({status:200,body:{inserted:0,updated:1,skipped:0}})
   await page.getByRole('button',{name:'記録を再読み込み',exact:true}).click()
   await expect(page.getByLabel('体重（kg）')).toBeEnabled()
-  await expect(list.getByRole('button',{name:'2015-01-02 の記録を修正'})).toContainText('64')
-  await expect(list.getByRole('button',{name:'2015-01-02 の記録を修正'})).toContainText('14')
-  await inspect('62 kg','63 kg')
+  await inspect(0,'64 kg','14 %')
+  await inspect(1,'62 kg','63 kg')
   await expect(page.getByText(/書き込み 1件/)).toBeVisible()
 
   // This artifact contains only synthetic mock records and a mock token.
@@ -168,7 +167,7 @@ test('Health errors retry and manual copy preserve one-time credentials across r
   expect(errors).toEqual([])
 })
 
-test('Health history reads more than 1000 rows and progressively shows the earliest year',async ({page}) => {
+test('Health history reads more than 1000 rows and charts the earliest year',async ({page}) => {
   const errors:string[]=[];page.on('pageerror',(error)=>errors.push(error.message))
   const data=await setup(page)
   data.rows.push(...Array.from({length:1001},(_,i)=>{
@@ -180,14 +179,14 @@ test('Health history reads more than 1000 rows and progressively shows the earli
   await expect(page.getByRole('button',{name:'記録を再読み込み',exact:true})).toBeEnabled()
   await expect.poll(() => data.offsets).toEqual([0,1000])
   await page.getByRole('button',{name:'全期間',exact:true}).click()
-  const list=page.getByRole('region',{name:'最近の記録'})
-  await expect(list.getByRole('button',{name:/の記録を修正$/})).toHaveCount(50)
-  await expect(page.getByText('50 / 1001件を表示')).toBeVisible()
-  const dots=page.getByRole('region',{name:'推移'}).locator('.recharts-line-dots circle[stroke="#8A8A93"]')
+  const trend=page.getByRole('region',{name:'推移'})
+  const dots=trend.locator('.recharts-line-dots circle[fill="#E8412F"]')
   await expect(dots).toHaveCount(1001)
-  for(let i=0;i<20;i++) await page.getByRole('button',{name:'さらに50件表示',exact:true}).click()
-  await expect(list.getByRole('button',{name:'2010-01-01 の記録を修正'})).toBeVisible()
-  await expect(list.getByRole('button',{name:/の記録を修正$/})).toHaveCount(1001)
+  await expect(trend.locator('.recharts-xAxis-tick-labels')).toContainText('2010/')
+  // The earliest day stays reachable: a tap on its dot opens it in the form.
+  const first=dots.first();await first.scrollIntoViewIfNeeded();const box=(await first.boundingBox())!
+  await page.mouse.click(box.x+box.width/2,box.y+box.height/2)
+  await expect(page.getByRole('region',{name:'記録の入力'})).toContainText('01/01の記録')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   expect(errors).toEqual([])
 })
@@ -205,21 +204,21 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
   await page.getByRole('button',{name:'記録を再読み込み'}).click()
   const overview = page.getByRole('region',{name:'最新の記録'})
   await expect(overview).toContainText('70.3')
-  await expect(overview).toContainText('前回比 +0.2 kg')
+  await expect(overview).toContainText('前回比 +0.2')
   await expect(overview).toContainText('未記録')
   const trend = page.getByRole('region',{name:'推移'})
-  await expect(trend.locator('path.recharts-line-curve')).toHaveCount(2)
+  await expect(trend.locator('path.recharts-line-curve[stroke="#E8412F"]')).toHaveCount(1)
   const refresh = page.getByRole('button',{name:'記録を再読み込み'})
   expect(await refresh.innerText()).toBe('')
   const overviewBox = (await overview.boundingBox())!
   const trendBox = (await trend.boundingBox())!
   const inputBox = (await page.getByRole('region',{name:'記録の入力'}).boundingBox())!
-  const historyBox = (await page.getByRole('region',{name:'最近の記録'}).boundingBox())!
   const connectionBox = (await page.getByRole('region',{name:'ヘルスケア連携設定'}).boundingBox())!
   expect(overviewBox.y).toBeLessThan(trendBox.y)
   expect(trendBox.y).toBeLessThan(450)
   expect(trendBox.y).toBeLessThan(inputBox.y)
-  expect(historyBox.y).toBeLessThan(connectionBox.y)
+  expect(inputBox.y).toBeLessThan(connectionBox.y)
+  await expect(page.getByRole('region',{name:'最近の記録'})).toHaveCount(0)
   await expect(page.getByRole('button',{name:'ヘルスケア連携'})).toHaveAttribute('aria-expanded','false')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   await page.screenshot({path:'test-results/body-overview-mobile.png',fullPage:true})

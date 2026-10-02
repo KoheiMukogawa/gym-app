@@ -36,6 +36,43 @@ export function movingAverage(logs: BodyweightLog[], metric: BodyMetric, windowD
   })
 }
 
+export type CombinedPoint = {
+  date: string
+  weight: number | null; weightAverage: number | null
+  fat: number | null; fatAverage: number | null
+}
+
+/** 体重と体脂肪率を日付ごとの1行にまとめる。体脂肪率のない日はその列を null にする。 */
+export function combineTrends(logs: BodyweightLog[]): CombinedPoint[] {
+  const rows = new Map<string, CombinedPoint>()
+  const row = (date: string) => {
+    if (!rows.has(date)) rows.set(date, { date, weight: null, weightAverage: null, fat: null, fatAverage: null })
+    return rows.get(date)!
+  }
+  for (const p of movingAverage(logs, 'bodyweight_kg')) Object.assign(row(p.date), { weight: p.value, weightAverage: p.average })
+  for (const p of movingAverage(logs, 'body_fat_pct')) Object.assign(row(p.date), { fat: p.value, fatAverage: p.average })
+  return [...rows.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+export type LatestSummary = { date: string; weight: number; weightChange: number | null; fat: number | null; fatChange: number | null }
+
+/** 最新の記録と前回比。体脂肪率は、体脂肪率のある直前の記録と比べる。 */
+export function latestSummary(logs: BodyweightLog[]): LatestSummary | null {
+  const sorted = [...logs].sort((a, b) => a.recorded_on.localeCompare(b.recorded_on))
+  const latest = sorted.at(-1)
+  if (!latest) return null
+  const previous = sorted.at(-2)
+  const fat = typeof latest.body_fat_pct === 'number' ? latest.body_fat_pct : null
+  const previousFat = sorted.slice(0, -1).reverse().find((l) => typeof l.body_fat_pct === 'number')?.body_fat_pct
+  return {
+    date: latest.recorded_on,
+    weight: latest.bodyweight_kg,
+    weightChange: previous ? round1(latest.bodyweight_kg - previous.bodyweight_kg) : null,
+    fat,
+    fatChange: fat !== null && typeof previousFat === 'number' ? round1(fat - previousFat) : null,
+  }
+}
+
 /** 今日から months ヶ月前までの記録。境界日はふくむ。 */
 export function withinPeriod(logs: BodyweightLog[], months: number, today = new Date().toLocaleDateString('sv-SE')): BodyweightLog[] {
   const base = new Date(today + 'T12:00:00')

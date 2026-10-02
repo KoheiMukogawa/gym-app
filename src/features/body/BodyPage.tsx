@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { SwipeRow } from '../../components/SwipeRow'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
-import { movingAverage, parseBodyFat, withinPeriod, type BodyMetric } from '../../lib/bodyComposition'
+import { combineTrends, latestSummary, parseBodyFat, withinPeriod } from '../../lib/bodyComposition'
 import type { BodyweightLog } from '../../lib/bodyweight'
 import { toMessage } from '../../lib/errors'
 import { useSession } from '../auth/SessionProvider'
@@ -12,10 +11,6 @@ import { HealthSyncPanel } from './HealthSyncPanel'
 import { BodyTrendChart } from './BodyTrendChart'
 
 const field = 'min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg tabular-nums'
-const METRICS: { key: BodyMetric; label: string; unit: string }[] = [
-  { key: 'bodyweight_kg', label: '体重', unit: 'kg' },
-  { key: 'body_fat_pct', label: '体脂肪率', unit: '%' },
-]
 const PERIODS: { months: number | null; label: string }[] = [
   { months: 1, label: '1ヶ月' }, { months: 3, label: '3ヶ月' }, { months: 12, label: '1年' }, { months: null, label: '全期間' },
 ]
@@ -30,7 +25,6 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   const [logs, setLogs] = useState<BodyweightLog[]>([])
   const [weight, setWeight] = useState('')
   const [fat, setFat] = useState('')
-  const [metric, setMetric] = useState<BodyMetric>('bodyweight_kg')
   const [months, setMonths] = useState<number | null>(1)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -41,7 +35,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   // null は今日の記録。過去の日をタップするとその日を直す
   const [editing, setEditing] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
-  const [listLimit, setListLimit] = useState(50)
+  const [confirming, setConfirming] = useState(false)
   const [healthBusy, setHealthBusy] = useState(false)
 
   function prefill(rows: BodyweightLog[]) {
@@ -58,11 +52,11 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     setError(null)
     setEditing(null)
     setSaved(false)
+    setConfirming(false)
     fetchBodyweightLogs(userId)
       .then((rows) => {
         if (!active) return
         setLogs(rows)
-        setListLimit(50)
         // 直近の値で今日の入力を初期表示する
         prefill(rows)
       })
@@ -88,6 +82,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       setLogs(updated)
       prefill(updated)
       setEditing(null)
+      setConfirming(false)
       setSaved(true)
     } catch (e) { setError(toMessage(e)) }
     finally { setBusy(false) }
@@ -102,6 +97,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       const updated = logs.filter((l) => l.recorded_on !== recordedOn)
       setLogs(updated)
       setSaved(false)
+      setConfirming(false)
       if (editing === null || editing === recordedOn) {
         setEditing(null)
         prefill(updated)
@@ -114,12 +110,27 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   // 表示期間より前の記録も、境界日の7日平均に含める。
   const points = useMemo(() => {
     const visibleDates = new Set(visible.map((row) => row.recorded_on))
-    return movingAverage(logs, metric).filter((point) => visibleDates.has(point.date))
-  }, [logs, metric, visible])
-  const unit = METRICS.find((m) => m.key === metric)!.unit
-  const latest = logs.at(-1)
-  const previous = logs.at(-2)
-  const weightChange = latest && previous ? latest.bodyweight_kg - previous.bodyweight_kg : null
+    return combineTrends(logs).filter((point) => visibleDates.has(point.date))
+  }, [logs, visible])
+  const latest = useMemo(() => latestSummary(logs), [logs])
+  const today = new Date().toLocaleDateString('sv-SE')
+  const target = editing ?? today
+  const targetExists = logs.some((l) => l.recorded_on === target)
+  const locked = busy || loading || loadError !== null || deleting !== null
+
+  // A tap on the chart opens that day in the form. The ref keeps the callback stable for the memoized chart.
+  const selectDay = useRef<(date: string) => void>(() => {})
+  selectDay.current = (date: string) => {
+    const row = logs.find((l) => l.recorded_on === date)
+    if (!row || locked) return
+    setEditing(date)
+    setWeight(String(row.bodyweight_kg))
+    setFat(row.body_fat_pct === null || row.body_fat_pct === undefined ? '' : String(row.body_fat_pct))
+    setError(null)
+    setSaved(false)
+    setConfirming(false)
+  }
+  const onSelectDay = useCallback((date: string) => selectDay.current(date), [])
 
   return <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
     <header className="flex items-center justify-between gap-3">
@@ -138,56 +149,38 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       </button>
     </header>
 
-    <section aria-label="最新の記録" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between text-xs text-muted">
-        <h2>最新の記録</h2>
-        {!loading && !loadError && latest && <time dateTime={latest.recorded_on}>{latest.recorded_on}</time>}
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-border bg-surface p-4">
-          <p className="text-sm text-muted">体重</p>
-          <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">
-            {loading ? '…' : loadError || !latest ? '—' : latest.bodyweight_kg}
-            <span className="ml-1 text-sm font-normal text-muted">kg</span>
-          </p>
-          {!loading && !loadError && weightChange !== null && <p className="mt-3 text-xs text-muted">
-            前回比 {weightChange > 0 ? '+' : ''}{weightChange.toFixed(1)} kg
-          </p>}
-        </div>
-        <div className="rounded-2xl border border-border bg-surface p-4">
-          <p className="text-sm text-muted">体脂肪率</p>
-          <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">
-            {loading ? '…' : loadError ? '—' : latest?.body_fat_pct ?? '—'}
-            <span className="ml-1 text-sm font-normal text-muted">%</span>
-          </p>
-          {!loading && !loadError && latest?.body_fat_pct == null && <p className="mt-3 text-xs text-muted">未記録</p>}
-        </div>
+    <section aria-label="最新の記録" className="rounded-2xl border border-border bg-surface px-4 py-3">
+      <h2 className="sr-only">最新の記録</h2>
+      <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-4">
+        <p className="text-sm text-muted tabular-nums">
+          {!loading && !loadError && latest ? <time dateTime={latest.date}>{latest.date.slice(5).replace('-', '/')}</time> : '最新'}
+        </p>
+        <LatestValue label="体重" unit="kg" value={loading || loadError ? null : latest?.weight ?? null}
+          change={latest?.weightChange ?? null} pending={loading} />
+        <LatestValue label="体脂肪率" unit="%" value={loading || loadError ? null : latest?.fat ?? null}
+          change={latest?.fatChange ?? null} pending={loading} />
       </div>
     </section>
 
     <section className="flex flex-col gap-3" aria-label="推移">
       <h2 className="text-sm font-semibold">推移</h2>
-      <div className="flex border-b border-border">
-        {METRICS.map((m) => <button key={m.key} type="button" aria-pressed={metric === m.key}
-          className={`min-h-14 flex-1 text-sm ${metric === m.key ? 'border-b-2 border-accent text-fg' : 'text-muted'}`}
-          onClick={() => setMetric(m.key)}>{m.label}</button>)}
-      </div>
       <div className="flex gap-2">
         {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
           className={`min-h-14 flex-1 rounded-xl border text-sm ${months === p.months ? 'border-accent text-fg' : 'border-border text-muted'}`}
-          onClick={() => { setMonths(p.months); setListLimit(50) }}>{p.label}</button>)}
+          onClick={() => setMonths(p.months)}>{p.label}</button>)}
       </div>
       {loading ? <Spinner /> : loadError ? null : points.length === 0
         ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
-        : <BodyTrendChart points={points} unit={unit} showYear={months === null} />}
-      <p className="text-xs text-muted">細い線は日々の記録、太い線は7日平均。</p>
+        : <BodyTrendChart points={points} showYear={months === null} onSelectDay={onSelectDay} />}
+      <p className="text-xs text-muted">点はその日の記録、線は7日平均。左の目盛りが体重、右が体脂肪率。</p>
+      <p className="text-xs text-muted">グラフをタップすると、その日の記録を修正・削除できます。</p>
     </section>
 
     <section className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4" aria-label="記録の入力">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">{editing ?? '今日'}の記録</h2>
+        <h2 className="text-sm font-semibold">{editing ? editing.slice(5).replace('-', '/') : '今日'}の記録</h2>
         {editing && <button type="button" className="min-h-14 text-sm text-muted" disabled={busy || loading || loadError !== null || deleting !== null}
-          onClick={() => { setEditing(null); prefill(logs); setError(null); setSaved(false) }}>今日に戻る</button>}
+          onClick={() => { setEditing(null); prefill(logs); setError(null); setSaved(false); setConfirming(false) }}>今日に戻る</button>}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-2 text-sm text-muted">体重（kg）
@@ -204,37 +197,32 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       {error && <p role="alert" className="text-sm text-accent">{error}</p>}
       <Button onClick={() => void save()} disabled={busy || loading || loadError !== null || deleting !== null || !weight.trim()}>{busy ? '保存中…' : '記録する'}</Button>
       {saved && <p role="status" className="text-sm">記録しました</p>}
-    </section>
-
-    <section className="flex flex-col gap-2" aria-label="最近の記録">
-      <h2 className="text-sm font-semibold">最近の記録</h2>
-      {loading ? <Spinner /> : loadError ? null : visible.length === 0 ? <p className="py-4 text-center text-sm text-muted">まだ記録がありません</p>
-        : <ul className="divide-y divide-border rounded-xl border border-border bg-surface px-4">
-            {[...visible].reverse().slice(0, listLimit).map((l) => <SwipeRow key={l.recorded_on} label={`${l.recorded_on} の記録を削除`}
-              disabled={busy || deleting !== null} deleting={deleting === l.recorded_on} onDelete={() => remove(l.recorded_on)}>
-              <button type="button" aria-label={`${l.recorded_on} の記録を修正`} disabled={busy || loading || loadError !== null || deleting !== null}
-                className="flex min-h-14 flex-1 items-center justify-between gap-2 text-left"
-                onClick={() => {
-                  setEditing(l.recorded_on)
-                  setWeight(String(l.bodyweight_kg))
-                  setFat(l.body_fat_pct === null || l.body_fat_pct === undefined ? '' : String(l.body_fat_pct))
-                  setError(null)
-                  setSaved(false)
-                }}>
-                <span className="text-sm text-muted">{l.recorded_on}</span>
-                <span className="text-lg font-semibold tabular-nums">{l.bodyweight_kg}<span className="text-xs font-normal text-muted"> kg</span>
-                  {l.body_fat_pct !== null && l.body_fat_pct !== undefined && <>
-                    <span className="ml-2">{l.body_fat_pct}</span><span className="text-xs font-normal text-muted"> %</span></>}</span>
-              </button>
-            </SwipeRow>)}
-          </ul>}
-      {!loading && !loadError && visible.length > listLimit && <Button variant="ghost" onClick={() => setListLimit((value) => value + 50)}>さらに50件表示</Button>}
-      {!loading && !loadError && visible.length > 0 && <p className="text-xs text-muted">{Math.min(listLimit, visible.length)} / {visible.length}件を表示</p>}
-      <p className="text-center text-xs text-muted">タップで修正、左にスワイプで削除</p>
+      {targetExists && !loading && !loadError && (confirming
+        ? <div className="flex gap-2">
+            <Button variant="danger" className="flex-1" disabled={busy || deleting !== null} onClick={() => void remove(target)}>{deleting ? '削除中…' : '削除する'}</Button>
+            <Button variant="ghost" className="flex-1" disabled={deleting !== null} onClick={() => setConfirming(false)}>やめる</Button>
+          </div>
+        : <button type="button" aria-label={`${target} の記録を削除`} className="min-h-14 text-sm text-muted disabled:opacity-40"
+            disabled={busy || deleting !== null} onClick={() => { setConfirming(true); setError(null); setSaved(false) }}>この日の記録を削除</button>)}
     </section>
 
     <HealthSyncPanel userId={userId} refreshVersion={attempt} onBusyChange={setHealthBusy} />
 
     {!loading && loadError && <Button variant="ghost" onClick={() => setAttempt((n) => n + 1)}>再試行</Button>}
+  </div>
+}
+
+const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : '±'}${Math.abs(value).toFixed(1)}`
+
+/** One column of the latest-record row. The aria-label reads value and change together. */
+function LatestValue({ label, unit, value, change, pending }: {
+  label: string; unit: string; value: number | null; change: number | null; pending: boolean
+}) {
+  const spoken = value === null ? `${label} 未記録` : `${label} ${value}${unit}、前回比${change === null ? 'なし' : ` ${signed(change)}${unit}`}`
+  return <div role="group" aria-label={pending ? `${label} 読み込み中` : spoken} className="min-w-0">
+    <p className="text-2xl font-semibold tracking-tight tabular-nums">
+      {pending ? '…' : value ?? '—'}<span className="ml-0.5 text-xs font-normal text-muted">{unit}</span>
+    </p>
+    <p className="text-xs text-muted tabular-nums">{pending ? '\u00a0' : value === null ? '未記録' : change === null ? '前回比 —' : `前回比 ${signed(change)}`}</p>
   </div>
 }

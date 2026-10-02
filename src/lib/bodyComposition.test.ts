@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { movingAverage, parseBodyFat, withinPeriod } from './bodyComposition'
+import { combineTrends, latestSummary, movingAverage, parseBodyFat, withinPeriod } from './bodyComposition'
 
 const log = (recorded_on: string, bodyweight_kg: number, body_fat_pct?: number) => ({ recorded_on, bodyweight_kg, body_fat_pct })
 
@@ -73,5 +73,46 @@ describe('calendar period boundaries', () => {
     before.setDate(before.getDate() - 1)
     const logs = [log(before.toLocaleDateString('sv-SE'),70),log(boundary,71),log(today,72)]
     expect(withinPeriod(logs,months,today).map((row) => row.recorded_on)).toEqual([boundary,today])
+  })
+})
+
+describe('combineTrends', () => {
+  it('puts weight and body fat for the same day on one row with each 7-day average', () => {
+    expect(combineTrends([
+      { recorded_on: '2026-09-01', bodyweight_kg: 70, body_fat_pct: 16 },
+      { recorded_on: '2026-09-02', bodyweight_kg: 71, body_fat_pct: null },
+      { recorded_on: '2026-09-03', bodyweight_kg: 72, body_fat_pct: 15 },
+    ])).toEqual([
+      { date: '2026-09-01', weight: 70, weightAverage: 70, fat: 16, fatAverage: 16 },
+      { date: '2026-09-02', weight: 71, weightAverage: 70.5, fat: null, fatAverage: null },
+      { date: '2026-09-03', weight: 72, weightAverage: 71, fat: 15, fatAverage: 15.5 },
+    ])
+  })
+
+  it('returns nothing without records', () => {
+    expect(combineTrends([])).toEqual([])
+  })
+})
+
+describe('latestSummary', () => {
+  it('compares body fat with the last record that has one', () => {
+    expect(latestSummary([
+      { recorded_on: '2026-09-01', bodyweight_kg: 70, body_fat_pct: 16 },
+      { recorded_on: '2026-09-02', bodyweight_kg: 71, body_fat_pct: null },
+      { recorded_on: '2026-09-03', bodyweight_kg: 70.4, body_fat_pct: 15.4 },
+    ])).toEqual({ date: '2026-09-03', weight: 70.4, weightChange: -0.6, fat: 15.4, fatChange: -0.6 })
+  })
+
+  it('has no change for a first record or a latest record without body fat', () => {
+    expect(latestSummary([{ recorded_on: '2026-09-01', bodyweight_kg: 70, body_fat_pct: 16 }]))
+      .toEqual({ date: '2026-09-01', weight: 70, weightChange: null, fat: 16, fatChange: null })
+    expect(latestSummary([
+      { recorded_on: '2026-09-01', bodyweight_kg: 70, body_fat_pct: 16 },
+      { recorded_on: '2026-09-02', bodyweight_kg: 70, body_fat_pct: null },
+    ])).toEqual({ date: '2026-09-02', weight: 70, weightChange: 0, fat: null, fatChange: null })
+  })
+
+  it('returns null without records', () => {
+    expect(latestSummary([])).toBeNull()
   })
 })
