@@ -3,14 +3,16 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import type { CombinedPoint } from '../../lib/bodyComposition'
 
 // Validated as a pair on the dark surface (scripts/validate_palette.js of the dataviz skill).
-const WEIGHT = '#E8412F'
-const FAT = '#3B82F6'
+export const WEIGHT_COLOR = '#E8412F'
+export const FAT_COLOR = '#3B82F6'
+const WEIGHT = WEIGHT_COLOR
+const FAT = FAT_COLOR
 const tick = { fill: '#8A8A93', fontSize: 11 }
 const SERIES_ORDER = ['体重', '体重 7日平均', '体脂肪率', '体脂肪率 7日平均']
 const oneDecimal = (value: number) => String(Math.round(value * 10) / 10)
 
 /**
- * Weight on the left axis and body fat on the right. The legend names each axis in
+ * Weight on the left axis and body fat on the right. The page's legend names each axis in
  * text so the two scales are never told apart by color alone.
  * Keep the long-history SVG stable while inputs or progressive list counts change.
  */
@@ -35,12 +37,7 @@ export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, o
       onSelectDay(weightDays[nearest])
     } else if (activeLabel !== undefined) onSelectDay(String(activeLabel))
   }
-  return <div className="flex flex-col gap-2">
-    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted" aria-label="凡例">
-      <li className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: WEIGHT }} />体重（kg・左の目盛り）</li>
-      {hasFat && <li className="flex items-center gap-1.5"><span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: FAT }} />体脂肪率（%・右の目盛り）</li>}
-    </ul>
-    <div ref={box} className="h-56 w-full">
+  return <div ref={box} className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={points} margin={{ top: 8, right: 0, bottom: 0, left: 0 }} style={{ cursor: 'pointer' }}
           onClick={(state, event) => pick(state.activeLabel, event?.clientX ?? NaN)}>
@@ -64,6 +61,5 @@ export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, o
             connectNulls isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
-    </div>
   </div>
 })

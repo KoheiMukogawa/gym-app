@@ -214,7 +214,10 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
   const trendBox = (await trend.boundingBox())!
   const inputBox = (await page.getByRole('region',{name:'記録の入力'}).boundingBox())!
   const connectionBox = (await page.getByRole('region',{name:'ヘルスケア連携設定'}).boundingBox())!
-  expect(overviewBox.y).toBeLessThan(trendBox.y)
+  // The latest values are the chart's legend: inside the trend section, above the plot.
+  const plotBox = (await trend.locator('svg.recharts-surface').boundingBox())!
+  expect(overviewBox.y).toBeGreaterThanOrEqual(trendBox.y)
+  expect(overviewBox.y + overviewBox.height).toBeLessThanOrEqual(plotBox.y)
   expect(trendBox.y).toBeLessThan(450)
   expect(trendBox.y).toBeLessThan(inputBox.y)
   expect(inputBox.y).toBeLessThan(connectionBox.y)

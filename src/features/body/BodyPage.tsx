@@ -8,7 +8,7 @@ import { useSession } from '../auth/SessionProvider'
 import { deleteBodyLog, fetchBodyweightLogs, parseBodyweight, saveBodyComposition } from '../profile/bodyweightQueries'
 
 import { HealthSyncPanel } from './HealthSyncPanel'
-import { BodyTrendChart } from './BodyTrendChart'
+import { BodyTrendChart, FAT_COLOR, WEIGHT_COLOR } from './BodyTrendChart'
 
 const field = 'min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg tabular-nums'
 const PERIODS: { months: number | null; label: string }[] = [
@@ -146,23 +146,6 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       </button>
     </header>
 
-    <section aria-label="最新の記録" className="rounded-2xl border border-border bg-surface px-4 py-3">
-      <h2 className="sr-only">最新の記録</h2>
-      {/* Three equal, centered columns so neither side of the card is left empty. */}
-      <div className="grid grid-cols-3 divide-x divide-border text-center">
-        <div className="flex flex-col items-center justify-center">
-          <p className="text-lg font-semibold tabular-nums">
-            {!loading && !loadError && latest ? <time dateTime={latest.date}>{latest.date.slice(5).replace('-', '/')}</time> : '—'}
-          </p>
-          <p className="text-xs text-muted">記録日</p>
-        </div>
-        <LatestValue label="体重" unit="kg" value={loading || loadError ? null : latest?.weight ?? null}
-          change={latest?.weightChange ?? null} pending={loading} />
-        <LatestValue label="体脂肪率" unit="%" value={loading || loadError ? null : latest?.fat ?? null}
-          change={latest?.fatChange ?? null} pending={loading} />
-      </div>
-    </section>
-
     <section className="flex flex-col gap-3" aria-label="推移">
       {/* The period picker shares the heading row; each button keeps a 56px tap height. */}
       <div className="flex items-center justify-between gap-2">
@@ -174,10 +157,22 @@ function OwnedBodyPage({ userId }: { userId: string }) {
           </button>)}
         </div>
       </div>
+      {/* The legend carries the latest values, so no separate card repeats the two metrics. */}
+      <section aria-label="最新の記録" className="flex flex-col gap-2">
+        <p className="text-xs text-muted tabular-nums">
+          {!loading && !loadError && latest ? <>最新 <time dateTime={latest.date}>{latest.date.slice(5).replace('-', '/')}</time></> : '最新の記録'}
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <LatestValue label="体重" unit="kg" axis="左の目盛り" color={WEIGHT_COLOR} value={loading || loadError ? null : latest?.weight ?? null}
+            change={latest?.weightChange ?? null} pending={loading} />
+          <LatestValue label="体脂肪率" unit="%" axis="右の目盛り" color={FAT_COLOR} value={loading || loadError ? null : latest?.fat ?? null}
+            change={latest?.fatChange ?? null} pending={loading} />
+        </div>
+      </section>
       {loading ? <Spinner /> : loadError ? null : points.length === 0
         ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
         : <BodyTrendChart points={points} showYear={months === null} onSelectDay={onSelectDay} />}
-      <p className="text-xs text-muted">点はその日の記録、線は7日平均。左の目盛りが体重、右が体脂肪率。</p>
+      <p className="text-xs text-muted">点はその日の記録、線は7日平均。</p>
       <p className="text-xs text-muted">グラフをタップすると、その日の記録を修正・削除できます。</p>
     </section>
 
@@ -220,14 +215,17 @@ function OwnedBodyPage({ userId }: { userId: string }) {
 const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : '±'}${Math.abs(value).toFixed(1)}`
 
 /** One column of the latest-record row. The aria-label reads value and change together. */
-function LatestValue({ label, unit, value, change, pending }: {
-  label: string; unit: string; value: number | null; change: number | null; pending: boolean
+function LatestValue({ label, unit, axis, color, value, change, pending }: {
+  label: string; unit: string; axis: string; color: string; value: number | null; change: number | null; pending: boolean
 }) {
   const spoken = value === null ? `${label} 未記録` : `${label} ${value}${unit}、前回比${change === null ? 'なし' : ` ${signed(change)}${unit}`}`
-  return <div role="group" aria-label={pending ? `${label} 読み込み中` : spoken} className="flex min-w-0 flex-col items-center justify-center">
+  return <div role="group" aria-label={pending ? `${label} 読み込み中` : spoken} className="min-w-0">
+    <p className="flex items-center gap-1.5 text-xs text-muted">
+      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} /><span>{label}・{axis}</span>
+    </p>
     <p className="text-2xl font-semibold tracking-tight tabular-nums">
       {pending ? '…' : value === null ? <span className="text-muted">—</span> : <>{value}<span className="ml-0.5 text-xs font-normal text-muted">{unit}</span></>}
     </p>
-    <p className="text-xs text-muted tabular-nums">{pending ? '\u00a0' : value === null ? `${label} 未記録` : change === null ? '前回比 —' : `前回比 ${signed(change)}`}</p>
+    <p className="text-xs text-muted tabular-nums">{pending ? '\u00a0' : value === null ? '未記録' : change === null ? '前回比 —' : `前回比 ${signed(change)}`}</p>
   </div>
 }

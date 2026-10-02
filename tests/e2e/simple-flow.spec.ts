@@ -609,8 +609,8 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   }
   await expect(page.getByRole('region', { name: '最近の記録' })).toHaveCount(0)
   await expect(trend.getByRole('button', { name: '体脂肪率', exact: true })).toHaveCount(0)
-  await expect(trend).toContainText('体重（kg・左の目盛り）')
-  await expect(trend).toContainText('体脂肪率（%・右の目盛り）')
+  await expect(trend.getByRole('region', { name: '最新の記録' })).toContainText('体重・左の目盛り')
+  await expect(trend.getByRole('region', { name: '最新の記録' })).toContainText('体脂肪率・右の目盛り')
   await page.getByLabel('体重（kg）').fill('70.2')
   await page.getByLabel('体脂肪率（%）').fill('15.4')
   await page.getByRole('button', { name: '記録する', exact: true }).click()

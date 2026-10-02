@@ -142,13 +142,16 @@ describe('BodyPage', () => {
     expect(screen.getByRole('button', { name: earlier + ' の記録を修正' })).toBeInTheDocument()
   })
 
-  it('shows weight and body fat in one chart with a legend naming each axis', async () => {
+  it('uses the latest values as the chart legend, naming each axis', async () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: today, bodyweight_kg: 70, body_fat_pct: 15 }])
     await renderPage()
     const trend = screen.getByRole('region', { name: '推移' })
     expect(within(trend).queryByRole('button', { name: '体脂肪率' })).not.toBeInTheDocument()
-    expect(within(trend).getByText('体重（kg・左の目盛り）')).toBeInTheDocument()
-    expect(within(trend).getByText('体脂肪率（%・右の目盛り）')).toBeInTheDocument()
+    // The latest values live inside the chart section instead of a separate card above it.
+    const legend = within(trend).getByRole('region', { name: '最新の記録' })
+    expect(within(legend).getByLabelText('体重 70kg、前回比なし')).toHaveTextContent('左の目盛り')
+    expect(within(legend).getByLabelText('体脂肪率 15%、前回比なし')).toHaveTextContent('右の目盛り')
+    expect(within(trend).queryByText('体重（kg・左の目盛り）')).not.toBeInTheDocument()
   })
 
   it('summarizes the latest record in one row with changes for both metrics', async () => {
