@@ -3,7 +3,8 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { Member } from './queries'
-const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
+const { rpc, profile } = vi.hoisted(() => ({ rpc: vi.fn(), profile: vi.fn() }))
+vi.mock('./queries', async original => ({ ...await original<typeof import('./queries')>(), profile }))
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'me' }) }))
 import { GlobalRanking } from './GlobalRanking'
@@ -20,7 +21,7 @@ const openDots = async () => {
   await screen.findByRole('list')
   await userEvent.click(screen.getByRole('button', { name: 'DOTS' }))
 }
-beforeEach(() => { vi.clearAllMocks() })
+beforeEach(() => { vi.clearAllMocks(); profile.mockResolvedValue({ user_id: 'me', display_name: '自分', icon: 'initials', bio: '', global_ranking: true, dots_opt_in: true }) })
 
 it('lists only opted-in members on the DOTS tab with unit-less scores', async () => {
   show([
@@ -36,18 +37,21 @@ it('lists only opted-in members on the DOTS tab with unit-less scores', async ()
   expect(screen.getByRole('button', { name: 'DOTS' })).toHaveAttribute('aria-pressed', 'true')
 })
 
-it('points a non-participant to the profile setting', async () => {
+it('lets a DOTS non-participant select a formula on the ranking page', async () => {
+  profile.mockResolvedValue({ user_id: 'me', display_name: '自分', icon: 'initials', bio: '', global_ranking: true, dots_opt_in: false })
   show([member('me', '自分'), member('a', '軽量', { dots: 375.5, dots_opt_in: true })])
   await openDots()
-  expect(screen.getByRole('link', { name: 'DOTSランキングへの参加はプロフィールで設定' })).toHaveAttribute('href', '/profile')
+  await userEvent.click(await screen.findByRole('button', { name: '係数を選んで参加する' }))
+  expect(screen.getByRole('radio', { name: '男性用' })).toBeInTheDocument()
   expect(screen.getByText(/体重の公開に同意した人だけ表示しています/)).toBeInTheDocument()
 })
 
-it('tells a user missing from the global list that both rankings must be joined', async () => {
+it('invites a global non-participant without navigating to profile', async () => {
+  profile.mockResolvedValue({ user_id: 'me', display_name: '自分', icon: 'initials', bio: '', global_ranking: false, dots_opt_in: false })
   show([member('a', '軽量', { dots: 375.5, dots_opt_in: true })])
-  await openDots()
-  expect(screen.getByRole('link', { name: '全体ランキングとDOTSの両方に参加すると表示されます' })).toHaveAttribute('href', '/profile')
-  expect(screen.queryByRole('link', { name: 'DOTSランキングへの参加はプロフィールで設定' })).not.toBeInTheDocument()
+  await userEvent.click(await screen.findByRole('button', { name: '公開して参加する' }))
+  expect(screen.getByRole('form', { name: 'ランキングへの参加' })).toBeInTheDocument()
+  expect(screen.queryByRole('list')).not.toBeInTheDocument()
 })
 
 it('points a participant without a score to the body tab', async () => {

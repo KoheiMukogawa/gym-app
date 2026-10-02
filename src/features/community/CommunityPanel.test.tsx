@@ -17,7 +17,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   rpc.mockResolvedValue({ data: [], error: null })
   listCommunities.mockResolvedValue([{ id: 'c1', name: '仲間', owner_id: 'me', invite_code: null }])
-  profile.mockResolvedValue({ user_id: 'me', display_name: '自分', icon: 'initials', bio: '' })
+  profile.mockResolvedValue({ user_id: 'me', display_name: '自分', icon: 'initials', bio: '', dots_opt_in: true })
 })
 const openGroup = async () => {
   await userEvent.click(await screen.findByRole('button', { name: '仲間' }))
@@ -45,7 +45,7 @@ it('says nobody has joined DOTS yet instead of showing an empty list', async () 
   await screen.findByText('500 kg')
   await userEvent.click(screen.getByRole('button', { name: 'DOTS' }))
   expect(screen.getByText('DOTSの参加者はまだいません')).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'DOTSランキングへの参加はプロフィールで設定' })).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'DOTSランキングへの参加はプロフィールで設定' })).not.toBeInTheDocument()
 })
 
 it('keeps a ranking failure on screen with retry on the DOTS tab', async () => {
