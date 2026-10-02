@@ -178,7 +178,7 @@ test('Health history reads more than 1000 rows and progressively shows the earli
   data.offsets.length=0
   await page.getByRole('button',{name:'記録を再読み込み',exact:true}).click()
   await expect(page.getByRole('button',{name:'記録を再読み込み',exact:true})).toBeEnabled()
-  expect(data.offsets).toEqual([0,1000])
+  await expect.poll(() => data.offsets).toEqual([0,1000])
   await page.getByRole('button',{name:'全期間',exact:true}).click()
   const list=page.getByRole('region',{name:'最近の記録'})
   await expect(list.getByRole('button',{name:/の記録を修正$/})).toHaveCount(50)

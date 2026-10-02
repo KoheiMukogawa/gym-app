@@ -1,6 +1,10 @@
 # Health同期 公開準備と切り戻し
 
-2026-10-02。現在はローカル実装・検証の段階。本番のmigration、Function、アプリ公開、push・mergeは未実施です。具体的な変更と検証結果を提示して承認を得てから適用します。
+2026-10-02。ユーザー承認後、master `8726411` をpushし、Health同期migrationをSupabase MCPで本番に適用しました。`body-metrics` v1はACTIVE、独自Bearer認証・`verify_jwt=false` で公開済みです。Vercelの本番Deployment完了をGitHub statusで確認しました。
+
+本番の読み取り・拒否応答確認はPASS：アセット／手順のHTTP 200、ログイン画面のブラウザエラー0件、Bearerなし／無効Bearerの401、GET 405、OPTIONS 204、anonからの4 RPCは401、private schemaは406、関数権限matrixは想定どおりでした。個人のHealth測定値は送信していません。
+
+実iPhone、独立したPostgreSQLセッションでの発行／取込競合、authenticated本人経路の正常な取込は未確認です。CI `36957875457` はmock E2E 16件PASS／履歴pagination 1件FAILで、テストが2ページ目の発火を待たずに判定する同期問題をローカルのテストで修正しました。このCI修正は本番公開済みの実装とは区別し、修正commitのremote CI成功はまだ未確認です。以下の手順は適用／停止時の参照として残します。
 
 ## 適用対象
 
