@@ -191,3 +191,38 @@ test('Health history reads more than 1000 rows and progressively shows the earli
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   expect(errors).toEqual([])
 })
+
+
+test('Body overview prioritizes measurements and trend on a narrow phone', async ({page}) => {
+  await page.setViewportSize({width:375,height:812})
+  const data = await setup(page)
+  const today = new Date().toLocaleDateString('sv-SE')
+  const yesterday = new Date(today + 'T12:00:00'); yesterday.setDate(yesterday.getDate()-1)
+  data.rows.push(
+    {recorded_on:yesterday.toLocaleDateString('sv-SE'),bodyweight_kg:70.1,body_fat_pct:16},
+    {recorded_on:today,bodyweight_kg:70.3,body_fat_pct:null},
+  )
+  await page.getByRole('button',{name:'記録を再読み込み'}).click()
+  const overview = page.getByRole('region',{name:'最新の記録'})
+  await expect(overview).toContainText('70.3')
+  await expect(overview).toContainText('前回比 +0.2 kg')
+  await expect(overview).toContainText('未記録')
+  const trend = page.getByRole('region',{name:'推移'})
+  await expect(trend.locator('path.recharts-line-curve')).toHaveCount(2)
+  const refresh = page.getByRole('button',{name:'記録を再読み込み'})
+  expect(await refresh.innerText()).toBe('')
+  const overviewBox = (await overview.boundingBox())!
+  const trendBox = (await trend.boundingBox())!
+  const inputBox = (await page.getByRole('region',{name:'記録の入力'}).boundingBox())!
+  const historyBox = (await page.getByRole('region',{name:'最近の記録'}).boundingBox())!
+  const connectionBox = (await page.getByRole('region',{name:'ヘルスケア連携設定'}).boundingBox())!
+  expect(overviewBox.y).toBeLessThan(trendBox.y)
+  expect(trendBox.y).toBeLessThan(450)
+  expect(trendBox.y).toBeLessThan(inputBox.y)
+  expect(historyBox.y).toBeLessThan(connectionBox.y)
+  await expect(page.getByRole('button',{name:'ヘルスケア連携'})).toHaveAttribute('aria-expanded','false')
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+  await page.screenshot({path:'test-results/body-overview-mobile.png',fullPage:true})
+  await page.getByRole('button',{name:'ヘルスケア連携',exact:true}).click()
+  await expect(page.getByText('未接続',{exact:true})).toBeVisible()
+})

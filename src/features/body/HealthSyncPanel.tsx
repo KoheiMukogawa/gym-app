@@ -84,12 +84,13 @@ function OwnedHealthSyncPanel({ refreshVersion, onBusyChange }: Omit<Props, 'use
     }
   }
 
-  return <section className="rounded-2xl border border-border bg-surface" aria-label="ヘルスケア連携設定">
-    <button type="button" className="flex min-h-14 w-full items-center justify-between gap-2 px-4 text-left font-semibold"
+  return <section className="border-t border-border" aria-label="ヘルスケア連携設定">
+    <button type="button" className="flex min-h-14 w-full items-center justify-between gap-2 text-left text-sm font-medium text-muted"
       aria-expanded={open} aria-controls="health-sync-panel" disabled={busy} onClick={() => setOpen((value) => !value)}>
-      ヘルスケア連携<span aria-hidden="true">{open ? '−' : '＋'}</span>
+      ヘルスケア連携<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"
+        className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}><path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" /></svg>
     </button>
-    {open && <div id="health-sync-panel" className="flex min-w-0 flex-col gap-3 border-t border-border p-4">
+    {open && <div id="health-sync-panel" className="flex min-w-0 flex-col gap-3 pb-4 pt-2">
       <p className="text-sm text-muted">iPhoneショートカットから、指定した期間の体重・体脂肪率を取り込みます。</p>
       {loading ? <p className="text-sm" role="status">接続状態を確認中…</p> : status && <>
         <p className="text-sm font-semibold">{status.enabled ? '接続可能' : '未接続'}</p>

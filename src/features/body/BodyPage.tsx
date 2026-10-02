@@ -117,13 +117,71 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     return movingAverage(logs, metric).filter((point) => visibleDates.has(point.date))
   }, [logs, metric, visible])
   const unit = METRICS.find((m) => m.key === metric)!.unit
+  const latest = logs.at(-1)
+  const previous = logs.at(-2)
+  const weightChange = latest && previous ? latest.bodyweight_kg - previous.bodyweight_kg : null
 
-  return <div className="flex flex-col gap-5 p-4">
-    <h1 className="text-2xl font-semibold">体組成</h1>
-    <Button variant="ghost" disabled={loading || busy || deleting !== null || healthBusy} onClick={() => setAttempt((value) => value + 1)}>
-      {loading ? '読み込み中…' : '記録を再読み込み'}
-    </Button>
-    <HealthSyncPanel userId={userId} refreshVersion={attempt} onBusyChange={setHealthBusy} />
+  return <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+    <header className="flex items-center justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold">体組成</h1>
+        <p className="mt-1 text-sm text-muted">日々の変化を、ひと目で。</p>
+      </div>
+      <button type="button" aria-label="記録を再読み込み" title="記録を再読み込み"
+        disabled={loading || busy || deleting !== null || healthBusy}
+        onClick={() => setAttempt((value) => value + 1)}
+        className="flex min-h-14 min-w-14 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-fg disabled:opacity-40">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"
+          className={`h-5 w-5 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" />
+        </svg>
+      </button>
+    </header>
+
+    <section aria-label="最新の記録" className="flex flex-col gap-3">
+      <div className="flex items-center justify-between text-xs text-muted">
+        <h2>最新の記録</h2>
+        {!loading && !loadError && latest && <time dateTime={latest.recorded_on}>{latest.recorded_on}</time>}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <p className="text-sm text-muted">体重</p>
+          <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">
+            {loading ? '…' : loadError || !latest ? '—' : latest.bodyweight_kg}
+            <span className="ml-1 text-sm font-normal text-muted">kg</span>
+          </p>
+          {!loading && !loadError && weightChange !== null && <p className="mt-3 text-xs text-muted">
+            前回比 {weightChange > 0 ? '+' : ''}{weightChange.toFixed(1)} kg
+          </p>}
+        </div>
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <p className="text-sm text-muted">体脂肪率</p>
+          <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">
+            {loading ? '…' : loadError ? '—' : latest?.body_fat_pct ?? '—'}
+            <span className="ml-1 text-sm font-normal text-muted">%</span>
+          </p>
+          {!loading && !loadError && latest?.body_fat_pct == null && <p className="mt-3 text-xs text-muted">未記録</p>}
+        </div>
+      </div>
+    </section>
+
+    <section className="flex flex-col gap-3" aria-label="推移">
+      <h2 className="text-sm font-semibold">推移</h2>
+      <div className="flex border-b border-border">
+        {METRICS.map((m) => <button key={m.key} type="button" aria-pressed={metric === m.key}
+          className={`min-h-14 flex-1 text-sm ${metric === m.key ? 'border-b-2 border-accent text-fg' : 'text-muted'}`}
+          onClick={() => setMetric(m.key)}>{m.label}</button>)}
+      </div>
+      <div className="flex gap-2">
+        {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
+          className={`min-h-14 flex-1 rounded-xl border text-sm ${months === p.months ? 'border-accent text-fg' : 'border-border text-muted'}`}
+          onClick={() => { setMonths(p.months); setListLimit(50) }}>{p.label}</button>)}
+      </div>
+      {loading ? <Spinner /> : loadError ? null : points.length === 0
+        ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
+        : <BodyTrendChart points={points} unit={unit} showYear={months === null} />}
+      <p className="text-xs text-muted">細い線は日々の記録、太い線は7日平均。</p>
+    </section>
 
     <section className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4" aria-label="記録の入力">
       <div className="flex items-baseline justify-between gap-2">
@@ -141,28 +199,11 @@ function OwnedBodyPage({ userId }: { userId: string }) {
             onChange={(e) => { setFat(e.target.value); setSaved(false); setError(null) }} className={field} />
         </label>
       </div>
-      <p className="text-xs text-muted">体脂肪率は任意です。同じ日に入れ直すと上書きされます。</p>
+      <p className="text-xs text-muted">体脂肪率は任意。同じ日付の記録は更新されます。</p>
       {loadError && <p role="alert" className="text-sm text-accent">{loadError}</p>}
       {error && <p role="alert" className="text-sm text-accent">{error}</p>}
       <Button onClick={() => void save()} disabled={busy || loading || loadError !== null || deleting !== null || !weight.trim()}>{busy ? '保存中…' : '記録する'}</Button>
       {saved && <p role="status" className="text-sm">記録しました</p>}
-    </section>
-
-    <section className="flex flex-col gap-3" aria-label="推移">
-      <div className="flex border-b border-border">
-        {METRICS.map((m) => <button key={m.key} type="button" aria-pressed={metric === m.key}
-          className={`min-h-14 flex-1 text-sm ${metric === m.key ? 'border-b-2 border-accent text-fg' : 'text-muted'}`}
-          onClick={() => setMetric(m.key)}>{m.label}</button>)}
-      </div>
-      <div className="flex gap-2">
-        {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
-          className={`min-h-14 flex-1 rounded-xl border text-sm ${months === p.months ? 'border-accent text-fg' : 'border-border text-muted'}`}
-          onClick={() => { setMonths(p.months); setListLimit(50) }}>{p.label}</button>)}
-      </div>
-      {loading ? <Spinner /> : loadError ? null : points.length === 0
-        ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
-        : <BodyTrendChart points={points} unit={unit} showYear={months === null} />}
-      <p className="text-xs text-muted">細い線がその日の記録、太い線が7日移動平均です。体重は日々ぶれるので、増減は太い線で読みます。</p>
     </section>
 
     <section className="flex flex-col gap-2" aria-label="最近の記録">
@@ -191,6 +232,8 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       {!loading && !loadError && visible.length > 0 && <p className="text-xs text-muted">{Math.min(listLimit, visible.length)} / {visible.length}件を表示</p>}
       <p className="text-center text-xs text-muted">タップで修正、左にスワイプで削除</p>
     </section>
+
+    <HealthSyncPanel userId={userId} refreshVersion={attempt} onBusyChange={setHealthBusy} />
 
     {!loading && loadError && <Button variant="ghost" onClick={() => setAttempt((n) => n + 1)}>再試行</Button>}
   </div>
