@@ -13,7 +13,7 @@
 - Health同期のTasks1〜5をローカル実装: 個人トークン管理、期間バッチEdge、折り畳み接続UIと日本語Shortcut手順、全期間グラフと1000件ずつの履歴取得・50件ずつの一覧
 - Health同期の本番migration/Function/アプリ公開とiPhone実機確認は未実施。具体的な適用・停止手順は `docs/health-sync-release.md`
 - DOTSランキングをローカル実装: 記録日の前後14日以内の体重で種目ごとにDOTSを出し、全体・コミュニティにDOTSタブ、プロフィールで参加と係数を設定。設計は `docs/superpowers/specs/2026-10-02-dots-ranking-design.md`
-- DOTSのmigration `20261002120000_dots_ranking.sql` は本番未適用。既存の `global_ranking` / `community_ranking` を置き換えるため、適用は本人の明示許可後に行う
+- DOTSのmigrationは2026-10-02に本番適用済み（本番の履歴名 `dots_ranking`）。適用前後で全体・コミュニティのkgランキング結果が一致、`big3_member_stats` / `dots_points` はanon/authenticatedから実行不可を確認。アプリのpush・デプロイは未実施
 
 ## Task 15/16 で追加したもの
 
