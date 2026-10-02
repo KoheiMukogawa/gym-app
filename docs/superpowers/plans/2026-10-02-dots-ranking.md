@@ -996,6 +996,9 @@ Expected: 全テストPASS
 Run: `npm run build`
 Expected: 成功
 
+Run: `npx playwright test --config playwright.mock.config.ts`
+Expected: 全テストPASS。`tests/e2e/community.spec.ts` のモックは `global_ranking` / `community_ranking` に `dots` を返さないが、BIG3合計タブは影響を受けない。プロフィール画面の保存を通るE2Eが `save_dots_settings` 未対応で失敗した場合は、そのspecのルート処理に `if(endpoint==='save_dots_settings') return send(null)` を追加する
+
 失敗した場合は該当タスクに戻って直す。出力は省略せずに報告に含める。
 
 - [ ] **Step 2: 引き継ぎメモを更新する**
