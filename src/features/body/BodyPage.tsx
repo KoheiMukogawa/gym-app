@@ -208,7 +208,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     </section>
 
     {notice && <p role="status" className="text-sm">{notice}</p>}
-    <HealthSyncPanel userId={userId} refreshVersion={attempt} onBusyChange={setHealthBusy} />
+    <HealthSyncPanel userId={userId} refreshVersion={attempt} onBusyChange={setHealthBusy} onReload={() => setAttempt((value) => value + 1)} />
 
     {!loading && loadError && <div className="space-y-3">
       <p role="alert" className="text-sm text-accent">{loadError}</p>
