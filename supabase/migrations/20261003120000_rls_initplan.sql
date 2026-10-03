@@ -79,4 +79,8 @@ alter policy sets_delete_own on public.workout_sets
 -- Covers the owner foreign key (Supabase lint 0001_unindexed_foreign_keys).
 create index if not exists communities_owner_id_idx on public.communities (owner_id);
 
+-- A direct table update could opt in to DOTS without a formula; save_dots_settings already refuses that.
+alter table public.community_profiles
+  add constraint community_profiles_dots_formula_required check (not dots_opt_in or dots_formula is not null);
+
 notify pgrst, 'reload schema';

@@ -40,5 +40,10 @@ do $$ begin
   end;
   insert into public.workout_sets(workout_id, exercise_id, set_index, weight_kg, reps)
    select 'f2000000-0000-4000-8000-000000000001', id, 2, 60, 5 from public.exercises where is_preset limit 1;
+  begin
+    update public.community_profiles set dots_opt_in=true, dots_formula=null where user_id='f0000000-0000-4000-8000-000000000001';
+    raise exception 'opted in to DOTS without a formula';
+  exception when check_violation then null;
+  end;
 end $$;
 rollback;
