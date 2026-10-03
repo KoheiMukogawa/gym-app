@@ -124,7 +124,7 @@ describe('StrengthPage', () => {
     fetchStrengthSnapshot.mockResolvedValue(mapped)
     renderPage()
     expect(await screen.findByText('500')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /デッドリフト 詳細/ })).toHaveAttribute('href', '/exercises/conventional')
+    expect(screen.queryByRole('link', { name: /詳細/ })).not.toBeInTheDocument()
     expect(screen.getByText('コンベンショナルデッドリフト')).toBeInTheDocument()
     expect(saveBig3ExerciseMapping).not.toHaveBeenCalled()
   })

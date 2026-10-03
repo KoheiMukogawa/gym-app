@@ -37,6 +37,12 @@ input, textarea, select {
   outline-offset: 3px;
 }
 
+/* Recharts makes its chart surface focusable, so a tap left the browser's blue focus ring around the chart. */
+.recharts-wrapper:focus,
+.recharts-wrapper :focus {
+  outline: none;
+}
+
 /* Opaque fallback preserves contrast when background blur is unavailable. */
 .glass-navigation {
   background: rgba(28, 28, 32, 0.96);

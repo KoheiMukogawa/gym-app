@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
@@ -30,7 +30,7 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
     <div className="rounded-xl border border-border bg-surface p-4">
       <div className="mb-3 flex items-center justify-between">
         <div className="min-w-0">
-          {lift.exerciseId ? <Link to={`/exercises/${lift.exerciseId}`} className="flex min-h-14 items-center gap-3"><h2 className="font-semibold">{lift.label}</h2><span className="text-xs text-muted">詳細 →</span></Link> : <h2 className="font-semibold">{lift.label}</h2>}
+          <h2 className="font-semibold">{lift.label}</h2>
           <p className="break-words text-xs text-muted">{lift.exerciseName ?? '対象種目が見つかりません'}</p>
         </div>
       </div>
