@@ -56,11 +56,9 @@ function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goal: Stre
   </Link>
 }
 
-/** Keep the home card's shortcut to editing today's record. */
+/** Names open progress; tapping the set rows still edits today's record. */
 function TodayWorkout({ item, bodyweight }: { item: FeedItem; bodyweight: number | null }) {
-  return <Link to={`/history/${item.workout_id}`} aria-label="今日の記録を編集" className="block">
-    <WorkoutSetDetails item={item} bodyweight={bodyweight} />
-  </Link>
+  return <WorkoutSetDetails item={item} bodyweight={bodyweight} editHref={`/history/${item.workout_id}`} />
 }
 export function HomePage() {
   const { userId } = useSession()

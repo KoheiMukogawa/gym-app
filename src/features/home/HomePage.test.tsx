@@ -50,8 +50,10 @@ describe('HomePage', () => {
     expect(await within(todaySection).findByText('ベンチプレス')).toBeInTheDocument()
     // 80 kg × 5 → Brzycki 80 × 36 / 32 = 90
     expect(within(todaySection).getByText('90')).toBeInTheDocument()
-    expect(within(todaySection).getByRole('listitem')).toHaveTextContent('180.0 kg× 5 reps')
+    expect(within(todaySection).getByRole('listitem')).toHaveTextContent('80.0 kg× 5 reps')
     expect(within(todaySection).getByRole('link', { name: '今日の記録を編集' })).toHaveAttribute('href', '/history/w-today')
+    expect(within(todaySection).getByRole('link', { name: 'ベンチプレス' })).toHaveAttribute('href', '/exercises/bench')
+    expect(todaySection.querySelector('a a')).toBeNull()
     const month = screen.getByRole('region', { name: '今月のトレーニング' })
     const trained = await within(month).findAllByRole('button', { name: /トレーニングあり/ })
     expect(trained).toHaveLength(today > 1 ? 2 : 1)

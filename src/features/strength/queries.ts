@@ -1,10 +1,10 @@
 import { supabase } from '../../lib/supabase'
-import { fetchExercises } from '../exercises/queries'
 import {
   buildStrengthSnapshot,
-  resolveBig3Exercises,
   type Big3ExerciseMapping,
   type LiftKey,
+  type StrengthExercise,
+  type StrengthSet,
   type StrengthSnapshot,
 } from './strengthSnapshot'
 
@@ -36,47 +36,22 @@ export async function saveBig3ExerciseMapping(
   if (error) throw error
 }
 
-type StrengthSetRow = {
-  exercise_id: string
-  weight_kg: number
-  reps: number
-  workouts: { performed_at: string }
+type Big3Data = {
+  exercises: StrengthExercise[]
+  mappings: Big3ExerciseMapping[]
+  sets: StrengthSet[]
 }
 
-export async function fetchStrengthSnapshot(userId: string): Promise<StrengthSnapshot> {
-  const [exercises, mappings] = await Promise.all([
-    fetchExercises(),
-    fetchBig3ExerciseMappings(userId),
-  ])
-  const resolved = resolveBig3Exercises(exercises, mappings)
-  const exerciseIds = [...new Set(Object.values(resolved)
-    .flatMap((exercise) => exercise ? [exercise.id] : []))]
-  const rows: StrengthSetRow[] = []
-
-  // Fetch the complete history, including PRs beyond PostgREST's first page.
-  if (exerciseIds.length > 0) {
-    const pageSize = 1000
-    for (let offset = 0; ; offset += pageSize) {
-      const { data, error } = await supabase
-        .from('workout_sets')
-        .select('exercise_id, weight_kg, reps, workouts!inner(user_id, performed_at)')
-        .in('exercise_id', exerciseIds)
-        .eq('workouts.user_id', userId)
-        .order('id', { ascending: true })
-        .range(offset, offset + pageSize - 1)
-      if (error) throw error
-      const page = (data ?? []) as unknown as StrengthSetRow[]
-      rows.push(...page)
-      if (page.length < pageSize) break
-    }
+// Keep the existing caller signature; the RPC derives ownership from auth.uid(),
+// never from a caller-supplied user ID. Aggregation remains in TypeScript.
+export async function fetchStrengthSnapshot(_userId: string): Promise<StrengthSnapshot> {
+  const { data, error } = await supabase.rpc('my_big3_data')
+  if (error) throw error
+  const result = data as Big3Data | null
+  if (!result || !Array.isArray(result.exercises) || !Array.isArray(result.mappings) || !Array.isArray(result.sets)) {
+    throw new Error('BIG3の記録を取得できませんでした')
   }
-
-  return buildStrengthSnapshot(exercises, mappings, rows.map((row) => ({
-    exercise_id: row.exercise_id,
-    weight_kg: row.weight_kg,
-    reps: row.reps,
-    performed_at: row.workouts.performed_at,
-  })))
+  return buildStrengthSnapshot(result.exercises, result.mappings, result.sets)
 }
 
 export type StrengthGoal = {
