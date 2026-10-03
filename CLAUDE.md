@@ -50,7 +50,7 @@
 
 ## 未完了の作業
 
-1. Supabaseダッシュボードで漏洩パスワード保護（Leaked password protection）をオンにする。ダッシュボード設定のためコードやSQLからは変更できない
+1. 漏洩パスワード保護（Leaked password protection）はProプラン限定のため無料プランでは使えない。advisorsの `auth_leaked_password_protection` 警告は既知として残す。代わりにダッシュボードの Authentication → パスワード設定で最小文字数を8（アプリの新規登録画面と同じ）にする
 2. 管理者アカウントの `profiles.display_name` が `mukougawakouhei`（メールのローカル部）のまま。SQLで更新すればよい（本番データなので本人の許可を取る）
 3. 筋トレMemoからの本人の記録移行。手順と注意は `docs/kintore-memo-migration.md`。
    次の一歩は本人から履歴画面のスクリーンショット1〜2枚と移行期間を受け取り、試し読みすること。本番への書き込み前に必ず本人の許可を取る
