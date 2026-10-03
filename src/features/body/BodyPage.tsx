@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '../../components/ui/Button'
+import { BottomSheet } from '../../components/ui/BottomSheet'
 import { FloatingRecordAction } from '../../components/ui/FloatingRecordAction'
 import { Spinner } from '../../components/ui/Spinner'
 import { combineTrends, latestSummary, parseBodyFat, withinPeriod } from '../../lib/bodyComposition'
@@ -31,7 +32,8 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [saved, setSaved] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [entryOpen, setEntryOpen] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   // null は今日の記録。過去の日をタップするとその日を直す
   const [editing, setEditing] = useState<string | null>(null)
@@ -39,6 +41,13 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   const [confirming, setConfirming] = useState(false)
   const [healthBusy, setHealthBusy] = useState(false)
   const weightInput = useRef<HTMLInputElement>(null)
+  const entryTrigger = useRef<HTMLButtonElement>(null)
+
+  function finishEntry() {
+    setEntryOpen(false)
+    setConfirming(false)
+    requestAnimationFrame(() => entryTrigger.current?.focus({ preventScroll: true }))
+  }
 
   function prefill(rows: BodyweightLog[]) {
     const latest = rows.at(-1)
@@ -53,7 +62,8 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     setLoadError(null)
     setError(null)
     setEditing(null)
-    setSaved(false)
+    setNotice(null)
+    setEntryOpen(false)
     setConfirming(false)
     fetchBodyweightLogs(userId)
       .then((rows) => {
@@ -69,14 +79,14 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   useEffect(() => load(), [load, attempt])
 
   async function save() {
-    if (!userId || busy) return
+    if (!userId || busy || loading || loadError !== null || deleting !== null || confirming) return
     const bodyweightKg = parseBodyweight(weight)
     if (bodyweightKg === null) { setError('体重は20〜300kgで入力してください'); return }
     const bodyFatPct = fat.trim() ? parseBodyFat(fat) : null
     if (fat.trim() && bodyFatPct === null) { setError('体脂肪率は1〜70%で入力してください'); return }
     setBusy(true)
     setError(null)
-    setSaved(false)
+    setNotice(null)
     try {
       const row = await saveBodyComposition(userId, editing ? { date: editing, bodyweightKg, bodyFatPct } : { bodyweightKg, bodyFatPct })
       const updated = [...logs.filter((l) => l.recorded_on !== row.recorded_on), row]
@@ -85,25 +95,27 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       prefill(updated)
       setEditing(null)
       setConfirming(false)
-      setSaved(true)
+      setNotice('記録しました')
+      finishEntry()
     } catch (e) { setError(toMessage(e)) }
     finally { setBusy(false) }
   }
 
   async function remove(recordedOn: string) {
-    if (!userId || deleting) return
+    if (!userId || deleting || busy || loading || loadError !== null || !confirming) return
     setDeleting(recordedOn)
     setError(null)
     try {
       await deleteBodyLog(userId, recordedOn)
       const updated = logs.filter((l) => l.recorded_on !== recordedOn)
       setLogs(updated)
-      setSaved(false)
+      setNotice('記録を削除しました')
       setConfirming(false)
       if (editing === null || editing === recordedOn) {
         setEditing(null)
         prefill(updated)
       }
+      finishEntry()
     } catch (e) { setError(toMessage(e)) }
     finally { setDeleting(null) }
   }
@@ -129,22 +141,26 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     setWeight(String(row.bodyweight_kg))
     setFat(row.body_fat_pct === null || row.body_fat_pct === undefined ? '' : String(row.body_fat_pct))
     setError(null)
-    setSaved(false)
+    setNotice(null)
     setConfirming(false)
+    setEntryOpen(true)
   }
   const onSelectDay = useCallback((date: string) => selectDay.current(date), [])
 
   function openTodayEntry() {
     if (locked) return
-    if (editing !== null) {
-      setEditing(null)
-      prefill(logs)
-      setError(null)
-      setSaved(false)
-      setConfirming(false)
-    }
-    weightInput.current?.scrollIntoView?.({ block: 'center' })
-    weightInput.current?.focus({ preventScroll: true })
+    setEditing(null)
+    prefill(logs)
+    setError(null)
+    setNotice(null)
+    setConfirming(false)
+    setEntryOpen(true)
+  }
+
+  function dismissEntry() {
+    if (busy || deleting !== null) return
+    setError(null)
+    finishEntry()
   }
 
   return <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 pb-20">
@@ -191,40 +207,45 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       <p className="text-xs text-muted">グラフをタップすると、その日の記録を修正・削除できます。</p>
     </section>
 
-    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4" aria-label="記録の入力">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">{editing ? editing.slice(5).replace('-', '/') : '今日'}の記録</h2>
-        {editing && <button type="button" className="min-h-14 text-sm text-muted" disabled={busy || loading || loadError !== null || deleting !== null}
-          onClick={() => { setEditing(null); prefill(logs); setError(null); setSaved(false); setConfirming(false) }}>今日に戻る</button>}
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-2 text-sm text-muted">体重（kg）
-          <input ref={weightInput} type="number" inputMode="decimal" min="20" max="300" step="0.1" value={weight} disabled={busy || loading || loadError !== null || deleting !== null}
-            onChange={(e) => { setWeight(e.target.value); setSaved(false); setError(null) }} className={field} />
-        </label>
-        <label className="flex flex-col gap-2 text-sm text-muted">体脂肪率（%）
-          <input type="number" inputMode="decimal" min="1" max="70" step="0.1" value={fat} disabled={busy || loading || loadError !== null || deleting !== null}
-            onChange={(e) => { setFat(e.target.value); setSaved(false); setError(null) }} className={field} />
-        </label>
-      </div>
-      <p className="text-xs text-muted">体脂肪率は任意。同じ日付の記録は更新されます。</p>
-      {loadError && <p role="alert" className="text-sm text-accent">{loadError}</p>}
-      {error && <p role="alert" className="text-sm text-accent">{error}</p>}
-      <Button onClick={() => void save()} disabled={busy || loading || loadError !== null || deleting !== null || !weight.trim()}>{busy ? '保存中…' : '記録する'}</Button>
-      {saved && <p role="status" className="text-sm">記録しました</p>}
-      {targetExists && !loading && !loadError && (confirming
-        ? <div className="flex gap-2">
-            <Button variant="danger" className="flex-1" disabled={busy || deleting !== null} onClick={() => void remove(target)}>{deleting ? '削除中…' : '削除する'}</Button>
-            <Button variant="ghost" className="flex-1" disabled={deleting !== null} onClick={() => setConfirming(false)}>やめる</Button>
-          </div>
-        : <button type="button" aria-label={`${target} の記録を削除`} className="min-h-14 text-sm text-muted disabled:opacity-40"
-            disabled={busy || deleting !== null} onClick={() => { setConfirming(true); setError(null); setSaved(false) }}>この日の記録を削除</button>)}
-    </section>
-
+    {notice && <p role="status" className="text-sm">{notice}</p>}
     <HealthSyncPanel userId={userId} refreshVersion={attempt} onBusyChange={setHealthBusy} />
 
-    {!loading && loadError && <Button variant="ghost" onClick={() => setAttempt((n) => n + 1)}>再試行</Button>}
-    <FloatingRecordAction label="体重を記録" onClick={openTodayEntry} disabled={locked} />
+    {!loading && loadError && <div className="space-y-3">
+      <p role="alert" className="text-sm text-accent">{loadError}</p>
+      <Button variant="ghost" onClick={() => setAttempt((n) => n + 1)}>再試行</Button>
+    </div>}
+    {entryOpen ? <BottomSheet title={editing ? editing.slice(5).replace('-', '/') + 'の記録' : '今日の記録'}
+      description={target} initialFocusRef={weightInput} dismissible={!busy && deleting === null} onDismiss={dismissEntry}>
+      <form aria-label="記録の入力" noValidate onSubmit={(event) => { event.preventDefault(); void save() }} className="flex min-h-0 flex-col">
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-5 pb-4">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-2 text-sm text-muted">体重（kg）
+              <input ref={weightInput} type="number" inputMode="decimal" min="20" max="300" step="0.1" value={weight} disabled={locked}
+                onChange={(event) => { setWeight(event.target.value); setError(null) }} className={field} />
+            </label>
+            <label className="flex flex-col gap-2 text-sm text-muted">体脂肪率（%）
+              <input type="number" inputMode="decimal" min="1" max="70" step="0.1" value={fat} disabled={locked}
+                onChange={(event) => { setFat(event.target.value); setError(null) }} className={field} />
+            </label>
+          </div>
+          <p className="text-xs text-muted">体脂肪率は任意。同じ日付の記録は更新されます。</p>
+        </div>
+        <footer className="flex shrink-0 flex-col gap-3 border-t border-border px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {error && <p role="alert" className="text-sm text-accent">{error}</p>}
+          {confirming ? <>
+            <p className="text-sm text-muted">{target} の記録を削除しますか？</p>
+            <div className="flex gap-2">
+              <Button variant="danger" className="flex-1" disabled={locked} onClick={() => void remove(target)}>{deleting ? '削除中…' : '削除する'}</Button>
+              <Button variant="ghost" className="flex-1" disabled={locked} onClick={() => { setConfirming(false); setError(null) }}>やめる</Button>
+            </div>
+          </> : <>
+            <Button type="submit" disabled={locked || !weight.trim()}>{busy ? '保存中…' : '記録する'}</Button>
+            {targetExists && <button type="button" aria-label={`${target} の記録を削除`} className="min-h-14 text-sm text-muted disabled:opacity-40"
+              disabled={locked} onClick={() => { setConfirming(true); setError(null) }}>この日の記録を削除</button>}
+          </>}
+        </footer>
+      </form>
+    </BottomSheet> : <FloatingRecordAction label="体重を記録" buttonRef={entryTrigger} onClick={openTodayEntry} disabled={locked} />}
   </div>
 }
 

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Ref } from 'react'
 import { Link } from 'react-router-dom'
 
 type Props = { label: string; ariaLabel?: string } & (
   | { to: string; onClick?: never; disabled?: never }
-  | { to?: never; onClick: () => void; disabled?: boolean }
+  | { to?: never; onClick: () => void; disabled?: boolean; buttonRef?: Ref<HTMLButtonElement> }
 )
 
 function isEditing(element: Element | null) {
@@ -44,6 +44,6 @@ export function FloatingRecordAction(props: Props) {
   return <div className="pointer-events-none fixed inset-x-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[calc(32rem-2rem)] justify-end">
     {props.to !== undefined
       ? <Link to={props.to} aria-label={props.ariaLabel} className={className}>{content}</Link>
-      : <button type="button" onClick={props.onClick} disabled={props.disabled} aria-label={props.ariaLabel} className={className}>{content}</button>}
+      : <button ref={props.buttonRef} type="button" onClick={props.onClick} disabled={props.disabled} aria-label={props.ariaLabel} className={className}>{content}</button>}
   </div>
 }

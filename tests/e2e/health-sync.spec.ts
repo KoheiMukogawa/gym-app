@@ -85,7 +85,7 @@ test('Health connection, historical sync, keep/overwrite and revoke use real mob
   const records=[{date:'2015-01-02',weight_kg:60,body_fat_pct:14},{date:'2015-01-03',weight_kg:62}]
   expect(await data.sync(credential,records)).toEqual({status:200,body:{inserted:2,updated:0,skipped:0}})
   await page.getByRole('button',{name:'記録を再読み込み',exact:true}).click()
-  await expect(page.getByLabel('体重（kg）')).toBeEnabled()
+  await expect(page.getByRole('button',{name:'体重を記録',exact:true})).toBeEnabled()
   await expect(page.getByText(/書き込み 2件/)).toBeVisible()
   await page.getByRole('button',{name:'全期間',exact:true}).click()
   const trend=page.getByRole('region',{name:'推移'})
@@ -106,7 +106,7 @@ test('Health connection, historical sync, keep/overwrite and revoke use real mob
   await inspect(0,'60 kg','14 %')
   expect(await data.sync(credential,[{date:'2015-01-02',weight_kg:64}], 'overwrite')).toEqual({status:200,body:{inserted:0,updated:1,skipped:0}})
   await page.getByRole('button',{name:'記録を再読み込み',exact:true}).click()
-  await expect(page.getByLabel('体重（kg）')).toBeEnabled()
+  await expect(page.getByRole('button',{name:'体重を記録',exact:true})).toBeEnabled()
   await inspect(0,'64 kg','14 %')
   await inspect(1,'62 kg','63 kg')
   await expect(page.getByText(/書き込み 1件/)).toBeVisible()
@@ -186,7 +186,7 @@ test('Health history reads more than 1000 rows and charts the earliest year',asy
   // The earliest day stays reachable: a tap on its dot opens it in the form.
   const first=dots.first();await first.scrollIntoViewIfNeeded();const box=(await first.boundingBox())!
   await page.mouse.click(box.x+box.width/2,box.y+box.height/2)
-  await expect(page.getByRole('region',{name:'記録の入力'})).toContainText('01/01の記録')
+  await expect(page.getByRole('dialog')).toContainText('01/01の記録')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   expect(errors).toEqual([])
 })
@@ -212,15 +212,14 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
   expect(await refresh.innerText()).toBe('')
   const overviewBox = (await overview.boundingBox())!
   const trendBox = (await trend.boundingBox())!
-  const inputBox = (await page.getByRole('region',{name:'記録の入力'}).boundingBox())!
+  await expect(page.getByLabel('体重（kg）')).toHaveCount(0)
   const connectionBox = (await page.getByRole('region',{name:'ヘルスケア連携設定'}).boundingBox())!
   // The latest values are the chart's legend: inside the trend section, above the plot.
   const plotBox = (await trend.locator('svg.recharts-surface').boundingBox())!
   expect(overviewBox.y).toBeGreaterThanOrEqual(trendBox.y)
   expect(overviewBox.y + overviewBox.height).toBeLessThanOrEqual(plotBox.y)
   expect(trendBox.y).toBeLessThan(450)
-  expect(trendBox.y).toBeLessThan(inputBox.y)
-  expect(inputBox.y).toBeLessThan(connectionBox.y)
+  expect(trendBox.y).toBeLessThan(connectionBox.y)
   await expect(page.getByRole('region',{name:'最近の記録'})).toHaveCount(0)
   await expect(page.getByRole('button',{name:'ヘルスケア連携'})).toHaveAttribute('aria-expanded','false')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)

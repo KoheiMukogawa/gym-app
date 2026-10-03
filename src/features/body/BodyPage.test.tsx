@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { BodyPage } from './BodyPage'
@@ -29,6 +29,17 @@ const today = new Date().toLocaleDateString('sv-SE')
 const previousDay = new Date(today + 'T12:00:00')
 previousDay.setDate(previousDay.getDate() - 1)
 const pastDate = previousDay.toLocaleDateString('sv-SE')
+// jsdom does not implement the browser's modal top layer. Focus containment and
+// backdrop interaction are covered by the mobile browser tests.
+Object.defineProperties(HTMLDialogElement.prototype, {
+  showModal: { configurable: true, value() { this.setAttribute('open', '') } },
+  close: { configurable: true, value() { this.removeAttribute('open') } },
+})
+const openToday = async () => {
+  await waitFor(() => expect(screen.getByRole('button', { name: '体重を記録' })).toBeEnabled())
+  await userEvent.click(screen.getByRole('button', { name: '体重を記録' }))
+  await screen.findByRole('dialog', { name: '今日の記録' })
+}
 const renderPage = async () => {
   render(<MemoryRouter><BodyPage /></MemoryRouter>)
   await waitFor(() => expect(fetchBodyweightLogs).toHaveBeenCalled())
@@ -60,6 +71,7 @@ describe('BodyPage', () => {
 
   it('records weight alone when body fat is left empty', async () => {
     await renderPage()
+    await openToday()
     await userEvent.type(await screen.findByLabelText('体重（kg）'), '70')
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
     await waitFor(() => expect(saveBodyComposition).toHaveBeenCalledWith('u1', { bodyweightKg: 70, bodyFatPct: null }))
@@ -67,15 +79,32 @@ describe('BodyPage', () => {
 
   it('refuses a weight outside the allowed range', async () => {
     await renderPage()
+    await openToday()
     await userEvent.type(await screen.findByLabelText('体重（kg）'), '5')
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('体重')
     expect(saveBodyComposition).not.toHaveBeenCalled()
   })
 
+  it('keeps the sheet open while saving and closes it only after success', async () => {
+    const pending = deferred<{ recorded_on: string; bodyweight_kg: number; body_fat_pct: null }>()
+    saveBodyComposition.mockReturnValueOnce(pending.promise)
+    await renderPage()
+    await openToday()
+    await userEvent.type(screen.getByLabelText('体重（kg）'), '70')
+    await userEvent.click(screen.getByRole('button', { name: '記録する' }))
+    expect(screen.getByRole('button', { name: '入力を閉じる' })).toBeDisabled()
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    await act(async () => pending.resolve({ recorded_on: today, bodyweight_kg: 70, body_fat_pct: null }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('記録しました')
+  })
+
   it('prefills the latest values so an unchanged day is one tap', async () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
+    await openToday()
     expect(await screen.findByLabelText('体重（kg）')).toHaveValue(69.8)
     expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(16)
   })
@@ -84,7 +113,7 @@ describe('BodyPage', () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
     await userEvent.click(await screen.findByRole('button', { name: pastDate + ' の記録を修正' }))
-    expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent(pastDate.slice(5).replace('-', '/') + 'の記録')
+    expect(screen.getByRole('dialog')).toHaveTextContent(pastDate.slice(5).replace('-', '/') + 'の記録')
 
     const weight = screen.getByLabelText('体重（kg）')
     await userEvent.clear(weight)
@@ -92,22 +121,25 @@ describe('BodyPage', () => {
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
 
     await waitFor(() => expect(saveBodyComposition).toHaveBeenCalledWith('u1', { date: pastDate, bodyweightKg: 69.5, bodyFatPct: 16 }))
-    // 保存したら今日の入力に戻る
-    expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent('今日')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await openToday()
+    expect(screen.getByRole('dialog')).toHaveTextContent('今日')
   })
 
-  it('opens today from the floating action while viewing a past record without saving it', async () => {
+  it('dismisses a past entry without saving and opens today from the floating action', async () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
     await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
-    await userEvent.click(screen.getByRole('button', { name: '体重を記録' }))
-    expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent('今日の記録')
+    await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
+    await openToday()
+    expect(screen.getByRole('dialog')).toHaveTextContent('今日の記録')
     expect(screen.getByLabelText('体重（kg）')).toHaveFocus()
     expect(saveBodyComposition).not.toHaveBeenCalled()
     await userEvent.tab()
     expect(screen.queryByRole('button', { name: '体重を記録' })).not.toBeInTheDocument()
-    await userEvent.tab()
-    expect(await screen.findByRole('button', { name: '体重を記録' })).toBeInTheDocument()
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: '体重を記録' })).toHaveFocus())
   })
 
   it('keeps a retryable error on screen when loading fails', async () => {
@@ -116,7 +148,7 @@ describe('BodyPage', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '再試行' })).toBeInTheDocument()
     expect(screen.queryByText('この期間の記録はありません')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '記録する' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '体重を記録' })).toBeDisabled()
     fetchBodyweightLogs.mockResolvedValue([])
     await userEvent.click(screen.getByRole('button', { name: '再試行' }))
     expect(await screen.findByText('この期間の記録はありません')).toBeInTheDocument()
@@ -130,14 +162,18 @@ describe('BodyPage', () => {
     await renderPage()
     const past = await screen.findByRole('button', { name: pastDate + ' の記録を修正' })
     await userEvent.click(past)
-    await userEvent.click(screen.getByRole('button', { name: '今日に戻る' }))
+    await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
+    await openToday()
     expect(screen.getByLabelText('体重（kg）')).toHaveValue(71)
     expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(17)
+    await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
     await userEvent.click(past)
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
-    await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(71))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await openToday()
+    expect(screen.getByLabelText('体重（kg）')).toHaveValue(71)
     expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(17)
-    expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent('今日')
+    expect(screen.getByRole('dialog')).toHaveTextContent('今日')
   })
 
   it('includes preceding records in the seven-day average at the period boundary', async () => {
@@ -196,6 +232,7 @@ describe('BodyPage', () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: today, bodyweight_kg: 70, body_fat_pct: null }])
     deleteBodyLog.mockRejectedValueOnce(new Error('delete failed')).mockResolvedValue(undefined)
     await renderPage()
+    await openToday()
     await userEvent.click(await screen.findByRole('button', { name: today + ' の記録を削除' }))
     expect(deleteBodyLog).not.toHaveBeenCalled()
     const confirm = screen.getByRole('button', { name: '削除する' })
@@ -211,6 +248,7 @@ describe('BodyPage', () => {
   it('retains input and entries after a failed save', async () => {
     saveBodyComposition.mockRejectedValueOnce(new Error('save failed'))
     await renderPage()
+    await openToday()
     await userEvent.type(await screen.findByLabelText('体重（kg）'), '70')
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('エラーが発生しました')
@@ -226,7 +264,9 @@ it('reloads externally synced records and exposes ancient graph and list', async
   await renderPage()
   fetchBodyweightLogs.mockResolvedValue([{ recorded_on: '2015-01-02', bodyweight_kg: 65, body_fat_pct: 14 }])
   await userEvent.click(screen.getByRole('button', { name: '記録を再読み込み' }))
+  await openToday()
   await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(65))
+  await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
   await userEvent.click(screen.getByRole('button', { name: '全期間' }))
   expect(JSON.parse(screen.getByTestId('trend-points').textContent!)).toEqual([{ date:'2015-01-02', weight:65, weightAverage:65, fat:14, fatAverage:14 }])
   expect(screen.getByRole('button', { name: '2015-01-02 の記録を修正' })).toBeInTheDocument()
@@ -240,7 +280,7 @@ it('removes the record list; past days are reached from the chart', async () => 
   expect(screen.queryByRole('region', { name: '最近の記録' })).not.toBeInTheDocument()
   expect(screen.getByText('グラフをタップすると、その日の記録を修正・削除できます。')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
-  const form = screen.getByRole('region', { name: '記録の入力' })
+  const form = screen.getByRole('dialog')
   expect(within(form).getByRole('heading')).toHaveTextContent(pastDate.slice(5).replace('-', '/') + 'の記録')
   expect(screen.getByLabelText('体重（kg）')).toHaveValue(70)
   await userEvent.click(within(form).getByRole('button', { name: pastDate + ' の記録を削除' }))
@@ -250,6 +290,7 @@ it('removes the record list; past days are reached from the chart', async () => 
   await userEvent.click(within(form).getByRole('button', { name: '削除する' }))
   await waitFor(() => expect(deleteBodyLog).toHaveBeenCalledWith('u1', pastDate))
   await waitFor(() => expect(screen.queryByRole('button', { name: pastDate + ' の記録を修正' })).not.toBeInTheDocument())
+  await openToday()
   expect(screen.getByLabelText('体重（kg）')).toHaveValue(71)
 })
 
@@ -272,23 +313,25 @@ describe('BodyPage account changes', () => {
     const pending = deferred<typeof ownerBRows>()
     fetchBodyweightLogs.mockResolvedValueOnce(ownerARows).mockReturnValueOnce(pending.promise)
     const view = render(page())
+    await openToday()
     await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(70))
+    await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
     await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
 
     session.userId = 'u2'
     view.rerender(page())
-    expect(screen.getByLabelText('体重（kg）')).toHaveValue(null)
-    expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(null)
-    expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent('今日')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('体重（kg）')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('体脂肪率（%）')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: pastDate + ' の記録を修正' })).not.toBeInTheDocument()
     expect(fetchBodyweightLogs).toHaveBeenLastCalledWith('u2')
 
     await act(async () => pending.reject(new Error('owner B fetch failed')))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(screen.getByLabelText('体重（kg）')).toHaveValue(null)
-    expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(null)
+    expect(screen.queryByLabelText('体重（kg）')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('体脂肪率（%）')).not.toBeInTheDocument()
     expect(screen.queryByTestId('trend-points')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '記録する' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '体重を記録' })).toBeDisabled()
   })
 
   it('keeps the new owner data when the old owner save completes late', async () => {
@@ -296,12 +339,14 @@ describe('BodyPage account changes', () => {
     fetchBodyweightLogs.mockResolvedValueOnce(ownerARows).mockResolvedValueOnce(ownerBRows)
     saveBodyComposition.mockReturnValueOnce(pending.promise)
     const view = render(page())
+    await openToday()
     await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(70))
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
     expect(saveBodyComposition).toHaveBeenCalledWith('u1', { bodyweightKg: 70, bodyFatPct: 16 })
 
     session.userId = 'u2'
     view.rerender(page())
+    await openToday()
     await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(81))
     await act(async () => pending.resolve({ recorded_on: today, bodyweight_kg: 71, body_fat_pct: 17 }))
     expect(screen.getByLabelText('体重（kg）')).toHaveValue(81)
@@ -317,6 +362,7 @@ describe('BodyPage account changes', () => {
     fetchBodyweightLogs.mockResolvedValueOnce(ownerARows).mockResolvedValueOnce(ownerBRows)
     deleteBodyLog.mockReturnValueOnce(pending.promise)
     const view = render(page())
+    await openToday()
     await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(70))
     await userEvent.click(screen.getByRole('button', { name: today + ' の記録を削除' }))
     await userEvent.click(screen.getByRole('button', { name: '削除する' }))
@@ -324,6 +370,7 @@ describe('BodyPage account changes', () => {
 
     session.userId = 'u2'
     view.rerender(page())
+    await openToday()
     await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(81))
     await act(async () => pending.resolve())
     expect(screen.getByLabelText('体重（kg）')).toHaveValue(81)
