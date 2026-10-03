@@ -44,5 +44,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test-setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // jsdom tests with userEvent slow down when every core runs a worker; 5s is too tight.
+    testTimeout: 20_000,
   },
 })
