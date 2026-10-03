@@ -278,10 +278,10 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   expect(data.sets[0].weight_kg).toBe(62.5)
   expect(data.sets[0].reps).toBe(8)
   await page.screenshot({ path: 'test-results/log-mobile.png', fullPage: true })
-  await expect(page.getByText('推定1RM', { exact: false })).toBeVisible()
+  // The recorded set shows its own estimated 1RM: 62.5kg × 8.
+  await expect(page.getByText('推定1RM 77.6', { exact: true })).toBeVisible()
   await page.getByRole('spinbutton', { name: '重量', exact: true }).fill('80')
   await page.getByRole('spinbutton', { name: '回数', exact: true }).fill('6')
-  await expect(page.getByText('92.9 kg', { exact: true })).toBeVisible()
   await page.getByRole('link', { name: '履歴', exact: true }).click()
   await page.getByRole('link', { name: 'ホーム', exact: true }).click()
   await page.getByRole('link', { name: /続きを記録|記録する/ }).click()
@@ -291,9 +291,6 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await wheel.hover()
   await page.mouse.wheel(0,80)
   await expect(page.getByRole('spinbutton',{name:'重量',exact:true})).toHaveValue('85')
-  // 重量を変えると回数が提案値に入れ替わるので、推定1RMの表示を見るために戻す
-  await page.getByRole('spinbutton',{name:'回数',exact:true}).fill('6')
-  await expect(page.getByText('98.7 kg',{exact:true})).toBeVisible()
   await page.screenshot({path:'test-results/log-mobile-redesigned.png',fullPage:true})
   await page.getByRole('button', { name: 'プロフィールメニュー', exact: true }).click()
   await expect(page.getByRole('button', { name: 'ログアウト', exact: true })).toBeVisible()
@@ -604,10 +601,15 @@ test('history calendar changes month by swiping left and right', async ({ page }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
-test('memo field is iOS-zoom safe and grows so long text stays visible', async ({ page }) => {
+test('set memo field is iOS-zoom safe and grows so long text stays visible', async ({ page }) => {
   const data = await mockApi(page)
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
-  const memo = page.getByPlaceholder(/メモ（任意）/)
+  // The entry area has no memo field; memos are added to a recorded set.
+  await expect(page.getByPlaceholder(/メモ（任意）/)).toHaveCount(0)
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets.length).toBe(1)
+  await page.getByRole('button', { name: /のメモを追加/ }).click()
+  const memo = page.getByRole('textbox', { name: 'セットのメモ' })
 
   // iOS zooms the page when a focused field is under 16px.
   const fontSize = await memo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
@@ -620,13 +622,10 @@ test('memo field is iOS-zoom safe and grows so long text stays visible', async (
   // Every line is visible: nothing is scrolled out of view.
   expect(await memo.evaluate((el: HTMLTextAreaElement) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1)
 
-  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await page.getByRole('button', { name: '保存', exact: true }).click()
   await expect.poll(() => data.sets[0]?.note).toContain('肩甲骨')
   // The saved memo keeps its line break on screen.
   await expect(page.getByText('肩甲骨を寄せたまま下ろし', { exact: false })).toBeVisible()
-  // The field is clear and back to one line for the next set.
-  await expect(memo).toHaveValue('')
-  expect((await memo.boundingBox())!.height).toBe(oneLine)
 })
 
 test('the record tab is gone and reps are filled from records, then from an estimate', async ({ page }) => {
@@ -656,12 +655,10 @@ test('the record tab is gone and reps are filled from records, then from an esti
   // 80kg にすると、その重量の自己ベストである8回に切り替わる
   await weight.fill('80')
   await expect(reps).toHaveValue('8')
-  await expect(page.getByText('この重量の自己ベスト')).toContainText('8')
 
   // 挙げたことのない重量は、推定1RM（80kg×8 から約99.3kg）から逆算する
   await weight.fill('85')
   await expect(reps).toHaveValue('6')
-  await expect(page.getByText("この重量の目安")).toContainText("これまでの記録から")
   // 推定1RMを超える重量は1回
   await weight.fill('100')
   await expect(reps).toHaveValue('1')

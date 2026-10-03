@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { findPrefill, suggestReps } from '../../lib/calc'
+import { findPrefill } from '../../lib/calc'
 import { validateSet } from '../../lib/dates'
 import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { WheelNumber } from '../../components/ui/WheelNumber'
-import { estimateOneRepMax } from '../../lib/strength'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from '../auth/SessionProvider'
@@ -27,7 +26,6 @@ import {
   updateSetNote,
 } from './queries'
 import { SetList } from './SetList'
-import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 import { formatAddedLoad, latestBodyweight, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs, parseBodyweight, saveBodyweight } from '../profile/bodyweightQueries'
 
@@ -100,7 +98,6 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const [offline, setOffline] = useState(isOffline())
   const [finishing, setFinishing] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [memo, setMemo] = useState('')
   const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>([])
   const [bodyweightDraft, setBodyweightDraft] = useState('')
   const [editingBodyweight, setEditingBodyweight] = useState(false)
@@ -191,12 +188,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   // 自重種目は体重分までのアシスト（マイナス）を許す
   const minWeight = isBodyweight && bodyweight !== null ? -bodyweight : 0
   const load = isBodyweight ? totalLoad(state.weight_kg, bodyweight) : state.weight_kg
-  const estimated = load === null ? null : estimateOneRepMax(load, state.reps)
   const loadOffset = isBodyweight ? bodyweight ?? 0 : 0
-  // この重量で狙う回数。実績があればその最大、無ければ推定1RMからの逆算。
-  // 回数の初期値になるので、根拠として画面にも出す。
-  const suggestion = state.currentExerciseId === null ? null
-    : suggestReps([...history, ...state.sets], state.currentExerciseId, state.weight_kg, loadOffset)
 
   async function handleSaveBodyweight() {
     const value = parseBodyweight(bodyweightDraft)
@@ -332,11 +324,10 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
     try { validateSet(state.weight_kg, state.reps, minWeight) }
     catch (e) { show(toMessage(e)); return }
     const id = crypto.randomUUID()
-    const note = memo.trim() ? memo.trim().slice(0, 200) : null
-    const set = nextSet(state, id, note)
+    // Memos are added afterwards by tapping the recorded set.
+    const set = nextSet(state, id, null)
     if (set === null) return
-    dispatch({ type: 'complete-set', id, note })
-    setMemo('')
+    dispatch({ type: 'complete-set', id, note: null })
     void persist(set)
   }
 
@@ -542,6 +533,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
           onRetry={handleRetry}
           deletingId={deletingId}
           bodyweightIds={bodyweightIds}
+          bodyweight={bodyweight}
         />
       </div>
 
@@ -578,17 +570,6 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
           体重 {bodyweight} kg {formatAddedLoad(state.weight_kg) === '自重' ? '' : formatAddedLoad(state.weight_kg).replace('+', '＋ ').replace('−', '− ')} ＝ 総重量 <strong className="text-fg tabular-nums">{load} kg</strong>
           <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
         </p>}
-        {suggestion && <p className="mb-2 text-center text-xs text-muted" aria-live="polite">
-          {suggestion.source === 'record' ? 'この重量の自己ベスト ' : 'この重量の目安 '}
-          <strong className="text-fg tabular-nums">{suggestion.reps}</strong> 回
-          {suggestion.source === 'estimate' && <span className="ml-1">（これまでの記録から）</span>}
-        </p>}
-        <label className="mb-3 block">
-          <span className="sr-only">メモ（任意）</span>
-          <AutoGrowTextarea maxLength={200} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="メモ（任意）例: フォーム意識"
-            className="min-h-12 w-full rounded-xl border border-border bg-surface px-4 py-3 text-fg" />
-        </label>
-        <p className="mb-4 text-center text-sm text-muted" aria-live="polite">推定1RM <strong className="ml-2 text-xl text-fg tabular-nums">{estimated === null ? '—' : estimated + ' kg'}</strong>{state.reps>10&&<span className="ml-2 text-xs">1〜10回で換算</span>}</p>
         </>}
         <Button size="lg" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
           {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}

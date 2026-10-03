@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { SwipeRow } from '../../components/SwipeRow'
 import type { LoggedSet } from './logReducer'
 import type { SetStatus } from './persistence'
-import { formatAddedLoad } from '../../lib/bodyweight'
+import { formatAddedLoad, totalLoad } from '../../lib/bodyweight'
+import { estimateOneRepMax } from '../../lib/strength'
 import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 
 type Props = {
@@ -15,9 +16,11 @@ type Props = {
   onNote?: (id: string, note: string) => Promise<void>
   deletingId: string | null
   bodyweightIds?: string[]
+  /** Today's bodyweight, so bodyweight sets can show their estimated 1RM. */
+  bodyweight?: number | null
 }
 
-export function SetList({ sets, exerciseNames, status, onDelete, onRetry, onNote, deletingId, bodyweightIds = [] }: Props) {
+export function SetList({ sets, exerciseNames, status, onDelete, onRetry, onNote, deletingId, bodyweightIds = [], bodyweight = null }: Props) {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
@@ -38,6 +41,8 @@ export function SetList({ sets, exerciseNames, status, onDelete, onRetry, onNote
         {sets.filter((s) => s.exercise_id === id).sort((a, b) => a.set_index - b.set_index).map((s, i) => {
           const load = bodyweightIds.includes(id) ? formatAddedLoad(s.weight_kg) : `${s.weight_kg}kg`
           const st = status[s.id] ?? 'saved'
+          const setLoad = bodyweightIds.includes(id) ? totalLoad(s.weight_kg, bodyweight) : s.weight_kg
+          const e1rm = setLoad === null ? null : estimateOneRepMax(setLoad, s.reps)
           return <SwipeRow key={s.id} label={`${exerciseNames[id] ?? '種目'} ${i + 1}set ${load} × ${s.reps}回を削除`}
             disabled={deletingId !== null} deleting={deletingId === s.id} onDelete={() => onDelete(s.id)}
             className={st === 'pending' ? 'opacity-50' : ''}>
@@ -50,6 +55,7 @@ export function SetList({ sets, exerciseNames, status, onDelete, onRetry, onNote
               <span className="text-lg font-semibold tabular-nums">{bodyweightIds.includes(id)
                 ? <>{formatAddedLoad(s.weight_kg)}<span className="text-xs font-normal text-muted"> × </span></>
                 : <>{s.weight_kg}<span className="text-xs font-normal text-muted"> kg × </span></>}{s.reps}<span className="text-xs font-normal text-muted"> 回</span></span>
+              {e1rm !== null && <span className="text-xs text-muted tabular-nums">推定1RM {e1rm}</span>}
               {s.note && <span className="w-full whitespace-pre-wrap break-words text-xs text-muted">{s.note}</span>}
             </button>
             {st === 'failed' && <button type="button" onClick={() => onRetry(s.id)} className="min-h-14 text-xs text-accent">未保存・再試行</button>}

@@ -12,6 +12,6 @@ export function WheelNumber({label,value,unit,onEnter,min,format}:{label:string;
       <div ref={list} aria-label={`${label}をスクロールで選択`} className="relative h-[120px] overflow-y-auto overscroll-contain [scrollbar-width:none]" onPointerDown={()=>{dragging.current=true}} onWheel={()=>{dragging.current=true}} onScroll={e=>{const next=Math.max(0,Math.min(values.length-1,Math.round(e.currentTarget.scrollTop/40)));setIndex(next);if(!dragging.current)return;onEnter(values[next]);if(timer.current)clearTimeout(timer.current);timer.current=setTimeout(()=>{dragging.current=false;list.current?.scrollTo({top:next*40})},180)}}>
         <div style={{height:(values.length+2)*40,position:'relative'}}>{values.slice(Math.max(0,index-4),Math.min(values.length,index+5)).map((n,k)=>{const i=Math.max(0,index-4)+k;return <button key={n} type="button" tabIndex={-1} style={{position:'absolute',top:(i+1)*40,height:40,width:'100%'}} className={`text-center tabular-nums ${i===index?'text-fg':'text-muted'}`} onClick={()=>{dragging.current=false;onEnter(n);list.current?.scrollTo({top:i*40,behavior:'smooth'})}}>{format?format(n):<>{n} <span className="text-xs">{unit}</span></>}</button>})}</div>
       </div>
-    </div><p className="mt-1 text-center text-[11px] text-muted">スクロール / 数字をタップして入力</p>
+    </div>
   </div>
 }
