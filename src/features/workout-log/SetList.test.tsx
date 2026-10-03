@@ -6,6 +6,31 @@ import { SetList } from './SetList'
 const NAMES = { bench: 'ベンチプレス', squat: 'スクワット' }
 
 describe('SetList', () => {
+  it('shows each set\'s estimated 1RM, using bodyweight plus added load for bodyweight exercises', () => {
+    render(
+      <SetList
+        sets={[
+          { id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8 },
+          { id: 's2', exercise_id: 'bench', set_index: 2, weight_kg: 60, reps: 12 },
+          { id: 's3', exercise_id: 'chin', set_index: 1, weight_kg: 10, reps: 5 },
+        ]}
+        exerciseNames={{ ...NAMES, chin: '懸垂' }}
+        status={{}}
+        onDelete={vi.fn()}
+        onRetry={vi.fn()}
+        deletingId={null}
+        bodyweightIds={['chin']}
+        bodyweight={70}
+      />,
+    )
+    const items = screen.getAllByRole('listitem')
+    expect(items[0]).toHaveTextContent('推定1RM 99.3')
+    // Sets above 10 reps are outside the formula, so nothing is shown.
+    expect(items[1]).not.toHaveTextContent('推定1RM')
+    // 70kg bodyweight + 10kg added, 5 reps.
+    expect(items[2]).toHaveTextContent('推定1RM 90')
+  })
+
   it('shows an empty message when nothing is recorded', () => {
     render(
       <SetList
