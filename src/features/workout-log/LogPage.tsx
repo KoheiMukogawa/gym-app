@@ -113,6 +113,9 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   // ワークアウトがリセットされても追随しない。ref なら、どのクロージャから
   // 読んでも常に最新の値になる。setWorkoutId 経由でのみ更新すること。
   const workoutIdRef = useRef<string | null>(workoutId)
+  // 最後のセットを取り消したあとの空ワークアウト削除。次のセットの保存は
+  // これを待ってから workoutId を読む（削除中のワークアウトに書き込まないため）。
+  const emptyCleanupRef = useRef<Promise<void> | null>(null)
   function setWorkoutId(id: string | null) {
     workoutIdRef.current = id
     setWorkoutIdState(id)
@@ -244,6 +247,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
       setStatusById((prev) => ({ ...prev, [set.id]: 'pending' }))
 
       const task = (async () => {
+        if (emptyCleanupRef.current) await emptyCleanupRef.current
         // workoutId は state ではなく ref から読む。この関数オブジェクト自体は
         // 過去のレンダー（例: 失敗トーストが捕まえた古い persist）から
         // 再利用されることがあるが、ref は常に最新の値を指す。
@@ -376,6 +380,22 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         delete next[target.id]
         return next
       })
+      // 最後のセットを消したら、空のワークアウトも消す。終了を押すまで
+      // 履歴に「0セット」の記録が残らないように。保存中のセットがあれば
+      // そちらの結果を待つべきなので、ここでは触らない。
+      const wid = workoutIdRef.current
+      if (wid !== null && state.sets.every((s) => s.id === target.id) && pendingSavesRef.current.size === 0) {
+        const cleanup = deleteWorkoutIfEmpty(wid)
+          .then((deleted) => {
+            if (!deleted) return
+            setWorkoutId(null)
+            workoutCreationRef.current = null
+          })
+          .catch((e: unknown) => console.error(`空ワークアウトの削除に失敗しました (workout: ${wid})`, e))
+          .finally(() => { emptyCleanupRef.current = null })
+        emptyCleanupRef.current = cleanup
+        await cleanup
+      }
     } finally {
       setDeletingId(null)
     }

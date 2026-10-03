@@ -300,6 +300,39 @@ describe('LogPage', () => {
     await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
   })
 
+  it('removes the workout when its last saved set is deleted, and recreates it for the next set', async () => {
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValueOnce({ id: 'w1' }).mockResolvedValueOnce({ id: 'w2' })
+    deleteWorkoutIfEmpty.mockResolvedValue(true)
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+    await userEvent.click(button)
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
+
+    // Without this, history shows an empty "0セット" workout until 終了 is pressed.
+    await userEvent.click(lastDeleteButton())
+    await waitFor(() => expect(deleteWorkoutIfEmpty).toHaveBeenCalledWith('w1'))
+
+    await userEvent.click(button)
+    await waitFor(() => expect(saveSet).toHaveBeenLastCalledWith('w2', expect.anything()))
+  })
+
+  it('keeps the workout when other sets remain after a delete', async () => {
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: /セット完了/ })
+    await userEvent.click(button)
+    await userEvent.click(button)
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(2))
+
+    await userEvent.click(lastDeleteButton())
+    await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
+    expect(deleteWorkoutIfEmpty).not.toHaveBeenCalled()
+  })
+
   it('does not call deleteSet when undoing a set whose save failed', async () => {
     seedDraftWithExercise()
     createWorkout.mockResolvedValue({ id: 'w1' })
@@ -369,12 +402,12 @@ describe('LogPage', () => {
     // 読むようになっていないと、リセット後もこの古いクロージャは削除済みの
     // ワークアウト id を使い続け、再試行のたびに同じ失敗を繰り返す。
     seedDraftWithExercise()
-    createWorkout.mockResolvedValueOnce({ id: 'w1' }).mockResolvedValueOnce({ id: 'w2' })
+    createWorkout.mockResolvedValueOnce({ id: 'w1' }).mockResolvedValueOnce({ id: 'w2' }).mockResolvedValueOnce({ id: 'w3' })
     saveSet
       .mockResolvedValueOnce(undefined) // セット A は w1 に保存される
-      .mockRejectedValueOnce({ message: 'boom' }) // セット B は失敗する
+      .mockRejectedValueOnce({ message: 'boom' }) // セット B は w2 で失敗する
       .mockResolvedValueOnce(undefined) // 再試行後のセット B
-    deleteWorkoutIfEmpty.mockResolvedValue(true) // A を取り消した後、w1 は空になる
+    deleteWorkoutIfEmpty.mockResolvedValue(true) // 空になったワークアウトは消える
 
     renderLogPage()
     const button = await screen.findByRole('button', { name: /セット完了/ })
@@ -383,20 +416,20 @@ describe('LogPage', () => {
     await userEvent.click(button)
     await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
 
-    // セット A を取り消す（DB 上の w1 が空になる）
+    // セット A を取り消す（空になった w1 はその場で削除される）
     await userEvent.click(lastDeleteButton())
-    await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
-
-    // セット B を記録 → 保存が失敗し、w1 は空だったため削除され workoutId がリセットされる
-    await userEvent.click(button)
     await waitFor(() => expect(deleteWorkoutIfEmpty).toHaveBeenCalledWith('w1'))
+
+    // セット B を記録 → w2 を作るが保存が失敗し、w2 は空なので削除され workoutId がリセットされる
+    await userEvent.click(button)
+    await waitFor(() => expect(deleteWorkoutIfEmpty).toHaveBeenCalledWith('w2'))
 
     // 行の「未保存」ボタンではなく、トーストの「再試行」を押す
     const toastRetry = await screen.findByRole('button', { name: '再試行' })
     await userEvent.click(toastRetry)
 
-    await waitFor(() => expect(createWorkout).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(saveSet).toHaveBeenLastCalledWith('w2', expect.anything()))
+    await waitFor(() => expect(createWorkout).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(saveSet).toHaveBeenLastCalledWith('w3', expect.anything()))
   })
 
   it('does not resurrect a saved status for a set abandoned while a stacked retry (row button + still-visible toast) is racing', async () => {
