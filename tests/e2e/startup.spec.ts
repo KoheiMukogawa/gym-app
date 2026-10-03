@@ -61,11 +61,11 @@ test('mobile startup avoids recording queries and preserves input on first visit
     expect(counts.bodyweight_logs).toBe(1)
   }
   await page.screenshot({ path: `test-results/startup-${baseline ? 'before' : 'after'}.png`, fullPage: true })
-  await page.getByRole('link', { name: /本日のトレーニングを追加/ }).click()
+  await page.getByRole('link', { name: /記録する/ }).click()
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
   await page.getByRole('spinbutton', { name: '重量', exact: true }).fill('97.5')
   await page.getByRole('link', { name: 'ホーム', exact: true }).click()
-  await page.getByRole('link', { name: /本日のトレーニングを追加/ }).click()
+  await page.getByRole('link', { name: /記録する/ }).click()
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveValue('97.5')
   expect(errors).toEqual([])
 })

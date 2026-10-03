@@ -153,10 +153,70 @@ async function mockApi(page: Page) {
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
   // The app opens on the home dashboard; the start button leads to recording.
   await expect(page.getByRole('region', { name: '今月のトレーニング' })).toBeVisible()
-  await page.getByRole('link', { name: /本日のトレーニングを追加/ }).click()
+  await page.getByRole('link', { name: /記録する/ }).click()
   await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
   return { sets, workouts, exercises, routines, goals, bodyweights }
 }
+
+test('mobile: floating record actions stay above navigation and open the correct entry', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
+  const data = await mockApi(page)
+  const checkPlacement = async (action: Locator) => {
+    await expect(action).toBeVisible()
+    const box = (await action.boundingBox())!
+    const nav = (await page.getByRole('navigation', { name: 'メイン' }).boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(56)
+    expect(box.y + box.height).toBeLessThanOrEqual(nav.y - 12)
+    expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width - 12)
+    expect(await action.evaluate((element) => {
+      const b = element.getBoundingClientRect()
+      return element.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2))
+    })).toBe(true)
+    return box
+  }
+  await page.getByRole('link', { name: 'ホーム', exact: true }).click()
+  for (const width of [360, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    await checkPlacement(page.getByRole('link', { name: '記録する', exact: true }))
+  }
+  await page.screenshot({ path: 'test-results/floating-record-home.png', fullPage: true })
+  await page.getByRole('link', { name: '記録する', exact: true }).click()
+  await expect(page).toHaveURL(/\/log$/)
+  await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
+  await page.getByRole('link', { name: '履歴', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'この日に記録', exact: true })).toHaveCount(0)
+  await page.goto('/history?date=2020-02-03')
+  const historyAction = page.getByRole('link', { name: 'この日に記録', exact: true })
+  await checkPlacement(historyAction)
+  await expect(historyAction).toHaveAttribute('href', '/history/new?date=2020-02-03')
+  await page.screenshot({ path: 'test-results/floating-record-history.png', fullPage: true })
+  await historyAction.click()
+  await expect(page.getByLabel('トレーニング日')).toHaveValue('2020-02-03')
+
+  data.bodyweights.push({ recorded_on: '2020-02-03', bodyweight_kg: 70, body_fat_pct: 16 })
+  await page.getByRole('link', { name: '体組成', exact: true }).click()
+  await page.getByRole('button', { name: '全期間', exact: true }).click()
+  const bodyAction = page.getByRole('button', { name: '体重を記録', exact: true })
+  await expect(bodyAction).toBeEnabled()
+  const before = await checkPlacement(bodyAction)
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  const after = await checkPlacement(bodyAction)
+  expect(after.y).toBe(before.y)
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({ path: 'test-results/floating-record-body.png', fullPage: true })
+  await bodyAction.click()
+  await expect(page.getByLabel('体重（kg）')).toBeFocused()
+  await expect(bodyAction).toHaveCount(0)
+  expect(data.bodyweights).toHaveLength(1)
+  await page.getByLabel('体脂肪率（%）').focus()
+  await expect(bodyAction).toHaveCount(0)
+  await page.getByRole('button', { name: '全期間', exact: true }).focus()
+  await checkPlacement(bodyAction)
+  expect(errors).toEqual([])
+})
 
 test('mobile: direct logging, body groups, past dates, editing and deletion', async ({ page }) => {
   const data = await mockApi(page)
@@ -179,7 +239,7 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await expect(page.getByText('92.9 kg', { exact: true })).toBeVisible()
   await page.getByRole('link', { name: '履歴', exact: true }).click()
   await page.getByRole('link', { name: 'ホーム', exact: true }).click()
-  await page.getByRole('link', { name: /続きを記録|本日のトレーニングを追加/ }).click()
+  await page.getByRole('link', { name: /続きを記録|記録する/ }).click()
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveValue('80')
   await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveValue('6')
   const wheel=page.getByLabel('重量をスクロールで選択',{exact:true})
@@ -226,7 +286,7 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await page.getByRole('button', { name: '完了', exact: true }).click()
   await page.goto('/history?date=2020-02-01')
   await page.getByRole('button', { name: '2月3日', exact: true }).click()
-  await page.getByRole('link', { name: '＋ この日に記録を追加', exact: true }).click()
+  await page.getByRole('link', { name: 'この日に記録', exact: true }).click()
   await expect(page.getByLabel('トレーニング日')).toHaveValue('2020-02-03')
   await page.getByRole('button', { name: '脚', exact: true }).click()
   await page.getByRole('button', { name: 'スクワット', exact: true }).click()
@@ -255,7 +315,7 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await expect(page.getByRole('link', { name: '編集', exact: true })).toHaveCount(1)
   await page.getByRole('button', { name: '2月5日', exact: true }).click()
   await expect(page.getByText('この日の記録はありません')).toBeVisible()
-  await page.getByRole('link', { name: '＋ この日に記録を追加', exact: true }).click()
+  await page.getByRole('link', { name: 'この日に記録', exact: true }).click()
   await expect(page.getByLabel('トレーニング日')).toHaveValue('2020-02-05')
   await page.getByRole('button', { name: '完了', exact: true }).click()
   await page.getByRole('button', { name: '2月4日 トレーニングあり', exact: true }).click()
@@ -286,7 +346,7 @@ test('personal exercise creation stays in the chosen body group', async ({ page 
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(1)
   await page.getByRole('button', { name: '終了', exact: true }).click()
-  await page.getByRole('link', { name: /続きを記録|本日のトレーニングを追加/ }).click()
+  await page.getByRole('link', { name: /続きを記録|記録する/ }).click()
   await page.getByRole('button', { name: '肩', exact: true }).click()
   await expect(page.getByRole('region', { name: '肩の種目' }).getByRole('button', { name: 'ケーブルサイドレイズ 自分の種目', exact: true })).toBeVisible()
 })
@@ -451,7 +511,7 @@ test('reopening the app mid-workout goes straight to recording; otherwise it ope
   await page.getByRole('link', { name: 'BIG3', exact: true }).click()
   await expect(page).toHaveURL(/\/big3$/)
   await expect(page.getByRole('region', { name: 'Big3スコア' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /本日のトレーニングを追加|続きを記録/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /記録する|続きを記録/ })).toHaveCount(0)
   // The editor groups the day's sets under each exercise.
   await page.goto('/history/' + data.workouts[0].id)
   await expect(page.getByRole('heading', { name: 'ベンチプレス', exact: true })).toHaveCount(1)
@@ -539,7 +599,7 @@ test('the record tab is gone and reps are filled from records, then from an esti
   await expect(tabs.getByRole('link', { name: '記録', exact: true })).toHaveCount(0)
   await expect(tabs.getByRole('link')).toHaveCount(5)
 
-  await page.getByRole('link', { name: /本日のトレーニングを追加|続きを記録/ }).click()
+  await page.getByRole('link', { name: /記録する|続きを記録/ }).click()
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
 
   const weight = page.getByRole('spinbutton', { name: '重量', exact: true })

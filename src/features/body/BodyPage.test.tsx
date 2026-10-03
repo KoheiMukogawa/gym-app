@@ -46,6 +46,10 @@ beforeEach(() => {
 describe('BodyPage', () => {
   it('records weight and body fat for today', async () => {
     await renderPage()
+    await userEvent.click(screen.getByRole('button', { name: '体重を記録' }))
+    expect(screen.getByLabelText('体重（kg）')).toHaveFocus()
+    expect(screen.queryByRole('button', { name: '体重を記録' })).not.toBeInTheDocument()
+    expect(saveBodyComposition).not.toHaveBeenCalled()
     await userEvent.type(await screen.findByLabelText('体重（kg）'), '70.2')
     await userEvent.type(screen.getByLabelText('体脂肪率（%）'), '15.4')
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
@@ -90,6 +94,20 @@ describe('BodyPage', () => {
     await waitFor(() => expect(saveBodyComposition).toHaveBeenCalledWith('u1', { date: pastDate, bodyweightKg: 69.5, bodyFatPct: 16 }))
     // 保存したら今日の入力に戻る
     expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent('今日')
+  })
+
+  it('opens today from the floating action while viewing a past record without saving it', async () => {
+    fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
+    await renderPage()
+    await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
+    await userEvent.click(screen.getByRole('button', { name: '体重を記録' }))
+    expect(screen.getByRole('region', { name: '記録の入力' })).toHaveTextContent('今日の記録')
+    expect(screen.getByLabelText('体重（kg）')).toHaveFocus()
+    expect(saveBodyComposition).not.toHaveBeenCalled()
+    await userEvent.tab()
+    expect(screen.queryByRole('button', { name: '体重を記録' })).not.toBeInTheDocument()
+    await userEvent.tab()
+    expect(await screen.findByRole('button', { name: '体重を記録' })).toBeInTheDocument()
   })
 
   it('keeps a retryable error on screen when loading fails', async () => {

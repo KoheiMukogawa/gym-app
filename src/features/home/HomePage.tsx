@@ -88,7 +88,7 @@ export function HomePage() {
   const trainedDays = [...new Set(items.map((item) => localDate(item.performed_at)))]
   const todayItems = items.filter((item) => localDate(item.performed_at) === today)
 
-  return <div className="flex flex-col gap-4 p-4">
+  return <div className="flex flex-col gap-4 p-4 pb-20">
     <div className="grid grid-cols-[3fr_2fr] gap-3">
       <section aria-label="今月のトレーニング">
         <h2 className="mb-2 text-xl font-semibold tabular-nums">{year}年{month}月</h2>
@@ -103,13 +103,12 @@ export function HomePage() {
       </section>
     </div>
 
-    <StartTrainingCard className="" />
-
     <section aria-label="今日のトレーニング" className="space-y-2">
       <h2 className="text-sm font-semibold">今日のトレーニング</h2>
       {loading && !todayItems.length ? <Spinner /> : todayItems.length
         ? todayItems.map((item) => <TodayWorkout key={item.workout_id} item={item} bodyweight={bodyweightOn(bodyweightLogs, today)} />)
         : !error && <p className="rounded-xl border border-dashed border-border px-4 py-4 text-center text-sm text-muted">まだ記録がありません</p>}
     </section>
+    <StartTrainingCard />
   </div>
 }

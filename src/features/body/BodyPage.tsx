@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '../../components/ui/Button'
+import { FloatingRecordAction } from '../../components/ui/FloatingRecordAction'
 import { Spinner } from '../../components/ui/Spinner'
 import { combineTrends, latestSummary, parseBodyFat, withinPeriod } from '../../lib/bodyComposition'
 import type { BodyweightLog } from '../../lib/bodyweight'
@@ -37,6 +38,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   const [attempt, setAttempt] = useState(0)
   const [confirming, setConfirming] = useState(false)
   const [healthBusy, setHealthBusy] = useState(false)
+  const weightInput = useRef<HTMLInputElement>(null)
 
   function prefill(rows: BodyweightLog[]) {
     const latest = rows.at(-1)
@@ -132,7 +134,20 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   }
   const onSelectDay = useCallback((date: string) => selectDay.current(date), [])
 
-  return <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4">
+  function openTodayEntry() {
+    if (locked) return
+    if (editing !== null) {
+      setEditing(null)
+      prefill(logs)
+      setError(null)
+      setSaved(false)
+      setConfirming(false)
+    }
+    weightInput.current?.scrollIntoView?.({ block: 'center' })
+    weightInput.current?.focus({ preventScroll: true })
+  }
+
+  return <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 pb-20">
     <header className="flex items-center justify-between gap-3">
       <h1 className="text-2xl font-semibold">体組成</h1>
       <button type="button" aria-label="記録を再読み込み" title="記録を再読み込み"
@@ -184,7 +199,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-2 text-sm text-muted">体重（kg）
-          <input type="number" inputMode="decimal" min="20" max="300" step="0.1" value={weight} disabled={busy || loading || loadError !== null || deleting !== null}
+          <input ref={weightInput} type="number" inputMode="decimal" min="20" max="300" step="0.1" value={weight} disabled={busy || loading || loadError !== null || deleting !== null}
             onChange={(e) => { setWeight(e.target.value); setSaved(false); setError(null) }} className={field} />
         </label>
         <label className="flex flex-col gap-2 text-sm text-muted">体脂肪率（%）
@@ -209,6 +224,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     <HealthSyncPanel userId={userId} refreshVersion={attempt} onBusyChange={setHealthBusy} />
 
     {!loading && loadError && <Button variant="ghost" onClick={() => setAttempt((n) => n + 1)}>再試行</Button>}
+    <FloatingRecordAction label="体重を記録" onClick={openTodayEntry} disabled={locked} />
   </div>
 }
 

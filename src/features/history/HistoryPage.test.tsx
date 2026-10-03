@@ -136,7 +136,7 @@ describe('HistoryPage error handling', () => {
     expect(screen.getByRole('link', { name: 'スクワット' })).toHaveAttribute('href', '/exercises/squat')
     expect(within(screen.getByRole('region', { name: 'スクワット' })).getAllByRole('listitem')).toHaveLength(1)
     expect(screen.getByRole('link', { name: '編集' })).toHaveAttribute('href', '/history/w1')
-    expect(screen.getByRole('link', { name: '＋ この日に記録を追加' })).toHaveAttribute('href', '/history/w1')
+    expect(screen.getByRole('link', { name: 'この日に記録' })).toHaveAttribute('href', '/history/w1')
   })
 })
 
@@ -229,7 +229,7 @@ describe('HistoryPage calendar — marks the local (JST) day, not the UTC day', 
     expect(await screen.findByRole('link', { name: '編集' })).toHaveAttribute('href', '/history/w-late-utc-evening')
     await userEvent.setup().click(screen.getByLabelText('8月13日'))
     expect(await screen.findByText('この日の記録はありません')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '＋ この日に記録を追加' })).toHaveAttribute('href', '/history/new?date=2026-08-13')
+    expect(screen.getByRole('link', { name: 'この日に記録' })).toHaveAttribute('href', '/history/new?date=2026-08-13')
 
   })
 

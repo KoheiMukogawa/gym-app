@@ -45,7 +45,7 @@ describe('HomePage', () => {
     fetchStrengthSnapshot.mockResolvedValue(buildStrengthSnapshot([...EXERCISES], [], rows))
     render(<MemoryRouter><HomePage /></MemoryRouter>)
 
-    expect(screen.getByRole('link', { name: /本日のトレーニングを追加/ })).toHaveAttribute('href', '/log')
+    expect(screen.getByRole('link', { name: /記録する/ })).toHaveAttribute('href', '/log')
     const todaySection = screen.getByRole('region', { name: '今日のトレーニング' })
     expect(await within(todaySection).findByText('ベンチプレス')).toBeInTheDocument()
     // 80 kg × 5 → Brzycki 80 × 36 / 32 = 90

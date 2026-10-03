@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { localDate, workoutDateISO } from '../../lib/dates'
 import { Button } from '../../components/ui/Button'
+import { FloatingRecordAction } from '../../components/ui/FloatingRecordAction'
 import { Spinner } from '../../components/ui/Spinner'
 import { useSession } from '../auth/SessionProvider'
 import { WorkoutCard } from '../feed/WorkoutCard'
@@ -81,7 +82,7 @@ export function HistoryPage() {
     else if (dx >= 60) slideTo(-1)
     else setDragX(0)
   }
-  return <div className="flex flex-col gap-6 p-4">
+  return <div className={`flex flex-col gap-6 p-4 ${selected ? 'pb-20' : ''}`}>
     <header>
       <h1 className="text-2xl font-semibold">トレーニング履歴</h1>
     </header>
@@ -108,8 +109,9 @@ export function HistoryPage() {
         <h2 className="text-sm text-muted">{selected} の記録</h2>
         {loading && !visible.length ? <Spinner /> : visible.length ? visible.map((item) => <WorkoutCard key={item.workout_id} item={item} editable detailed bodyweight={bodyweightOn(bodyweightLogs, localDate(item.performed_at))} />)
           : <p className="py-4 text-center text-sm text-muted">この日の記録はありません</p>}
-        {selected && <Link to={visible.length ? '/history/' + visible[0].workout_id : '/history/new?date=' + selected} className="flex min-h-14 items-center justify-center rounded-xl border border-accent text-accent">＋ この日に記録を追加</Link>}
       </section> : <p className="text-center text-sm text-muted">日付を選ぶと記録を確認・追加できます</p>}
     </>}
+    {selected && !loading && !error && <FloatingRecordAction label="この日に記録"
+      to={visible.length ? '/history/' + visible[0].workout_id : '/history/new?date=' + selected} />}
   </div>
 }
