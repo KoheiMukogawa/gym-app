@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { enterWheelValue } from './wheel'
 
 // Fixed synthetic history and 300ms/API response latency make the old and new
 // launch paths comparable. This is not a measurement of the production network.
@@ -63,9 +64,9 @@ test('mobile startup avoids recording queries and preserves input on first visit
   await page.screenshot({ path: `test-results/startup-${baseline ? 'before' : 'after'}.png`, fullPage: true })
   await page.getByRole('link', { name: /記録する/ }).click()
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
-  await page.getByRole('spinbutton', { name: '重量', exact: true }).fill('97.5')
+  await enterWheelValue(page, '重量', '97.5')
   await page.getByRole('link', { name: 'ホーム', exact: true }).click()
   await page.getByRole('link', { name: /記録する/ }).click()
-  await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveValue('97.5')
+  await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '97.5')
   expect(errors).toEqual([])
 })

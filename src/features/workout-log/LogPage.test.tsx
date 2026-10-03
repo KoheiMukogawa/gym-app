@@ -246,6 +246,7 @@ describe('LogPage', () => {
     await userEvent.click(screen.getByRole('button', { name: '体重を保存' }))
 
     expect(await screen.findByText(/総重量/)).toHaveTextContent('総重量 70 kg')
+    await userEvent.click(screen.getByRole('button', { name: '加重を直接入力' }))
     const added = screen.getByRole('spinbutton', { name: '加重' })
     await userEvent.clear(added)
     await userEvent.type(added, '-20')
@@ -259,7 +260,8 @@ describe('LogPage', () => {
   it('does not allow a negative weight on a regular exercise', async () => {
     seedDraftWithExercise()
     renderLogPage()
-    const weight = await screen.findByRole('spinbutton', { name: '重量' })
+    await userEvent.click(await screen.findByRole('button', { name: '重量を直接入力' }))
+    const weight = screen.getByRole('spinbutton', { name: '重量' })
     await userEvent.clear(weight)
     await userEvent.type(weight, '-20')
     await userEvent.click(screen.getByRole('button', { name: /セット完了/ }))

@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Locator } from '@playwright/test'
+import { enterWheelValue } from './wheel'
 
 async function holdDrag(page: Page, source: Locator, target: Locator, cancel = false) {
   await expect(source).toBeEnabled()
@@ -263,6 +264,68 @@ test('mobile: floating record actions stay above navigation and open the correct
   expect(errors).toEqual([])
 })
 
+test('mobile: recorded sets stay above the bottom input dock and exact dial values survive', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  const dock = page.getByRole('region', { name: 'セット入力', exact: true }).locator('> div')
+  const recorded = page.getByRole('region', { name: '記録済みセット', exact: true })
+  await expect(dock.locator('input')).toHaveCount(0)
+  await enterWheelValue(page, '重量', '82.3')
+  await enterWheelValue(page, '回数', '8')
+  await expect(page.getByRole('button', { name: '重量を直接入力', exact: true })).toContainText('82.3')
+  // Scrolling from an exact custom value must not shift the highlighted row.
+  const weightWheel = page.getByLabel('重量をスクロールで選択', { exact: true })
+  await weightWheel.hover()
+  await page.mouse.wheel(0, 112)
+  await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '85')
+  await expect(page.getByRole('button', { name: '重量を直接入力', exact: true })).toContainText('85')
+  await enterWheelValue(page, '重量', '82.3')
+  await enterWheelValue(page, '回数', '8')
+  const complete = page.getByRole('button', { name: /^(セット完了|✓ 記録しました)$/ })
+  for (let index = 0; index < 8; index++) {
+    await complete.click()
+    await expect.poll(() => data.sets.length).toBe(index + 1)
+  }
+  expect(data.sets[0]).toMatchObject({ weight_kg: 82.3, reps: 8 })
+  for (const viewport of [{ width: 390, height: 844 }, { width: 360, height: 640 }]) {
+    await page.setViewportSize(viewport)
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+    const navBox = (await page.getByRole('navigation', { name: 'メイン' }).boundingBox())!
+    const dockBox = (await dock.boundingBox())!
+    const lastBox = (await recorded.getByRole('listitem').last().boundingBox())!
+    const buttonBox = (await complete.boundingBox())!
+    await expect.poll(async () => {
+      const selected = (await page.getByRole('button', { name: '重量を直接入力', exact: true }).boundingBox())!
+      const wheel = (await weightWheel.boundingBox())!
+      return Math.abs(selected.y + selected.height / 2 - wheel.y - wheel.height / 2)
+    }).toBeLessThan(1)
+    expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(dockBox.y)
+    expect(dockBox.y + dockBox.height).toBeLessThan(navBox.y)
+    expect(buttonBox.y + buttonBox.height).toBeLessThan(navBox.y)
+    expect(buttonBox.height).toBeGreaterThanOrEqual(56)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/log-bottom-dock-${viewport.width}.png`, animations: 'disabled' })
+  }
+  await page.getByRole('button', { name: '重量を直接入力', exact: true }).click()
+  await page.evaluate(() => {
+    Object.defineProperty(window.visualViewport!, 'height', { configurable: true, get: () => 360 })
+    window.visualViewport!.dispatchEvent(new Event('resize'))
+  })
+  await expect.poll(async () => { const box = (await complete.boundingBox())!; return box.y + box.height }).toBeLessThanOrEqual(360)
+  await page.getByRole('spinbutton', { name: '重量', exact: true }).fill('85.1')
+  await page.getByRole('spinbutton', { name: '重量', exact: true }).press('Tab')
+  await page.evaluate(() => {
+    Reflect.deleteProperty(window.visualViewport!, 'height')
+    window.visualViewport!.dispatchEvent(new Event('resize'))
+  })
+  await complete.click()
+  await expect.poll(() => data.sets.at(-1)?.weight_kg).toBe(85.1)
+  expect(errors).toEqual([])
+})
+
 test('mobile: direct logging, body groups, past dates, editing and deletion', async ({ page }) => {
   const data = await mockApi(page)
   await expect(page.getByRole('searchbox')).toHaveCount(0)
@@ -271,28 +334,28 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await expect(page.getByRole('link', { name: 'トレーニング開始', exact: true })).toHaveCount(0)
   await page.screenshot({ path: 'test-results/home-mobile.png', fullPage: true })
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
-  await page.getByRole('spinbutton', { name: '重量', exact: true }).fill('62.5')
-  await page.getByRole('spinbutton', { name: '回数', exact: true }).fill('8')
+  await enterWheelValue(page, '重量', '62.5')
+  await enterWheelValue(page, '回数', '8')
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(1)
   expect(data.sets[0].weight_kg).toBe(62.5)
   expect(data.sets[0].reps).toBe(8)
   await page.screenshot({ path: 'test-results/log-mobile.png', fullPage: true })
   await expect(page.getByText('推定1RM', { exact: false })).toBeVisible()
-  await page.getByRole('spinbutton', { name: '重量', exact: true }).fill('80')
-  await page.getByRole('spinbutton', { name: '回数', exact: true }).fill('6')
+  await enterWheelValue(page, '重量', '80')
+  await enterWheelValue(page, '回数', '6')
   await expect(page.getByText('92.9 kg', { exact: true })).toBeVisible()
   await page.getByRole('link', { name: '履歴', exact: true }).click()
   await page.getByRole('link', { name: 'ホーム', exact: true }).click()
   await page.getByRole('link', { name: /続きを記録|記録する/ }).click()
-  await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveValue('80')
-  await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveValue('6')
+  await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '80')
+  await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveAttribute('aria-valuenow', '6')
   const wheel=page.getByLabel('重量をスクロールで選択',{exact:true})
   await wheel.hover()
-  await page.mouse.wheel(0,80)
-  await expect(page.getByRole('spinbutton',{name:'重量',exact:true})).toHaveValue('85')
+  await page.mouse.wheel(0,112)
+  await expect(page.getByRole('spinbutton',{name:'重量',exact:true})).toHaveAttribute('aria-valuenow', '85')
   // 重量を変えると回数が提案値に入れ替わるので、推定1RMの表示を見るために戻す
-  await page.getByRole('spinbutton',{name:'回数',exact:true}).fill('6')
+  await enterWheelValue(page, '回数', '6')
   await expect(page.getByText('98.7 kg',{exact:true})).toBeVisible()
   await page.screenshot({path:'test-results/log-mobile-redesigned.png',fullPage:true})
   await page.getByRole('button', { name: 'プロフィールメニュー', exact: true }).click()
@@ -430,13 +493,13 @@ test('routines and catalog order persist; history switches edit targets without 
   await page.getByRole('button', { name: '閉じる', exact: true }).click()
   await page.reload()
   await page.getByRole('button', { name: '胸の日を開始', exact: true }).click()
-  await page.getByRole('spinbutton', { name: '重量', exact: true }).fill('40')
+  await enterWheelValue(page, '重量', '40')
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(1)
   await page.getByRole('button', { name: /次の種目/ }).click()
   await page.reload()
   await expect(page.getByRole('region', { name: '進行中のルーティン' })).toContainText('2 / 2種目')
-  await page.getByRole('spinbutton', { name: '重量', exact: true }).fill('60')
+  await enterWheelValue(page, '重量', '60')
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(2)
   expect(data.sets.map((s) => s.exercise_id)).toEqual(['machine', 'bench'])
@@ -497,7 +560,7 @@ test('sets are deleted by swiping left like a mail app', async ({ page }) => {
   const data = await mockApi(page)
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
   for (const reps of ['8', '6', '4']) {
-    await page.getByRole('spinbutton', { name: '回数', exact: true }).fill(reps)
+    await enterWheelValue(page, '回数', reps)
     await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   }
   await expect.poll(() => data.sets.length).toBe(3)
@@ -569,7 +632,7 @@ test('chin-ups ask for bodyweight once and record assisted sets against the tota
   await page.getByLabel('体重（kg）').fill('70')
   await page.getByRole('button', { name: '体重を保存', exact: true }).click()
   await expect.poll(() => data.bodyweights.length).toBe(1)
-  await page.getByRole('spinbutton', { name: '加重', exact: true }).fill('-20')
+  await enterWheelValue(page, '加重', '-20')
   await expect(page.getByText(/総重量/)).toContainText('総重量 50 kg')
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets[0]?.weight_kg).toBe(-20)
@@ -650,21 +713,21 @@ test('the record tab is gone and reps are filled from records, then from an esti
   const weight = page.getByRole('spinbutton', { name: '重量', exact: true })
   const reps = page.getByRole('spinbutton', { name: '回数', exact: true })
   // 直近が 60kg×12 なので、その重量の自己ベストである12回が入る
-  await expect(weight).toHaveValue('60')
-  await expect(reps).toHaveValue('12')
+  await expect(weight).toHaveAttribute('aria-valuenow', '60')
+  await expect(reps).toHaveAttribute('aria-valuenow', '12')
 
   // 80kg にすると、その重量の自己ベストである8回に切り替わる
-  await weight.fill('80')
-  await expect(reps).toHaveValue('8')
+  await enterWheelValue(page, '重量', '80')
+  await expect(reps).toHaveAttribute('aria-valuenow', '8')
   await expect(page.getByText('この重量の自己ベスト')).toContainText('8')
 
   // 挙げたことのない重量は、推定1RM（80kg×8 から約99.3kg）から逆算する
-  await weight.fill('85')
-  await expect(reps).toHaveValue('6')
+  await enterWheelValue(page, '重量', '85')
+  await expect(reps).toHaveAttribute('aria-valuenow', '6')
   await expect(page.getByText("この重量の目安")).toContainText("これまでの記録から")
   // 推定1RMを超える重量は1回
-  await weight.fill('100')
-  await expect(reps).toHaveValue('1')
+  await enterWheelValue(page, '重量', '100')
+  await expect(reps).toHaveAttribute('aria-valuenow', '1')
 })
 
 test('exports the chosen period as markdown, memos included', async ({ page }) => {

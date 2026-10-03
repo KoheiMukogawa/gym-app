@@ -6,6 +6,7 @@ import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { WheelNumber } from '../../components/ui/WheelNumber'
+import { BottomInputDock } from '../../components/ui/BottomInputDock'
 import { estimateOneRepMax } from '../../lib/strength'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
@@ -506,7 +507,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const currentName = state.currentExerciseId ? exerciseNames[state.currentExerciseId] : ''
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex min-h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] flex-col">
       {offline && <OfflineBanner />}
       <header className="flex items-center justify-between px-4 py-3">
         <button type="button" onClick={() => setPicking(true)} className="min-h-14 text-left">
@@ -532,7 +533,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         </div>
       </section>}
 
-      <div className="order-2 px-4 pb-4">
+      <section aria-label="記録済みセット" className="px-4 pb-4">
         <SetList
           sets={state.sets}
           exerciseNames={exerciseNames}
@@ -543,57 +544,64 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
           deletingId={deletingId}
           bodyweightIds={bodyweightIds}
         />
-      </div>
+      </section>
 
-      <div className="order-1 border-t border-border bg-bg px-4 pb-6 pt-4">
-        {isBodyweight && (bodyweight === null || editingBodyweight) ? (
-          <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
-            <p className="text-sm">この種目は「体重＋加重」で負荷を計算します。今日の体重を入力してください。</p>
-            <label className="block text-xs text-muted">体重（kg）
-              <input type="number" inputMode="decimal" min="20" max="300" step="0.1" required value={bodyweightDraft} disabled={savingBodyweight}
-                onChange={(e) => setBodyweightDraft(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl border border-border bg-bg px-4 text-2xl text-fg tabular-nums" />
-            </label>
-            <p className="text-xs text-muted">体重は自分だけが見られます。</p>
-            <Button type="submit" disabled={savingBodyweight}>{savingBodyweight ? '保存中…' : '体重を保存'}</Button>
-            {bodyweight !== null && <Button type="button" variant="ghost" disabled={savingBodyweight} onClick={() => setEditingBodyweight(false)}>キャンセル</Button>}
-          </form>
-        ) : <>
-        <div className="mb-4 grid grid-cols-2 gap-4">
-          <WheelNumber
-            label={isBodyweight ? '加重' : '重量'}
-            value={state.weight_kg}
-            unit="kg"
-            min={minWeight}
-            format={isBodyweight ? formatAddedLoad : undefined}
-            onEnter={(value) => dispatch({ type: 'set-weight', value, min: minWeight, history, loadOffset })}
-          />
-          <WheelNumber
-            label="回数"
-            value={state.reps}
-            unit="回"
-            onEnter={(value) => dispatch({ type: 'set-reps', value })}
-          />
+      <BottomInputDock>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pt-4">
+          {isBodyweight && (bodyweight === null || editingBodyweight) ? (
+            <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
+              <p className="text-sm">この種目は「体重＋加重」で負荷を計算します。今日の体重を入力してください。</p>
+              <label className="block text-xs text-muted">体重（kg）
+                <input type="number" inputMode="decimal" min="20" max="300" step="0.1" required value={bodyweightDraft} disabled={savingBodyweight}
+                  onChange={(e) => setBodyweightDraft(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl border border-border bg-bg px-4 text-2xl text-fg tabular-nums" />
+              </label>
+              <p className="text-xs text-muted">体重は自分だけが見られます。</p>
+              <Button type="submit" disabled={savingBodyweight}>{savingBodyweight ? '保存中…' : '体重を保存'}</Button>
+              {bodyweight !== null && <Button type="button" variant="ghost" disabled={savingBodyweight} onClick={() => setEditingBodyweight(false)}>キャンセル</Button>}
+            </form>
+          ) : <>
+          <div className="mb-1 grid grid-cols-2 gap-4">
+            <WheelNumber
+              label={isBodyweight ? '加重' : '重量'}
+              value={state.weight_kg}
+              unit="kg"
+              min={minWeight}
+              format={isBodyweight ? formatAddedLoad : undefined}
+              onEnter={(value) => dispatch({ type: 'set-weight', value, min: minWeight, history, loadOffset })}
+            />
+            <WheelNumber
+              label="回数"
+              value={state.reps}
+              unit="回"
+              onEnter={(value) => dispatch({ type: 'set-reps', value })}
+            />
+          </div>
+          <p className="mb-1 text-center text-[11px] text-muted">上下にスクロールで選択・中央の数字をタップで入力</p>
+          {isBodyweight && bodyweight !== null && <p className="mb-2 text-center text-xs text-muted">
+            体重 {bodyweight} kg {formatAddedLoad(state.weight_kg) === '自重' ? '' : formatAddedLoad(state.weight_kg).replace('+', '＋ ').replace('−', '− ')} ＝ 総重量 <strong className="text-fg tabular-nums">{load} kg</strong>
+            <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
+          </p>}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted">
+          {suggestion && <p aria-live="polite">
+            {suggestion.source === 'record' ? 'この重量の自己ベスト ' : 'この重量の目安 '}
+            <strong className="text-fg tabular-nums">{suggestion.reps}</strong> 回
+            {suggestion.source === 'estimate' && <span className="ml-1">（これまでの記録から）</span>}
+          </p>}
+          <p className="ml-auto whitespace-nowrap" aria-live="polite">推定1RM <strong className="ml-1 text-base text-fg tabular-nums">{estimated === null ? '—' : estimated + ' kg'}</strong>{state.reps>10&&<span className="ml-1 text-[11px]">1〜10回で換算</span>}</p>
+          </div>
+          <label className="mb-3 block">
+            <span className="sr-only">メモ（任意）</span>
+            <AutoGrowTextarea maxLength={200} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="メモ（任意）例: フォーム意識"
+              className="min-h-12 w-full rounded-xl border border-border bg-surface px-4 py-3 text-fg" />
+          </label>
+          </>}
         </div>
-        {isBodyweight && bodyweight !== null && <p className="mb-2 text-center text-xs text-muted">
-          体重 {bodyweight} kg {formatAddedLoad(state.weight_kg) === '自重' ? '' : formatAddedLoad(state.weight_kg).replace('+', '＋ ').replace('−', '− ')} ＝ 総重量 <strong className="text-fg tabular-nums">{load} kg</strong>
-          <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
-        </p>}
-        {suggestion && <p className="mb-2 text-center text-xs text-muted" aria-live="polite">
-          {suggestion.source === 'record' ? 'この重量の自己ベスト ' : 'この重量の目安 '}
-          <strong className="text-fg tabular-nums">{suggestion.reps}</strong> 回
-          {suggestion.source === 'estimate' && <span className="ml-1">（これまでの記録から）</span>}
-        </p>}
-        <label className="mb-3 block">
-          <span className="sr-only">メモ（任意）</span>
-          <AutoGrowTextarea maxLength={200} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="メモ（任意）例: フォーム意識"
-            className="min-h-12 w-full rounded-xl border border-border bg-surface px-4 py-3 text-fg" />
-        </label>
-        <p className="mb-4 text-center text-sm text-muted" aria-live="polite">推定1RM <strong className="ml-2 text-xl text-fg tabular-nums">{estimated === null ? '—' : estimated + ' kg'}</strong>{state.reps>10&&<span className="ml-2 text-xs">1〜10回で換算</span>}</p>
-        </>}
-        <Button size="lg" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
-          {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
-        </Button>
-      </div>
+        <div className="shrink-0 px-4 pb-3 pt-2">
+          <Button size="lg" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
+            {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
+          </Button>
+        </div>
+      </BottomInputDock>
     </div>
   )
 }
