@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Link, useNavigate } from 'react-router-dom'
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
@@ -9,7 +9,6 @@ import { toMessage } from '../../lib/errors'
 import { currentGoal, saveCurrentGoal } from './currentGoal'
 import { StrengthScore } from './StrengthScore'
 import { useSession } from '../auth/SessionProvider'
-import { ChartDatePicker, ExerciseDayDetails } from '../exercises/ExerciseDayDetails'
 import {
   fetchStrengthGoals,
   fetchStrengthSnapshot,
@@ -26,7 +25,7 @@ function formatKg(value: number | null): string {
 
 
 function LiftCard({ lift }: { lift: LiftSnapshot }) {
-  const [selectedDate, setSelectedDate] = useState('')
+  const navigate = useNavigate()
   const content = (
     <div className="rounded-xl border border-border bg-surface p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -41,13 +40,15 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
         <Metric label="推定MAXの最高" value={formatKg(lift.allTimeE1rm)} />
       </div>
 
-      {lift.e1rmPoints.length >= 1 && (
+      {lift.e1rmPoints.length >= 2 && (
         <div className="mt-4 border-t border-border pt-3">
           <div className="mb-2 text-xs text-muted">e1RMの推移</div>
           <div className="h-28 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={lift.e1rmPoints} margin={{ top: 4, right: 4, bottom: 0, left: -24 }} onClick={state => { const date = String(state?.activeLabel ?? ''); if (lift.e1rmPoints.some(p => p.date === date)) setSelectedDate(date) }}>
-                {selectedDate && <ReferenceLine x={selectedDate} stroke="#E8412F" strokeDasharray="3 3" />}
+              {/* The overview stays a clean line; a tap opens the exercise page, where days can be inspected. */}
+              <LineChart data={lift.e1rmPoints} margin={{ top: 4, right: 4, bottom: 0, left: -24 }}
+                style={lift.exerciseId ? { cursor: 'pointer' } : undefined}
+                onClick={() => { if (lift.exerciseId) navigate(`/exercises/${lift.exerciseId}`) }}>
                 <XAxis
                   dataKey="date"
                   tick={{ fill: '#8A8A93', fontSize: 10 }}
@@ -78,14 +79,12 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
                   dataKey="e1rm"
                   stroke="#E8412F"
                   strokeWidth={2}
-                  dot={{ r: 3 }}
+                  dot={false}
                   activeDot={{ r: 3 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <ChartDatePicker dates={lift.e1rmPoints.map(p => p.date)} value={selectedDate} onChange={setSelectedDate} />
-          {selectedDate && lift.exerciseId && <ExerciseDayDetails key={`${lift.exerciseId}:${selectedDate}`} exerciseId={lift.exerciseId} date={selectedDate} />}
         </div>
       )}
     </div>

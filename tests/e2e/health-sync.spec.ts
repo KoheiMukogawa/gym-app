@@ -224,6 +224,17 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
   await expect(page.getByRole('region',{name:'最近の記録'})).toHaveCount(0)
   await expect(page.getByRole('button',{name:'ヘルスケア連携'})).toHaveAttribute('aria-expanded','false')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+  // Every bottom tab label stays on one line on a 375px phone.
+  const navLines = await page.getByRole('navigation',{name:'メイン'}).getByRole('link').evaluateAll((links) => links.map((link) => {
+    const tops = new Set<number>()
+    const walker = document.createTreeWalker(link, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const range = document.createRange(); range.selectNodeContents(node)
+      for (const rect of range.getClientRects()) tops.add(Math.round(rect.top))
+    }
+    return tops.size
+  }))
+  expect(navLines).toEqual([1,1,1,1,1])
   await page.screenshot({path:'test-results/body-overview-mobile.png',fullPage:true})
   await page.getByRole('button',{name:'ヘルスケア連携',exact:true}).click()
   await expect(page.getByText('未接続',{exact:true})).toBeVisible()

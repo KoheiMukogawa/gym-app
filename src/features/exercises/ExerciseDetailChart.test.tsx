@@ -13,7 +13,6 @@ const { fetchExercise, fetchExerciseSets } = vi.hoisted(() => ({
 vi.mock('../profile/bodyweightQueries', () => ({ fetchBodyweightLogs: async () => [] }))
 vi.mock('./queries', () => ({ fetchExercise, fetchExerciseSets }))
 vi.mock('./ExerciseDayDetails', () => ({
-  ChartDatePicker: () => null,
   ExerciseDayDetails: ({ date }: { date: string }) => <div>選択日: {date}</div>,
 }))
 
@@ -122,6 +121,9 @@ describe('ExerciseDetailPage chart wiring', () => {
     expect(captured.lineDataKey).toBe('e1rm')
     // 80kg × 8回 → Brzycki 80 × 36 / 29 = 99.3
     expect(captured.lineChartData).toEqual([{ date: '2026-08-08', e1rm: 99.3 }])
+    // Days are picked by tapping the chart only; there is no separate date list.
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.getByText('グラフの点をタップすると、その日の記録を表示します。')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '記録点' }))
     expect(screen.getByText('選択日: 2026-08-08')).toBeInTheDocument()
   })

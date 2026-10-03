@@ -9,6 +9,7 @@ import { HistoryPage } from './features/history/HistoryPage'
 import { ExerciseDetailPage } from './features/exercises/ExerciseDetailPage'
 import { WorkoutEditorPage } from './features/history/WorkoutEditorPage'
 import { Big3Page } from './features/community/Big3Page'
+import { RankingPage } from './features/community/RankingPage'
 import { HomePage } from './features/home/HomePage'
 import { ExportPage } from './features/export/ExportPage'
 import { BodyPage } from './features/body/BodyPage'
@@ -31,6 +32,7 @@ export default function App() {
               <Route element={<AppShell />}>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/big3" element={<Big3Page />} />
+                <Route path="/ranking" element={<RankingPage />} />
                 <Route path="/log" element={null} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/export" element={<ExportPage />} />

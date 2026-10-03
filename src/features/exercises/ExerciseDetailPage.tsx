@@ -12,7 +12,7 @@ import { fetchExercise, fetchExerciseSets } from './queries'
 import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
 import { localDate } from '../../lib/dates'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
-import { ChartDatePicker, ExerciseDayDetails } from './ExerciseDayDetails'
+import { ExerciseDayDetails } from './ExerciseDayDetails'
 
 export type ExerciseSummary = {
   best: number | null
@@ -149,7 +149,7 @@ export function ExerciseDetailPage() {
           </div>
         )}
       </section>
-      {summary.points.length > 0 && <ChartDatePicker dates={summary.points.map(p => p.date)} value={selectedDate} onChange={setSelectedDate} />}
+      {summary.points.length > 0 && <p className="text-xs text-muted">グラフの点をタップすると、その日の記録を表示します。</p>}
       {selectedDate && <ExerciseDayDetails key={`${exercise.id}:${selectedDate}`} exerciseId={exercise.id} date={selectedDate} />}
     </div>
   )

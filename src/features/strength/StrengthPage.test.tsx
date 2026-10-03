@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom'
 import { ToastProvider } from '../../components/ui/Toast'
 import { buildStrengthSnapshot } from './strengthSnapshot'
 import { StrengthPage } from './StrengthPage'
@@ -19,6 +19,14 @@ vi.mock('./queries', () => ({
 }))
 vi.mock('../exercises/queries', () => ({ fetchExercises }))
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1' }) }))
+// Stand-in chart: shows the line's dot setting and lets a test tap the chart.
+vi.mock('recharts', () => ({
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => children,
+  LineChart: ({ children, data, onClick }: { children: React.ReactNode; data: { date: string }[]; onClick?: (state: { activeLabel: string }) => void }) =>
+    <div>{children}<button type="button" onClick={() => onClick?.({ activeLabel: data[0].date })}>e1RMグラフ</button></div>,
+  Line: ({ dot }: { dot: unknown }) => <span data-testid="e1rm-line-dot">{JSON.stringify(dot)}</span>,
+  XAxis: () => null, YAxis: () => null, Tooltip: () => null, ReferenceLine: () => null,
+}))
 
 const exercises = [
   { id: 'squat', name: 'スクワット', name_normalized: 'スクワット', is_preset: true },
@@ -31,7 +39,11 @@ const rows = [
   { exercise_id: 'bench', weight_kg: 100, reps: 1 },
   { exercise_id: 'deadlift', weight_kg: 200, reps: 1 },
   { exercise_id: 'conventional', weight_kg: 220, reps: 1 },
-].map((row) => ({ ...row, performed_at: '2026-01-01T12:00:00Z' }))
+].flatMap((row) => [
+  { ...row, performed_at: '2026-01-01T12:00:00Z' },
+  // An older, lighter day per lift so each chart has the two points it needs to draw a line.
+  { ...row, weight_kg: row.weight_kg - 10, performed_at: '2025-12-01T12:00:00Z' },
+])
 const initial = buildStrengthSnapshot(exercises, [], rows)
 const mapped = buildStrengthSnapshot(exercises, [{ user_id: 'u1', lift_type: 'deadlift', exercise_id: 'conventional' }], rows)
 
@@ -104,7 +116,8 @@ describe('StrengthPage', () => {
     expect(await screen.findByText('480')).toBeInTheDocument()
     expect(screen.queryByText('Big3の対象種目')).not.toBeInTheDocument()
     expect(screen.queryByText('Rep PR')).not.toBeInTheDocument()
-    expect(screen.getAllByRole('combobox', { name: '詳細を見る記録日' })).toHaveLength(3)
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('e1rm-line-dot').map((el) => el.textContent)).toEqual(['false', 'false', 'false'])
     expect(fetchExercises).not.toHaveBeenCalled()
   })
   it('preserves existing mapped calculations', async () => {
@@ -114,6 +127,18 @@ describe('StrengthPage', () => {
     expect(screen.getByRole('link', { name: /デッドリフト 詳細/ })).toHaveAttribute('href', '/exercises/conventional')
     expect(screen.getByText('コンベンショナルデッドリフト')).toBeInTheDocument()
     expect(saveBig3ExerciseMapping).not.toHaveBeenCalled()
+  })
+  it('opens the exercise detail when a lift chart is tapped, without showing day records here', async () => {
+    fetchStrengthSnapshot.mockResolvedValue(mapped)
+    function Detail() { return <p>種目詳細: {useParams().exerciseId}</p> }
+    render(<MemoryRouter initialEntries={['/big3']}><ToastProvider><Routes>
+      <Route path="/big3" element={<StrengthPage />} />
+      <Route path="/exercises/:exerciseId" element={<Detail />} />
+    </Routes></ToastProvider></MemoryRouter>)
+    const charts = await screen.findAllByRole('button', { name: 'e1RMグラフ' })
+    await userEvent.click(charts[2])
+    expect(await screen.findByText('種目詳細: conventional')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '選択日の種目の記録' })).not.toBeInTheDocument()
   })
   it('recovers from a load failure using retry', async () => {
     fetchStrengthSnapshot.mockRejectedValueOnce(new Error('network'))

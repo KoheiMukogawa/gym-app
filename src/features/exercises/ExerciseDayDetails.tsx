@@ -39,12 +39,3 @@ export function ExerciseDayDetails({ exerciseId, date }: { exerciseId: string; d
     </div>) : <p className="text-sm text-muted">この日のこの種目の記録はありません</p>}
   </section>
 }
-
-export function ChartDatePicker({ dates, value, onChange }: { dates: string[]; value: string; onChange: (date: string) => void }) {
-  return <label className="mt-3 block text-xs text-muted">グラフをタップ、または記録日を選択
-    <select aria-label="詳細を見る記録日" value={value} onChange={e => onChange(e.target.value)} className="mt-2 min-h-14 w-full rounded-xl border border-border bg-surface px-3 text-sm text-fg">
-      <option value="">記録日を選ぶ</option>
-      {[...dates].reverse().map(date => <option key={date} value={date}>{date}</option>)}
-    </select>
-  </label>
-}

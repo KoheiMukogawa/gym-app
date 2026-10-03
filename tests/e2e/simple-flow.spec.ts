@@ -512,7 +512,7 @@ test('the record tab is gone and reps are filled from records, then from an esti
   // 記録タブは廃止。ホームのボタンと履歴から入る。
   const tabs = page.getByRole('navigation', { name: 'メイン' })
   await expect(tabs.getByRole('link', { name: '記録', exact: true })).toHaveCount(0)
-  await expect(tabs.getByRole('link')).toHaveCount(4)
+  await expect(tabs.getByRole('link')).toHaveCount(5)
 
   await page.getByRole('link', { name: /本日のトレーニングを追加|続きを記録/ }).click()
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()

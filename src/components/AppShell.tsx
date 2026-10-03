@@ -6,7 +6,7 @@ import { Avatar } from '../features/profile/Avatar'
 import { LogPage } from '../features/workout-log/LogPage'
 import { loadDraft } from '../features/workout-log/persistence'
 // 記録画面へはホームのボタンから入る。過去分は履歴から追加できるのでタブには出さない。
-const TABS=[{to:'/',label:'ホーム'},{to:'/history',label:'履歴'},{to:'/big3',label:'BIG3'},{to:'/body',label:'体組成'}]
+const TABS=[{to:'/',label:'ホーム'},{to:'/history',label:'履歴'},{to:'/big3',label:'BIG3'},{to:'/ranking',label:'ランキング'},{to:'/body',label:'体組成'}]
 export function AppShell(){
   const {signOut,profile,refreshProfile,userId}=useSession(),location=useLocation(),navigate=useNavigate()
   // トレーニングの途中でアプリを開き直したときは、ホームではなく記録画面から再開する
@@ -23,6 +23,6 @@ export function AppShell(){
         {open&&<div className="absolute right-0 z-50 w-64 rounded-xl border border-border bg-surface p-3 shadow-xl"><p className="break-words px-3 py-2 font-semibold">{profile?.display_name||'プロフィール'}</p><Link to="/profile" className="flex min-h-14 items-center px-3 text-sm">プロフィールを編集</Link><Link to="/export" className="flex min-h-14 items-center px-3 text-sm">データをエクスポート</Link>{error&&<p role="alert" className="text-sm text-accent">{error}</p>}<button className="min-h-14 w-full px-3 text-left text-sm text-muted" disabled={busy} onClick={async()=>{setBusy(true);setError(null);try{await signOut()}catch(e){setError(toMessage(e))}finally{setBusy(false)}}}>{busy?'ログアウト中…':'ログアウト'}</button></div>}
       </div></header>
     <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]"><div hidden={location.pathname!=='/log'}><LogPage key={logKey} onFinished={()=>setLogKey(k=>k+1)}/></div><Outlet/></main>
-    <nav aria-label="メイン" className="glass-navigation fixed inset-x-3 bottom-[calc(0.25rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[calc(32rem-1.5rem)] rounded-full">{TABS.map(t=><NavLink key={t.to} to={t.to} end={t.to==='/'} className="flex h-14 min-h-14 min-w-0 flex-1 items-center justify-center rounded-full px-1 text-sm">{({isActive})=><span className={`flex min-h-11 w-full items-center justify-center rounded-full transition-colors ${isActive?'bg-white/10 font-semibold text-accent':'text-fg/75 hover:bg-white/5'}`}>{t.label}</span>}</NavLink>)}</nav>
+    <nav aria-label="メイン" className="glass-navigation fixed inset-x-3 bottom-[calc(0.25rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[calc(32rem-1.5rem)] rounded-full">{TABS.map(t=><NavLink key={t.to} to={t.to} end={t.to==='/'} className="flex h-14 min-h-14 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-xs">{({isActive})=><span className={`flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-full transition-colors ${isActive?'bg-white/10 font-semibold text-accent':'text-fg/75 hover:bg-white/5'}`}>{t.label}</span>}</NavLink>)}</nav>
   </div>
 }

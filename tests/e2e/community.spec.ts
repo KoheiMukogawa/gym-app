@@ -100,8 +100,9 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByRole('button',{name:'プロフィールを保存'}).click()
   await expect(page.getByRole('status')).toContainText('保存しました')
   expect(mine).toMatchObject({display_name:'コウヘイ2',icon:'target',global_ranking:true})
-  await page.getByRole('link',{name:'BIG3',exact:true}).click()
-  await page.getByRole('button',{name:'ランキング',exact:true}).click()
+  // The ranking has its own bottom tab now.
+  await page.getByRole('navigation',{name:'メイン'}).getByRole('link',{name:'ランキング',exact:true}).click()
+  await expect(page).toHaveURL(/\/ranking$/)
   await expect(page.getByRole('region',{name:'全体ランキング'})).toBeVisible()
   await expect(page.getByRole('listitem').filter({hasText:'コウヘイ2'})).toContainText('450 kg')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
