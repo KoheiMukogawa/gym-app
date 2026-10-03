@@ -7,8 +7,8 @@
 - ブランチ: `master`。push すると Vercel に自動デプロイされる。Codex も `master` に push するので、push 前に必ず `git fetch` する
 - 本番で実際に使われている（本人がiPhoneで日常的に記録。利用者6人）。本番データの書き込み・削除やmigration適用は本人の許可を取ってから
 - 公開済みの機能: 記録（ダイアル入力、セットごとの推定1RM、メモは記録後にセットをタップ）、履歴と編集、BIG3、ランキング（kg・DOTS）、体組成、コミュニティ、Health同期、Markdown出力
-- 本番に適用済みのmigration: `health_sync`、`dots_ranking`、`my_big3_data` まで。Edge Function `body-metrics` も稼働中
-- 未適用: `supabase/migrations/20261003120000_rls_initplan.sql`（RLSの `auth.uid()` を `(select auth.uid())` に、`communities.owner_id` のインデックス、DOTS参加時の係数必須チェック）。PGliteのSQLスイートは通過済み
+- 本番に適用済みのmigration: `rls_initplan`（2026-10-03）まで。Edge Function `body-metrics` も稼働中
+- `rls_initplan` はRLSの `auth.uid()` を `(select auth.uid())` に変え、`communities.owner_id` のインデックスとDOTS参加時の係数必須チェックを追加した。適用後、advisorsの `auth_rls_initplan`・`unindexed_foreign_keys` は解消、本人として本人の記録だけが見えることを確認済み
 - 最後のセットを削除すると、空になったワークアウトもその場で消える（記録画面・履歴の編集画面とも）
 - 主な設計: DOTS `docs/superpowers/specs/2026-10-02-dots-ranking-design.md`、Health同期 `docs/superpowers/specs/2026-10-02-health-sync-design.md`（停止手順は `docs/health-sync-release.md`）、体組成 `docs/superpowers/plans/2026-10-02-body-composition.md`
 
@@ -50,14 +50,13 @@
 
 ## 未完了の作業
 
-1. `20261003120000_rls_initplan.sql` の本番適用（本人の許可待ち）。適用後に Supabase の advisors で `auth_rls_initplan` と `unindexed_foreign_keys` が消えたことを確認する
-2. Supabaseダッシュボードで漏洩パスワード保護（Leaked password protection）をオンにする。ダッシュボード設定のためコードやSQLからは変更できない
-3. 管理者アカウントの `profiles.display_name` が `mukougawakouhei`（メールのローカル部）のまま。SQLで更新すればよい（本番データなので本人の許可を取る）
-4. 筋トレMemoからの本人の記録移行。手順と注意は `docs/kintore-memo-migration.md`。
+1. Supabaseダッシュボードで漏洩パスワード保護（Leaked password protection）をオンにする。ダッシュボード設定のためコードやSQLからは変更できない
+2. 管理者アカウントの `profiles.display_name` が `mukougawakouhei`（メールのローカル部）のまま。SQLで更新すればよい（本番データなので本人の許可を取る）
+3. 筋トレMemoからの本人の記録移行。手順と注意は `docs/kintore-memo-migration.md`。
    次の一歩は本人から履歴画面のスクリーンショット1〜2枚と移行期間を受け取り、試し読みすること。本番への書き込み前に必ず本人の許可を取る
-5. 実SupabaseのE2E（`npm run test:e2e`）は2026-08-20以降未実行。実行すると `e2e@example.com` の記録がフィードに残る
-6. Health同期: 本人のHealth測定を送る操作は明示許可後に本人の少数日で行う。トークンや本文を共有ログへ残さない。署名済みShortcutファイルの配布はない
-7. Supabase advisors の `authenticated_security_definer_function_executable`（6件）と `rls_enabled_no_policy`（communities・community_members・health_sync_private.tokens）は設計どおり。どれもanonから実行不可、`search_path` 固定、`auth.uid()` で本人に限定している
+4. 実SupabaseのE2E（`npm run test:e2e`）は2026-08-20以降未実行。実行すると `e2e@example.com` の記録がフィードに残る
+5. Health同期: 本人のHealth測定を送る操作は明示許可後に本人の少数日で行う。トークンや本文を共有ログへ残さない。署名済みShortcutファイルの配布はない
+6. Supabase advisors の `authenticated_security_definer_function_executable`（6件）と `rls_enabled_no_policy`（communities・community_members・health_sync_private.tokens）は設計どおり。どれもanonから実行不可、`search_path` 固定、`auth.uid()` で本人に限定している
 
 ## 再開時の注意
 
