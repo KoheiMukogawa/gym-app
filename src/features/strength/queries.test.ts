@@ -1,37 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchBig3ExerciseMappings, fetchStrengthSnapshot, saveBig3ExerciseMapping } from './queries'
+import { buildStrengthSnapshot, type StrengthSet } from './strengthSnapshot'
 
-const { from, fetchExercises, mappingsQuery, setsQuery, mappingResult, setResult } = vi.hoisted(() => {
+const { from, rpc, mappingsQuery, mappingResult } = vi.hoisted(() => {
   const mappingResult = vi.fn()
-  const setResult = vi.fn()
-  const chain = (result: () => unknown) => {
-    const query: Record<string, ReturnType<typeof vi.fn>> = {}
-    for (const method of ['select', 'eq', 'in', 'order', 'range', 'delete', 'upsert']) {
-      query[method] = vi.fn(() => query)
-    }
-    query.then = vi.fn((resolve) => Promise.resolve(result()).then(resolve))
-    return query
-  }
-  const mappingsQuery = chain(mappingResult)
-  const setsQuery = chain(setResult)
-  return { from: vi.fn(), fetchExercises: vi.fn(), mappingsQuery, setsQuery, mappingResult, setResult }
+  const query: Record<string, ReturnType<typeof vi.fn>> = {}
+  for (const method of ['select', 'eq', 'delete', 'upsert']) query[method] = vi.fn(() => query)
+  query.then = vi.fn((resolve) => Promise.resolve(mappingResult()).then(resolve))
+  return { from: vi.fn(), rpc: vi.fn(), mappingsQuery: query, mappingResult }
 })
-vi.mock('../../lib/supabase', () => ({ supabase: { from } }))
-vi.mock('../exercises/queries', () => ({ fetchExercises }))
+vi.mock('../../lib/supabase', () => ({ supabase: { from, rpc } }))
+
+const exercises = [
+  { id: 'squat', name: 'スクワット', name_normalized: 'スクワット', is_preset: true },
+  { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', is_preset: true },
+  { id: 'deadlift', name: 'デッドリフト', name_normalized: 'デッドリフト', is_preset: true },
+  { id: 'conventional', name: 'コンベンショナルデッドリフト', name_normalized: 'コンベンショナルデッドリフト', is_preset: false },
+]
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  from.mockImplementation((table: string) => {
-    if (table === 'big3_exercise_mappings') return mappingsQuery
-    if (table === 'workout_sets') return setsQuery
-    throw new Error(`Unexpected table: ${table}`)
-  })
+  vi.resetAllMocks()
+  from.mockReturnValue(mappingsQuery)
+  for (const method of ['select', 'eq', 'delete', 'upsert']) mappingsQuery[method].mockReturnValue(mappingsQuery)
+  mappingsQuery.then.mockImplementation((resolve) => Promise.resolve(mappingResult()).then(resolve))
   mappingResult.mockReturnValue({ data: [], error: null })
-  setResult.mockReturnValue({ data: [], error: null })
-  fetchExercises.mockResolvedValue([
-    { id: 'preset', name: 'デッドリフト', name_normalized: 'デッドリフト', is_preset: true },
-    { id: 'conventional', name: 'コンベンショナルデッドリフト', name_normalized: 'コンベンショナルデッドリフト', is_preset: false },
-  ])
+  rpc.mockResolvedValue({ data: { exercises, mappings: [], sets: [] }, error: null })
 })
 
 describe('mapping persistence', () => {
@@ -39,22 +32,19 @@ describe('mapping persistence', () => {
     await expect(fetchBig3ExerciseMappings('u1')).resolves.toEqual([])
     expect(mappingsQuery.eq).toHaveBeenCalledWith('user_id', 'u1')
   })
-
-  it('upserts on the user/lift key so changing an exercise replaces that mapping', async () => {
+  it('upserts on the user/lift key', async () => {
     await saveBig3ExerciseMapping('u1', 'deadlift', 'conventional')
     expect(mappingsQuery.upsert).toHaveBeenCalledWith(
       { user_id: 'u1', lift_type: 'deadlift', exercise_id: 'conventional' },
       { onConflict: 'user_id,lift_type' },
     )
   })
-
-  it('resets only the selected lift for that user', async () => {
+  it('resets only the selected lift', async () => {
     await saveBig3ExerciseMapping('u1', 'deadlift', null)
     expect(mappingsQuery.delete).toHaveBeenCalledOnce()
     expect(mappingsQuery.eq.mock.calls).toEqual([['user_id', 'u1'], ['lift_type', 'deadlift']])
     expect(mappingsQuery.upsert).not.toHaveBeenCalled()
   })
-
   it('propagates mapping read and write failures', async () => {
     mappingResult.mockReturnValue({ data: null, error: { message: 'network error' } })
     await expect(fetchBig3ExerciseMappings('u1')).rejects.toMatchObject({ message: 'network error' })
@@ -64,51 +54,35 @@ describe('mapping persistence', () => {
 })
 
 describe('fetchStrengthSnapshot', () => {
-  it('filters history by the resolved exercises and owner', async () => {
-    mappingResult.mockReturnValue({ data: [{ user_id: 'u1', lift_type: 'deadlift', exercise_id: 'conventional' }], error: null })
-    setResult.mockReturnValue({ data: [{ exercise_id: 'conventional', weight_kg: 200, reps: 1, workouts: { performed_at: new Date().toISOString() } }], error: null })
-    const snapshot = await fetchStrengthSnapshot('u1')
-    expect(setsQuery.in).toHaveBeenCalledWith('exercise_id', ['conventional'])
-    expect(setsQuery.eq).toHaveBeenCalledWith('workouts.user_id', 'u1')
-    expect(snapshot.lifts.deadlift.pr1rm).toBe(200)
+  it.each([false, true])('keeps all calculations unchanged (mapped=%s) with one authenticated RPC', async mapped => {
+    const mappings = mapped ? [{ user_id: 'u1', lift_type: 'deadlift' as const, exercise_id: 'conventional' }] : []
+    const sets: StrengthSet[] = [
+      { exercise_id: 'squat', weight_kg: 160, reps: 5, performed_at: '2026-01-01T15:30:00Z' },
+      { exercise_id: 'bench', weight_kg: 80, reps: 8, performed_at: '2026-01-01T15:30:00Z' },
+      { exercise_id: 'deadlift', weight_kg: 200, reps: 1, performed_at: '2026-01-01T15:30:00Z' },
+      { exercise_id: 'conventional', weight_kg: 220, reps: 3, performed_at: new Date().toISOString() },
+    ]
+    rpc.mockResolvedValue({ data: { exercises, mappings, sets }, error: null })
+    expect(await fetchStrengthSnapshot('u1')).toEqual(buildStrengthSnapshot(exercises, mappings, sets))
+    expect(rpc).toHaveBeenCalledExactlyOnceWith('my_big3_data')
+    expect(from).not.toHaveBeenCalled()
   })
-
-  it('fetches preset history when there is no explicit mapping', async () => {
-    await fetchStrengthSnapshot('u1')
-    expect(setsQuery.in).toHaveBeenCalledWith('exercise_id', ['preset'])
-  })
-
-  it('does not query history when no exercises resolve', async () => {
-    fetchExercises.mockResolvedValue([])
-    const snapshot = await fetchStrengthSnapshot('u1')
-    expect(from).not.toHaveBeenCalledWith('workout_sets')
-    expect(snapshot.prTotal).toBeNull()
-  })
-
-  it('deduplicates exercise IDs when an exercise is selected for multiple lifts', async () => {
-    mappingResult.mockReturnValue({ data: ['squat', 'bench', 'deadlift'].map((lift_type) => ({ user_id: 'u1', lift_type, exercise_id: 'conventional' })), error: null })
-    await fetchStrengthSnapshot('u1')
-    expect(setsQuery.in).toHaveBeenCalledWith('exercise_id', ['conventional'])
-  })
-
-  it('includes PRs beyond the first page of history', async () => {
-    const row = { exercise_id: 'preset', weight_kg: 100, reps: 1, workouts: { performed_at: '2026-09-20T12:00:00Z' } }
-    setResult.mockReturnValueOnce({ data: Array.from({ length: 1000 }, () => row), error: null })
-      .mockReturnValueOnce({ data: [{ ...row, weight_kg: 220 }], error: null })
+  it('includes a PR beyond 1000 rows in the same response', async () => {
+    const row = { exercise_id: 'deadlift', weight_kg: 100, reps: 1, performed_at: '2026-09-20T12:00:00Z' }
+    rpc.mockResolvedValue({ data: { exercises, mappings: [], sets: [...Array.from({ length: 1000 }, () => row), { ...row, weight_kg: 220 }] }, error: null })
     expect((await fetchStrengthSnapshot('u1')).lifts.deadlift.pr1rm).toBe(220)
-    expect(setsQuery.range.mock.calls).toEqual([[0, 999], [1000, 1999]])
+    expect(rpc).toHaveBeenCalledOnce()
   })
-
-  it('does not silently use defaults when mapping reads fail', async () => {
-    mappingResult.mockReturnValue({ data: null, error: { message: 'mapping unavailable' } })
-    await expect(fetchStrengthSnapshot('u1')).rejects.toMatchObject({ message: 'mapping unavailable' })
-    expect(from).not.toHaveBeenCalledWith('workout_sets')
-  })
-
-  it('propagates exercise and history errors', async () => {
-    fetchExercises.mockRejectedValueOnce(new Error('exercises unavailable'))
-    await expect(fetchStrengthSnapshot('u1')).rejects.toThrow('exercises unavailable')
-    setResult.mockReturnValue({ data: null, error: { message: 'history unavailable' } })
+  it('keeps empty history distinct from a failed response', async () => {
+    expect((await fetchStrengthSnapshot('u1')).prTotal).toBeNull()
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'history unavailable' } })
     await expect(fetchStrengthSnapshot('u1')).rejects.toMatchObject({ message: 'history unavailable' })
+    rpc.mockResolvedValueOnce({ data: null, error: null })
+    await expect(fetchStrengthSnapshot('u1')).rejects.toThrow('BIG3の記録を取得できませんでした')
+  })
+  it('does not silently substitute defaults for malformed data', async () => {
+    rpc.mockResolvedValueOnce({ data: { exercises, sets: [] }, error: null })
+    await expect(fetchStrengthSnapshot('u1')).rejects.toThrow('BIG3の記録を取得できませんでした')
+    expect(from).not.toHaveBeenCalled()
   })
 })

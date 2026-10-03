@@ -53,6 +53,14 @@ async function mockApi(page: Page) {
     if (table === 'user') return respond(session.user)
     if (table === 'logout') return respond({})
     if (table === 'profiles') return respond({ id: USER, display_name: 'テストユーザー' })
+    if (table === 'my_big3_data') return respond({
+      exercises: exercises.filter(e => e.is_preset && ['スクワット', 'ベンチプレス', 'デッドリフト'].includes(e.name_normalized)),
+      mappings: [],
+      sets: sets.filter(s => workouts.some(w => w.id === s.workout_id && w.user_id === USER)).map(s => ({
+        exercise_id: s.exercise_id, weight_kg: s.weight_kg, reps: s.reps,
+        performed_at: workouts.find(w => w.id === s.workout_id)!.performed_at,
+      })),
+    })
     if (table === 'bodyweight_logs') {
       if (method === 'POST') { bodyweights.splice(0, bodyweights.length, ...bodyweights.filter((b) => b.recorded_on !== body.recorded_on), body); return respond(null, 201) }
       if (method === 'DELETE') { const i = bodyweights.findIndex((b) => b.recorded_on === eq('recorded_on')); if (i >= 0) bodyweights.splice(i, 1); return respond(null) }
@@ -91,7 +99,8 @@ async function mockApi(page: Page) {
         exercises.push(next)
         return respond(next, 201)
       }
-      return respond(exercises)
+      const match = exercises.filter(e => !eq('id') || e.id === eq('id'))
+      return respond(req.headers().accept?.includes('object') ? match[0] ?? null : match)
     }
     if (table === 'workouts') {
       if (method === 'POST') {
@@ -120,7 +129,7 @@ async function mockApi(page: Page) {
       return respond(req.headers().accept?.includes('object') ? result[0] ?? null : result)
     }
     if (table === 'workout_sets') {
-      const match = sets.filter((s) => (!eq('id') || s.id === eq('id')) && (!eq('workout_id') || s.workout_id === eq('workout_id')))
+      const match = sets.filter((s) => (!eq('id') || s.id === eq('id')) && (!eq('workout_id') || s.workout_id === eq('workout_id')) && (!eq('exercise_id') || s.exercise_id === eq('exercise_id')))
       if (method === 'POST') {
         const existing = sets.find((s) => s.id === body.id)
         if (existing) Object.assign(existing, body)
@@ -191,18 +200,34 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   // Finishing returns home, which lists today's workout.
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByRole('region', { name: '今日のトレーニング' })).toContainText('ベンチプレス')
+  await page.getByRole('region', { name: '今日のトレーニング' }).getByRole('link', { name: 'ベンチプレス', exact: true }).click()
+  await expect(page).toHaveURL(/\/exercises\/bench$/)
+  await expect(page.getByRole('heading', { name: 'ベンチプレス', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '推定1RMの推移（日ごとの最高）' })).toBeVisible()
+  await page.goBack()
+  await expect(page.getByRole('region', { name: '今日のトレーニング' })).toBeVisible()
+  await page.screenshot({ path: 'test-results/home-exercise-links-mobile.png', fullPage: true })
+  await page.getByRole('link', { name: '今日の記録を編集' }).click()
+  await expect(page.getByRole('heading', { name: '記録を編集', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '完了', exact: true }).click()
   await page.getByRole('link', { name: '履歴', exact: true }).click()
+  await expect(page.getByRole('link', { name: /日付を選んで追加/ })).toHaveCount(0)
   await expect(page.getByRole('link', { name: '編集', exact: true })).toHaveCount(0)
   await expect(page.getByText('今月の記録')).toHaveCount(0)
   await page.getByRole('button', { name: /トレーニングあり/ }).click()
+  await page.getByRole('link', { name: 'ベンチプレス', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '推定1RMの推移（日ごとの最高）' })).toBeVisible()
+  await page.goBack()
   await page.getByRole('link', { name: '編集', exact: true }).click()
   await page.getByRole('button', { name: /62.5kg 8回を編集/ }).click()
   await page.getByRole('spinbutton', { name: '重量（kg）' }).fill('65')
   await page.getByRole('button', { name: '変更を保存' }).click()
   await expect(page.getByRole('button', { name: /65kg 8回を編集/ })).toBeVisible()
   await page.getByRole('button', { name: '完了', exact: true }).click()
-  await page.getByRole('link', { name: /日付を選んで追加/ }).click()
-  await page.getByLabel('トレーニング日').fill('2020-02-03')
+  await page.goto('/history?date=2020-02-01')
+  await page.getByRole('button', { name: '2月3日', exact: true }).click()
+  await page.getByRole('link', { name: '＋ この日に記録を追加', exact: true }).click()
+  await expect(page.getByLabel('トレーニング日')).toHaveValue('2020-02-03')
   await page.getByRole('button', { name: '脚', exact: true }).click()
   await page.getByRole('button', { name: 'スクワット', exact: true }).click()
   await page.getByRole('spinbutton', { name: '重量（kg）' }).fill('100')

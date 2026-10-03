@@ -13,6 +13,11 @@ export function AppShell(){
   const resumed=useRef(false)
   useEffect(()=>{if(resumed.current||!userId)return;resumed.current=true;if(location.pathname==='/'&&!location.search&&(loadDraft(userId)?.state.sets.length??0)>0)navigate('/log',{replace:true})},[userId,location.pathname,location.search,navigate])
   const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[logKey,setLogKey]=useState(0)
+  // Mount recording on its first visit, then retain it across tab changes so
+  // in-progress input survives without fetching its history on every launch.
+  const [logOpened,setLogOpened]=useState(location.pathname==='/log')
+  const showLog=logOpened||location.pathname==='/log'
+  useEffect(()=>{if(location.pathname==='/log')setLogOpened(true)},[location.pathname])
   useEffect(()=>{const update=()=>{void refreshProfile().catch(()=>{})};window.addEventListener('glog-profile-updated',update);return()=>window.removeEventListener('glog-profile-updated',update)},[refreshProfile])
   const menu=useRef<HTMLDivElement>(null)
   useEffect(()=>setOpen(false),[location.pathname,location.search])
@@ -22,7 +27,7 @@ export function AppShell(){
       <div ref={menu} className="relative"><button className="flex min-h-14 min-w-14 items-center justify-center" aria-label="プロフィールメニュー" aria-expanded={open} onClick={()=>setOpen(v=>!v)}><Avatar icon={profile?.icon} name={profile?.display_name}/></button>
         {open&&<div className="absolute right-0 z-50 w-64 rounded-xl border border-border bg-surface p-3 shadow-xl"><p className="break-words px-3 py-2 font-semibold">{profile?.display_name||'プロフィール'}</p><Link to="/profile" className="flex min-h-14 items-center px-3 text-sm">プロフィールを編集</Link><Link to="/export" className="flex min-h-14 items-center px-3 text-sm">データをエクスポート</Link>{error&&<p role="alert" className="text-sm text-accent">{error}</p>}<button className="min-h-14 w-full px-3 text-left text-sm text-muted" disabled={busy} onClick={async()=>{setBusy(true);setError(null);try{await signOut()}catch(e){setError(toMessage(e))}finally{setBusy(false)}}}>{busy?'ログアウト中…':'ログアウト'}</button></div>}
       </div></header>
-    <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]"><div hidden={location.pathname!=='/log'}><LogPage key={logKey} onFinished={()=>setLogKey(k=>k+1)}/></div><Outlet/></main>
+    <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">{showLog&&<div hidden={location.pathname!=='/log'}><LogPage key={logKey} onFinished={()=>setLogKey(k=>k+1)}/></div>}<Outlet/></main>
     <nav aria-label="メイン" className="glass-navigation fixed inset-x-3 bottom-[calc(0.25rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[calc(32rem-1.5rem)] rounded-full">{TABS.map(t=><NavLink key={t.to} to={t.to} end={t.to==='/'} className="flex h-14 min-h-14 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-xs">{({isActive})=><span className={`flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-full transition-colors ${isActive?'bg-white/10 font-semibold text-accent':'text-fg/75 hover:bg-white/5'}`}>{t.label}</span>}</NavLink>)}</nav>
   </div>
 }
