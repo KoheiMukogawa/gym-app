@@ -82,9 +82,8 @@ export function HistoryPage() {
     else setDragX(0)
   }
   return <div className="flex flex-col gap-6 p-4">
-    <header className="flex items-center justify-between gap-3">
+    <header>
       <h1 className="text-2xl font-semibold">トレーニング履歴</h1>
-      <Link to={'/history/new' + (selected ? '?date=' + selected : '')} className="flex min-h-14 items-center rounded-xl border border-border px-3 text-sm text-accent">＋ 日付を選んで追加</Link>
     </header>
     <div className="flex items-center justify-between">
       <button aria-label="前の月" className="min-h-14 min-w-14 text-muted" onClick={() => move(-1)}>←</button>

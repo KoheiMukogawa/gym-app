@@ -132,6 +132,8 @@ describe('HistoryPage error handling', () => {
     expect(rows[1]).toHaveTextContent('70.0 kg')
     expect(rows[1]).toHaveTextContent('10 reps')
     expect(rows[1]).toHaveTextContent('最後まで丁寧に')
+    expect(within(bench).getByRole('link', { name: 'ベンチプレス' })).toHaveAttribute('href', '/exercises/bench')
+    expect(screen.getByRole('link', { name: 'スクワット' })).toHaveAttribute('href', '/exercises/squat')
     expect(within(screen.getByRole('region', { name: 'スクワット' })).getAllByRole('listitem')).toHaveLength(1)
     expect(screen.getByRole('link', { name: '編集' })).toHaveAttribute('href', '/history/w1')
     expect(screen.getByRole('link', { name: '＋ この日に記録を追加' })).toHaveAttribute('href', '/history/w1')
