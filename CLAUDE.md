@@ -1,19 +1,16 @@
 # Claude Code 引き継ぎメモ
 
-最終更新: 2026-10-02（Codexへ引き継ぎ）
+最終更新: 2026-10-03
 
 ## 現在地
 
-- ブランチ: `master`（DOTSランキングまでローカルでマージ済み。originへのpushは未実施）
-- MVP Task 1〜16 は完了済み。体組成管理の実装計画は `docs/superpowers/plans/2026-10-02-body-composition.md`
-- 体組成 Task 1〜7 を実装済み: 任意の体脂肪率、本人限定の記録・修正・削除、体組成タブ、期間別グラフと7日平均、Markdown出力
-- `bodyweight_logs.body_fat_pct` は本番DBに適用済み。既存の本人限定RLSは維持
-- プロフィールからは体組成タブへ案内。自重種目の記録画面での体重入力は維持
-- この作業のコミットはローカルのみ。push・merge・本番アプリのデプロイは未実施
-- Health同期のTasks1〜5をローカル実装: 個人トークン管理、期間バッチEdge、折り畳み接続UIと日本語Shortcut手順、全期間グラフと1000件ずつの履歴取得・50件ずつの一覧
-- Health同期の本番migration/Function/アプリ公開とiPhone実機確認は未実施。具体的な適用・停止手順は `docs/health-sync-release.md`
-- DOTSランキングをローカル実装: 記録日の前後14日以内の体重で種目ごとにDOTSを出し、全体・コミュニティにDOTSタブ、プロフィールで参加と係数を設定。設計は `docs/superpowers/specs/2026-10-02-dots-ranking-design.md`
-- DOTSのmigrationは2026-10-02に本番適用済み（本番の履歴名 `dots_ranking`）。適用前後で全体・コミュニティのkgランキング結果が一致、`big3_member_stats` / `dots_points` はanon/authenticatedから実行不可を確認。アプリのpush・デプロイは未実施
+- ブランチ: `master`。push すると Vercel に自動デプロイされる。Codex も `master` に push するので、push 前に必ず `git fetch` する
+- 本番で実際に使われている（本人がiPhoneで日常的に記録。利用者6人）。本番データの書き込み・削除やmigration適用は本人の許可を取ってから
+- 公開済みの機能: 記録（ダイアル入力、セットごとの推定1RM、メモは記録後にセットをタップ）、履歴と編集、BIG3、ランキング（kg・DOTS）、体組成、コミュニティ、Health同期、Markdown出力
+- 本番に適用済みのmigration: `health_sync`、`dots_ranking`、`my_big3_data` まで。Edge Function `body-metrics` も稼働中
+- 未適用: `supabase/migrations/20261003120000_rls_initplan.sql`（RLSの `auth.uid()` を `(select auth.uid())` に、`communities.owner_id` のインデックス、DOTS参加時の係数必須チェック）。PGliteのSQLスイートは通過済み
+- 最後のセットを削除すると、空になったワークアウトもその場で消える（記録画面・履歴の編集画面とも）
+- 主な設計: DOTS `docs/superpowers/specs/2026-10-02-dots-ranking-design.md`、Health同期 `docs/superpowers/specs/2026-10-02-health-sync-design.md`（停止手順は `docs/health-sync-release.md`）、体組成 `docs/superpowers/plans/2026-10-02-body-composition.md`
 
 ## Task 15/16 で追加したもの
 
@@ -30,9 +27,11 @@
 - モックE2Eは画面→保存→実Recharts SVG/ツールチップ→一覧→過去日修正→スワイプ削除を検証
 - 実SupabaseのE2Eは今回は実行していない。2026-08-20時点ではログイン〜1セット記録〜フィード反映がPASS
 - RLSの既存検証結果は `docs/setup-supabase.md` の「RLS検証結果」を参照
-- 通常の並列 `npm test` は、この環境では無関係な既存テストがタイムアウトすることがある。ワーカー1つで確認する
-- モックE2Eも並列だと体組成・Health系がタイムアウトすることがある。`--workers=1` で確認する
-- ランキング系SQLは `node supabase/tests/sql-runtime/run-sql.mjs` で、全migrationを適用した一時PGliteに対して実行できる（初回は `npm ci --prefix supabase/tests/sql-runtime`）
+- 単体テストのタイムアウトは20秒（`vite.config.ts`）。並列の `npm test` で通る
+- モックE2Eは `npm run test:e2e:mock -- --workers=1`。並列だと体組成・Health系がタイムアウトすることがある
+- `npm run lint`（ESLint、TypeScript と React Hooks のルール）。警告2件（ProfilePage・LogPage の useEffect 依存）は意図的
+- SQLは `node supabase/tests/sql-runtime/run-sql.mjs` で、全migrationを適用した一時PGliteに対して実行できる（初回は `npm ci --prefix supabase/tests/sql-runtime`）
+- CI（`.github/workflows/ci.yml`）: lint → build → 単体 → SQL → モックE2E。Vercelのデプロイは CI の結果を待たないので、push 後に `gh run list` で確認する
 
 ## 本番環境
 
@@ -42,7 +41,7 @@
 - キーは新形式の `sb_publishable_...`（旧 `eyJ...` のJWT形式ではない）。`@supabase/supabase-js` はどちらも受け付ける
 - Vercelの環境変数は **Sensitive にしないこと**。Viteはビルド時に値を埋め込むため、Sensitive指定だと空文字のままビルドされる
 - 環境変数が空だと `src/lib/supabase.ts` の throw が静的に確定し、以降のコードがtree-shakingで丸ごと消える。
-  バンドルが約230kBなら環境変数が入っていない、約820kBなら入っている、という切り分けができる
+  ホーム以外の画面は遅延読み込みなのでサイズでは判別しにくい。公開中の `/assets/*.js` に `lombbjpiftuqkacasmzg` が含まれていれば環境変数は入っている
 
 ## WSL環境での注意
 
@@ -51,23 +50,14 @@
 
 ## 未完了の作業
 
-1. Supabaseダッシュボードで新規サインアップを許可する（Allow new users to sign up をオン、Confirm email はオフ。標準メールはチームのアドレスにしか届かないため）。
-   手順は `docs/setup-supabase.md` の Step 3〜4。ダッシュボード設定のためコードやSQLからは変更できない
-2. 実機スマートフォンでのホーム画面追加とログイン〜1セット記録の確認
-3. 管理者アカウントの `profiles.display_name` が `mukougawakouhei`（メールのローカル部）のまま。
-   ユーザー作成時に User Metadata の `display_name` を設定しなかったため。SQLで更新すればよい
-4. E2Eテストを実行すると `e2e@example.com` の記録がフィードに残る。気になる場合は
-   `delete from public.workouts where user_id = '<e2eユーザーのid>';` で消す
-
-5. Health同期はローカル実装済み・本番適用待ち。設計は `docs/superpowers/specs/2026-10-02-health-sync-design.md`。
-   公開前に本番PostgREST権限、同時セッションのロック、Function gatewayを確認する。
-   iPhoneの実際のアクション・単位・親子エラー停止・日次実行は未確認。署名済みShortcutファイルの配布はない。
-   本人のHealth測定を送る操作は明示許可後に本人の少数日で行う。トークンや本文を共有ログへ残さない。
-   2026-10-02時点で本番のmigration履歴に `health_sync` が記録されている（この項目の「本番適用待ち」と食い違う）。Edge Functionの状態と合わせて確認してから、この項目を直す。
-6. 筋トレMemoからの本人の記録移行。手順と注意は `docs/kintore-memo-migration.md`。
-   次の一歩は本人から履歴画面のスクリーンショット1〜2枚と移行期間を受け取り、試し読みすること。本番への書き込み前に必ず本人の許可を取る。
-7. DOTSランキングの後回しにした軽微な点: migration末尾の `notify pgrst,'reload schema'` がない、コミュニティの空一覧の文言がDOTS専用、
-   係数未選択で保存ボタンが無効になる理由の表示がない、同点の次の順位が飛ぶことのテストがない、`dots_opt_in` をRPCを通さず直接更新できる（本人のデータのみ）
+1. `20261003120000_rls_initplan.sql` の本番適用（本人の許可待ち）。適用後に Supabase の advisors で `auth_rls_initplan` と `unindexed_foreign_keys` が消えたことを確認する
+2. Supabaseダッシュボードで漏洩パスワード保護（Leaked password protection）をオンにする。ダッシュボード設定のためコードやSQLからは変更できない
+3. 管理者アカウントの `profiles.display_name` が `mukougawakouhei`（メールのローカル部）のまま。SQLで更新すればよい（本番データなので本人の許可を取る）
+4. 筋トレMemoからの本人の記録移行。手順と注意は `docs/kintore-memo-migration.md`。
+   次の一歩は本人から履歴画面のスクリーンショット1〜2枚と移行期間を受け取り、試し読みすること。本番への書き込み前に必ず本人の許可を取る
+5. 実SupabaseのE2E（`npm run test:e2e`）は2026-08-20以降未実行。実行すると `e2e@example.com` の記録がフィードに残る
+6. Health同期: 本人のHealth測定を送る操作は明示許可後に本人の少数日で行う。トークンや本文を共有ログへ残さない。署名済みShortcutファイルの配布はない
+7. Supabase advisors の `authenticated_security_definer_function_executable`（6件）と `rls_enabled_no_policy`（communities・community_members・health_sync_private.tokens）は設計どおり。どれもanonから実行不可、`search_path` 固定、`auth.uid()` で本人に限定している
 
 ## 再開時の注意
 
