@@ -11,6 +11,7 @@ import { ExercisePicker } from '../exercises/ExercisePicker'
 import { exerciseLabel } from '../exercises/catalog'
 import { createExercise, fetchExercises } from '../exercises/queries'
 import { loadDraft, clearDraft } from '../workout-log/persistence'
+import { deleteWorkoutIfEmpty } from '../workout-log/queries'
 import { SwipeRow } from '../../components/SwipeRow'
 import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 import { bodyweightOn, formatAddedLoad, type BodyweightLog } from '../../lib/bodyweight'
@@ -173,6 +174,13 @@ export function WorkoutEditorPage() {
       await removeWorkoutSet(savedId!, set.id)
       setSets((old) => old.filter((s) => s.id !== set.id))
       invalidateDraft()
+      // The last set takes the empty workout with it, so history has no "0セット" day.
+      // A set still being added keeps the workout to save into.
+      const lastSet = sets.every((s) => s.id === set.id)
+      if (lastSet && Object.keys(drafts.current).length === 0 && await deleteWorkoutIfEmpty(savedId!)) {
+        show('記録を削除しました')
+        navigate('/history?date=' + date)
+      }
     })
   }
 
@@ -186,15 +194,16 @@ export function WorkoutEditorPage() {
   return (
     <div className="flex flex-col gap-5 py-4">
       <header className="flex items-center justify-between px-4">
-        <h1 className="text-2xl font-semibold">{workoutId ? '記録を編集' : '日付を選んで記録'}</h1>
-        <button className="min-h-14 px-3 text-sm text-muted" disabled={busy}
+        {/* A new record takes its date from the history link, so it needs no title or date field. */}
+        {workoutId && <h1 className="text-2xl font-semibold">記録を編集</h1>}
+        <button className="ml-auto min-h-14 px-3 text-sm text-muted" disabled={busy}
           onClick={() => {
             if ((entry || Object.keys(drafts.current).length) && !window.confirm('入力中のセットは保存されません。履歴に戻りますか？')) return
             if (savedDate && date !== localDate(savedDate) && !window.confirm('日付の変更は保存されません。履歴に戻りますか？')) return
             navigate('/history?date=' + date)
           }}>完了</button>
       </header>
-      <section className="mx-4 space-y-3 rounded-2xl border border-border bg-surface p-4">
+      {workoutId && <section className="mx-4 space-y-3 rounded-2xl border border-border bg-surface p-4">
         <label className="flex flex-col gap-2 text-sm text-muted">トレーニング日
           <input type="date" value={date} max={localDate()} disabled={busy} onChange={(e) => setDate(e.target.value)} className={fieldClass} />
         </label>
@@ -207,7 +216,7 @@ export function WorkoutEditorPage() {
             show('日付を変更しました')
           })}>日付の変更を保存</Button>
         )}
-      </section>
+      </section>}
       {error && <p role="alert" className="px-4 text-sm text-accent">{error}</p>}
       <section className="flex flex-col gap-3 px-4" aria-label="保存済みのセット">
         {groups.map((group) => (

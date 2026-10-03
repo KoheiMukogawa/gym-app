@@ -9,10 +9,11 @@ import { localDate } from '../../lib/dates'
 const api = vi.hoisted(() => ({
   fetchEditableWorkout: vi.fn(), findWorkoutOnDate: vi.fn(), createDatedWorkout: vi.fn(), updateWorkoutDate: vi.fn(),
   updateWorkoutSet: vi.fn(), removeWorkoutSet: vi.fn(), removeWorkout: vi.fn(),
-  fetchExercises: vi.fn(), createExercise: vi.fn(), saveEditableSet: vi.fn(),
+  fetchExercises: vi.fn(), createExercise: vi.fn(), saveEditableSet: vi.fn(), deleteWorkoutIfEmpty: vi.fn(),
 }))
 vi.mock('./editorQueries', () => api)
 vi.mock('../exercises/queries', () => api)
+vi.mock('../workout-log/queries', () => api)
 vi.mock('../routines/queries', () => ({ fetchExerciseOrder: async () => [], saveExerciseOrder: vi.fn() }))
 vi.mock('../profile/bodyweightQueries', () => ({ fetchBodyweightLogs: async () => [{ recorded_on: '2019-01-01', bodyweight_kg: 70 }] }))
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1' }) }))
@@ -82,10 +83,11 @@ describe('WorkoutEditorPage', () => {
   it('creates a backdated record only when the first set is saved and retries the same set ID', async () => {
     api.saveEditableSet.mockRejectedValueOnce(new Error('network'))
     api.fetchEditableWorkout.mockImplementation(async (_user, id) => ({ ...WORKOUT, id, performed_at: '2020-02-03T12:00:00Z', workout_sets: [{ ...SET, weight_kg: 20, reps: 10 }] }))
-    const user = setup('/history/new')
-    const date = await screen.findByLabelText('トレーニング日')
-    await user.clear(date); await user.type(date, '2020-02-03')
-    await user.click(screen.getByRole('button', { name: 'ベンチプレス' }))
+    const user = setup('/history/new?date=2020-02-03')
+    await user.click(await screen.findByRole('button', { name: 'ベンチプレス' }))
+    // The date comes from the history link, so there is no title or date field.
+    expect(screen.queryByRole('heading', { name: '日付を選んで記録' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('トレーニング日')).not.toBeInTheDocument()
     expect(api.createDatedWorkout).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'セットを追加' }))
     await screen.findByRole('alert')
@@ -140,6 +142,26 @@ describe('WorkoutEditorPage', () => {
     expect(api.removeWorkoutSet).toHaveBeenCalledWith('w1', 's2')
     expect(confirm).not.toHaveBeenCalled()
     confirm.mockRestore()
+  })
+  it('removes the empty workout and returns to that day when its last set is deleted', async () => {
+    api.removeWorkoutSet.mockResolvedValue(undefined)
+    api.deleteWorkoutIfEmpty.mockResolvedValue(true)
+    const user = setup()
+    await user.click(await screen.findByRole('button', { name: /80kg 8回を削除/ }))
+    // Otherwise history keeps a "0セット" workout for this day.
+    await waitFor(() => expect(api.deleteWorkoutIfEmpty).toHaveBeenCalledWith('w1'))
+    expect(await screen.findByText('履歴に戻りました')).toBeInTheDocument()
+  })
+  it('keeps the workout while other sets remain', async () => {
+    api.removeWorkoutSet.mockResolvedValue(undefined)
+    api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [
+      SET, { ...SET, id: 's2', weight_kg: 60, set_index: 2, created_at: '2020-01-02T12:01:00Z' },
+    ] })
+    const user = setup()
+    await user.click(await screen.findByRole('button', { name: /60kg 8回を削除/ }))
+    await waitFor(() => expect(api.removeWorkoutSet).toHaveBeenCalledWith('w1', 's2'))
+    expect(api.deleteWorkoutIfEmpty).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /80kg 8回を編集/ })).toBeInTheDocument()
   })
   it('lets bodyweight exercises take an assisted (negative) load', async () => {
     const CHIN = { ...EXERCISE, id: 'chin', name: 'チンニング', name_normalized: 'チンニング', is_bodyweight: true }
