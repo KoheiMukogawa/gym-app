@@ -1,18 +1,22 @@
+import { lazy } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from './features/auth/SessionProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { LoginPage } from './features/auth/LoginPage'
 import { AppShell } from './components/AppShell'
 import { ToastProvider } from './components/ui/Toast'
-import { ProfilePage } from './features/profile/ProfilePage'
-import { HistoryPage } from './features/history/HistoryPage'
-import { ExerciseDetailPage } from './features/exercises/ExerciseDetailPage'
-import { WorkoutEditorPage } from './features/history/WorkoutEditorPage'
-import { Big3Page } from './features/community/Big3Page'
-import { RankingPage } from './features/community/RankingPage'
 import { HomePage } from './features/home/HomePage'
-import { ExportPage } from './features/export/ExportPage'
-import { BodyPage } from './features/body/BodyPage'
+
+// Screens other than home and recording load on first visit, so charts and
+// rankings do not slow down opening the app. The service worker precaches them.
+const ProfilePage = lazy(() => import('./features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })))
+const HistoryPage = lazy(() => import('./features/history/HistoryPage').then((m) => ({ default: m.HistoryPage })))
+const ExerciseDetailPage = lazy(() => import('./features/exercises/ExerciseDetailPage').then((m) => ({ default: m.ExerciseDetailPage })))
+const WorkoutEditorPage = lazy(() => import('./features/history/WorkoutEditorPage').then((m) => ({ default: m.WorkoutEditorPage })))
+const Big3Page = lazy(() => import('./features/community/Big3Page').then((m) => ({ default: m.Big3Page })))
+const RankingPage = lazy(() => import('./features/community/RankingPage').then((m) => ({ default: m.RankingPage })))
+const ExportPage = lazy(() => import('./features/export/ExportPage').then((m) => ({ default: m.ExportPage })))
+const BodyPage = lazy(() => import('./features/body/BodyPage').then((m) => ({ default: m.BodyPage })))
 
 // 以前のBIG3のURL（/strength?view=...）は /big3 に移した。
 function StrengthRedirect() {

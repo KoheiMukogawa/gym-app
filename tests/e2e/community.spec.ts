@@ -45,7 +45,7 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByLabel('パスワード').fill('mock-password')
   await page.getByRole('button',{name:'ログイン',exact:true}).click()
   await page.goto('/strength?view=ranking')
-  await expect(page.getByRole('heading',{name:'ランキング'})).toBeVisible()
+  await expect(page.getByRole('heading',{name:'ランキング',exact:true})).toBeVisible()
   await expect(page.getByRole('button',{name:'全体',exact:true})).toHaveAttribute('aria-pressed','true')
   await page.getByRole('button',{name:'コミュニティに参加・作成'}).click()
   // ＋の間はランキングを出さず、作成・参加だけを見せる
