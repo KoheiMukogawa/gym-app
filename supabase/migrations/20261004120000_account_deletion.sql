@@ -12,7 +12,7 @@ begin
   'set_count', (select count(*) from public.workout_sets s join public.workouts w on w.id = s.workout_id where w.user_id = u),
   'body_log_count', (select count(*) from public.bodyweight_logs where user_id = u),
   'custom_exercise_count', (select count(*) from public.exercises where created_by = u and not is_preset),
-  'health_sync_connected', exists (select 1 from health_sync_private.tokens where user_id = u and token_hash is not null),
+  'health_sync_connected', exists (select 1 from health_sync_private.tokens where user_id = u),
   'owned_communities', coalesce((select jsonb_agg(jsonb_build_object('name', c.name, 'other_member_count',
       (select count(*) from public.community_members m where m.community_id = c.id and m.user_id <> u)) order by c.created_at, c.id)
     from public.communities c where c.owner_id = u), '[]'::jsonb));

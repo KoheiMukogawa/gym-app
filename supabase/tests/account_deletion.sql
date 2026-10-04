@@ -70,6 +70,16 @@ do $$ declare s jsonb := public.account_deletion_summary(); begin
     raise exception 'unexpected summary: %', s; end if;
 end $$;
 
+-- A revoked Health key keeps its row: the shortcut is still on the phone, so it still counts.
+reset role;
+update health_sync_private.tokens set token_hash = null where user_id = 'd0000000-0000-4000-8000-00000000000a';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'd0000000-0000-4000-8000-00000000000a', true);
+do $$ begin
+  if not (public.account_deletion_summary()->>'health_sync_connected')::boolean then
+    raise exception 'a revoked Health key hid the shortcut reminder'; end if;
+end $$;
+
 -- A wrong confirmation, including surrounding spaces, deletes nothing.
 do $$ declare c text; begin
   foreach c in array array['', '退会', ' 退会する', '退会する ', null] loop

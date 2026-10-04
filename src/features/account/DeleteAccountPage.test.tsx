@@ -84,6 +84,20 @@ describe('DeleteAccountPage', () => {
     expect(signOut).toHaveBeenCalledWith({ scope: 'local' })
   })
 
+  it('still signs this device out when the page is left while the deletion is running', async () => {
+    let finish: (value: { data: null; error: null }) => void = () => {}
+    rpc.mockImplementation((name: string) => name === 'account_deletion_summary'
+      ? Promise.resolve({ data: summary, error: null })
+      : new Promise((resolve) => { finish = resolve }))
+    const { unmount } = renderPage()
+    await userEvent.type(await screen.findByLabelText('確認のため「退会する」と入力してください'), '退会する')
+    await userEvent.click(screen.getByRole('button', { name: '退会する' }))
+    unmount()
+    finish({ data: null, error: null })
+    await vi.waitFor(() => expect(signOut).toHaveBeenCalledWith({ scope: 'local' }))
+    expect(clearDraft).toHaveBeenCalledWith('me')
+  })
+
   it('keeps the input and explains a failed deletion', async () => {
     rpc.mockImplementation(async (name: string) => name === 'account_deletion_summary'
       ? { data: summary, error: null }

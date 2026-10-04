@@ -19,6 +19,7 @@ export function DeleteAccountPage() {
   const [error, setError] = useState<string | null>(null)
   const lock = useRef(false)
   const signOutOnLeave = useRef(false)
+  const mounted = useRef(true)
   const load = useCallback(() => {
     setLoadError(null); setSummary(null)
     fetchDeletionSummary().then(setSummary).catch((e: unknown) => setLoadError(accountMessage(e)))
@@ -27,9 +28,12 @@ export function DeleteAccountPage() {
   // Sign out only once this page has left the screen. React Router applies navigations as
   // transitions, so signing out earlier lets RequireAuth redirect this route to /login first,
   // whereas "/" becomes the introduction once signed out.
-  useEffect(() => () => {
-    // The account and its server sessions are gone, so only this device needs signing out.
-    if (signOutOnLeave.current) void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      if (signOutOnLeave.current) signOutHere()
+    }
   }, [])
 
   async function submit(event: FormEvent) {
@@ -43,6 +47,8 @@ export function DeleteAccountPage() {
       return
     }
     clearDraft(userId)
+    // Left for another tab while the deletion ran: nothing will unmount later, so sign out now.
+    if (!mounted.current) { signOutHere(); return }
     signOutOnLeave.current = true
     show('退会しました')
     navigate('/', { replace: true })
@@ -77,4 +83,9 @@ export function DeleteAccountPage() {
       <Button type="submit" variant="danger" disabled={deleting || confirm !== CONFIRM_TEXT}>{deleting ? '退会処理中…' : '退会する'}</Button>
     </form>
   </section>
+}
+
+// The account and its server sessions are gone, so only this device needs signing out.
+function signOutHere() {
+  void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
 }
