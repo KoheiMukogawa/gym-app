@@ -103,6 +103,7 @@ test('Health connection, historical sync, keep/overwrite and revoke use real mob
   await inspect(1,'62 kg','61 kg')
   expect(await data.sync(credential,[{date:'2015-01-02',weight_kg:99}], 'keep')).toEqual({status:200,body:{inserted:0,updated:0,skipped:1}})
   await page.getByRole('button',{name:'記録を再読み込み',exact:true}).click()
+  await expect(page.getByRole('button',{name:'記録を再読み込み',exact:true})).toBeEnabled()
   await expect(page.getByText(/書き込み 0件/)).toBeVisible()
   await inspect(0,'60 kg','14 %')
   expect(await data.sync(credential,[{date:'2015-01-02',weight_kg:64}], 'overwrite')).toEqual({status:200,body:{inserted:0,updated:1,skipped:0}})

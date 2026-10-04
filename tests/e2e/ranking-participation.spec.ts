@@ -38,6 +38,7 @@ test('join global and DOTS rankings on mobile without visiting profile', async (
   await page.getByLabel('メールアドレス').fill('test@example.com')
   await page.getByLabel('パスワード').fill('mock-password')
   await page.getByRole('button', { name: 'ログイン', exact: true }).click()
+  await expect(page.getByRole('region', { name: '今月のトレーニング' })).toBeVisible()
   await page.goto('/strength?view=ranking')
   await expect(page.getByRole('button', { name: '公開して参加する', exact: true })).toBeVisible()
   await expect(page.locator('[inert]')).toHaveCSS('filter', 'blur(3px)')
