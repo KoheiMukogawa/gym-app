@@ -103,6 +103,15 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const [bodyweightDraft, setBodyweightDraft] = useState('')
   const [editingBodyweight, setEditingBodyweight] = useState(false)
   const [savingBodyweight, setSavingBodyweight] = useState(false)
+  const recordingHeader = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    // A picker can be scrolled far down. Show the newly selected exercise at the
+    // top without moving the list on every set save or while another tab is open.
+    if (!loading && !picking && !recordingHeader.current?.closest('[hidden]')) {
+      recordingHeader.current?.scrollIntoView?.({ block: 'start' })
+    }
+  }, [loading, picking, state.currentExerciseId])
 
   // ワークアウト作成の二重発行を防ぐための、進行中の作成 Promise。
   // 1件目の呼び出しがこれを埋め、以降の呼び出しは同じ Promise を待つだけにする。
@@ -478,8 +487,8 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
     return (
       <div className="min-h-full">
         {offline && <OfflineBanner />}
-        <header className="flex items-center justify-between px-4 py-3">
-          <div>
+        <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+          <div className="min-w-0">
             <p className="mb-1 text-xs text-muted">{new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}</p>
             <h1 className="text-2xl font-semibold tracking-tight">{state.sets.length ? '次はどの種目？' : '今日のトレーニング'}</h1>
           </div>
@@ -489,9 +498,9 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
             type="button"
             onClick={() => void handleFinish()}
             disabled={finishing}
-            className="min-h-14 px-2 text-sm text-muted disabled:opacity-40"
+            className="min-h-14 shrink-0 rounded-full border border-accent/50 bg-accent/10 px-4 text-sm font-semibold text-fg active:bg-accent/20 disabled:opacity-40"
           >
-            {finishing ? '終了中…' : '終了'}
+            {finishing ? '終了中…' : '記録を終了'}
           </button>
           )}
         </header>
@@ -520,18 +529,18 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   return (
     <div className="flex min-h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] flex-col">
       {offline && <OfflineBanner />}
-      <header className="flex items-center justify-between px-4 py-3">
-        <button type="button" onClick={() => setPicking(true)} className="min-h-14 text-left">
-          <span className="text-lg font-semibold">{currentName}</span>
-          <span className="ml-2 text-xs text-muted">種目を変える</span>
+      <header ref={recordingHeader} className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2">
+        <button type="button" onClick={() => setPicking(true)} className="min-h-14 min-w-0 flex-1 text-left">
+          <span className="block break-words text-lg font-semibold">{currentName}</span>
+          <span className="block text-xs text-muted">種目を変える</span>
         </button>
         <button
           type="button"
           onClick={() => void handleFinish()}
           disabled={finishing}
-          className="min-h-14 px-2 text-sm text-muted disabled:opacity-40"
+          className="min-h-14 shrink-0 rounded-full border border-accent/50 bg-accent/10 px-4 text-sm font-semibold text-fg active:bg-accent/20 disabled:opacity-40"
         >
-          {finishing ? '終了中…' : '終了'}
+          {finishing ? '終了中…' : '記録を終了'}
         </button>
       </header>
       {routine && <section className="mx-4 mb-3 rounded-xl border border-border bg-surface px-3" aria-label="進行中のルーティン">
@@ -544,9 +553,10 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         </div>
       </section>}
 
-      <section aria-label="記録済みセット" className="px-4 pb-4">
+      <section aria-label="記録済みセット" className="px-4 pb-4 pt-3">
         <SetList
           sets={state.sets}
+          activeExerciseId={state.currentExerciseId}
           exerciseNames={exerciseNames}
           status={statusById}
           onDelete={handleDelete}

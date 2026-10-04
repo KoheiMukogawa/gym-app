@@ -8,6 +8,7 @@ import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 
 type Props = {
   sets: LoggedSet[]
+  activeExerciseId?: string | null
   exerciseNames: Record<string, string>
   status: Record<string, SetStatus>
   onDelete: (id: string) => Promise<void> | void
@@ -20,12 +21,14 @@ type Props = {
   bodyweight?: number | null
 }
 
-export function SetList({ sets, exerciseNames, status, onDelete, onRetry, onNote, deletingId, bodyweightIds = [], bodyweight = null }: Props) {
+export function SetList({ sets, activeExerciseId, exerciseNames, status, onDelete, onRetry, onNote, deletingId, bodyweightIds = [], bodyweight = null }: Props) {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
-  if (!sets.length) return <p className="py-8 text-center text-sm text-muted">まだ記録がありません</p>
-  const ids = [...new Set(sets.map((s) => s.exercise_id))]
+  if (!sets.length && !activeExerciseId) return <p className="py-8 text-center text-sm text-muted">まだ記録がありません</p>
+  const ids = activeExerciseId
+    ? [...new Set([activeExerciseId, ...sets.slice().reverse().map((s) => s.exercise_id)])]
+    : [...new Set(sets.map((s) => s.exercise_id))]
 
   async function save(id: string) {
     if (!onNote || saving) return
@@ -36,7 +39,11 @@ export function SetList({ sets, exerciseNames, status, onDelete, onRetry, onNote
 
   return <div className="space-y-4">
     {ids.map((id) => <section key={id} className="rounded-xl border border-border bg-surface p-4">
-      <h2 className="mb-2 text-sm font-semibold">{exerciseNames[id] ?? '種目'}</h2>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">{exerciseNames[id] ?? '種目'}</h2>
+        {id === activeExerciseId && <span className="shrink-0 rounded-full bg-accent/10 px-2 py-1 text-xs text-accent">記録中</span>}
+      </div>
+      {id === activeExerciseId && !sets.some((s) => s.exercise_id === id) && <p className="py-3 text-sm text-muted">最初のセットを記録しましょう</p>}
       <ul className="divide-y divide-border">
         {sets.filter((s) => s.exercise_id === id).sort((a, b) => a.set_index - b.set_index).map((s, i) => {
           const load = bodyweightIds.includes(id) ? formatAddedLoad(s.weight_kg) : `${s.weight_kg}kg`

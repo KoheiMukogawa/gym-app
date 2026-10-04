@@ -374,7 +374,7 @@ describe('LogPage', () => {
 
     await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
     // 削除が失敗したので、行は消えずに残っている
-    expect(screen.queryByText('まだ記録がありません')).not.toBeInTheDocument()
+    expect(screen.queryByText('最初のセットを記録しましょう')).not.toBeInTheDocument()
     expect(await screen.findByRole('status')).toHaveTextContent('エラーが発生しました')
   })
 
@@ -461,7 +461,8 @@ describe('LogPage', () => {
 
     // 保留のうちに取り消す
     await userEvent.click(lastDeleteButton())
-    expect(screen.getByText('まだ記録がありません')).toBeInTheDocument()
+    expect(screen.getByText('最初のセットを記録しましょう')).toBeInTheDocument()
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0)
     expect(deleteSet).not.toHaveBeenCalled()
 
     // まだ画面に残っているトーストの「再試行」を押す（同じセットへのもう一つの入り口）
@@ -519,7 +520,8 @@ describe('LogPage', () => {
 
     // 保存がまだ pending のうちに取り消す
     await userEvent.click(lastDeleteButton())
-    expect(screen.getByText('まだ記録がありません')).toBeInTheDocument()
+    expect(screen.getByText('最初のセットを記録しましょう')).toBeInTheDocument()
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0)
     expect(deleteSet).not.toHaveBeenCalled()
 
     // 保存がいまさら成功する
@@ -590,7 +592,7 @@ describe('LogPage', () => {
     await userEvent.click(button)
     await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
 
-    await userEvent.click(screen.getByRole('button', { name: '終了' }))
+    await userEvent.click(screen.getByRole('button', { name: '記録を終了' }))
 
     expect(confirmSpy).not.toHaveBeenCalled()
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/'))
@@ -608,7 +610,7 @@ describe('LogPage', () => {
     await userEvent.click(button)
     await screen.findByRole('button', { name: /未保存/ })
 
-    await userEvent.click(screen.getByRole('button', { name: '終了' }))
+    await userEvent.click(screen.getByRole('button', { name: '記録を終了' }))
 
     expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('1件'))
     expect(navigate).not.toHaveBeenCalled()
@@ -627,7 +629,7 @@ describe('LogPage', () => {
     await userEvent.click(button)
     await screen.findByRole('button', { name: /未保存/ })
 
-    await userEvent.click(screen.getByRole('button', { name: '終了' }))
+    await userEvent.click(screen.getByRole('button', { name: '記録を終了' }))
 
     expect(confirmSpy).toHaveBeenCalled()
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/'))

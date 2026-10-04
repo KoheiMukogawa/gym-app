@@ -6,6 +6,27 @@ import { SetList } from './SetList'
 const NAMES = { bench: 'ベンチプレス', squat: 'スクワット' }
 
 describe('SetList', () => {
+  it('pins the active exercise, then recent exercises, without changing set order or data', () => {
+    const sets = [
+      { id: 'b1', exercise_id: 'bench', set_index: 1, weight_kg: 60, reps: 10 },
+      { id: 's1', exercise_id: 'squat', set_index: 1, weight_kg: 100, reps: 5 },
+      { id: 'd1', exercise_id: 'dead', set_index: 1, weight_kg: 140, reps: 3 },
+      { id: 'b2', exercise_id: 'bench', set_index: 2, weight_kg: 80, reps: 5 },
+    ]
+    const original = JSON.stringify(sets)
+    const props = { sets, exerciseNames: { ...NAMES, dead: 'デッドリフト', press: 'ダンベルプレス' }, status: {}, onDelete: vi.fn(), onRetry: vi.fn(), deletingId: null }
+    const view = render(<SetList {...props} activeExerciseId="squat" />)
+    expect(screen.getAllByRole('heading').map((h) => h.textContent)).toEqual(['スクワット', 'ベンチプレス', 'デッドリフト'])
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      expect.stringContaining('100'), expect.stringContaining('60'), expect.stringContaining('80'), expect.stringContaining('140'),
+    ])
+    view.rerender(<SetList {...props} activeExerciseId="press" />)
+    expect(screen.getAllByRole('heading')[0]).toHaveTextContent('ダンベルプレス')
+    expect(screen.getByText('最初のセットを記録しましょう')).toBeVisible()
+    expect(screen.getByText('記録中')).toBeVisible()
+    expect(JSON.stringify(sets)).toBe(original)
+  })
+
   it('shows each set\'s estimated 1RM, using bodyweight plus added load for bodyweight exercises', () => {
     render(
       <SetList

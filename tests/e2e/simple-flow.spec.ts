@@ -327,6 +327,67 @@ test('mobile: recorded sets stay above the bottom input dock and exact dial valu
   expect(errors).toEqual([])
 })
 
+test('mobile: active exercise stays first and scrolling cannot drop the dock behind navigation', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  const complete = page.getByRole('button', { name: /^(セット完了|✓ 記録しました)$/ })
+  for (let index = 0; index < 8; index++) {
+    await complete.click()
+    await expect.poll(() => data.sets.length).toBe(index + 1)
+  }
+  await page.getByRole('button', { name: /種目を変える/ }).click()
+  await page.getByRole('button', { name: 'ダンベルプレス', exact: true }).click()
+  const recorded = page.getByRole('region', { name: '記録済みセット' })
+  await expect(recorded.getByRole('heading').first()).toHaveText('ダンベルプレス')
+  await expect(recorded.getByText('最初のセットを記録しましょう')).toBeVisible()
+  await complete.click()
+  await expect.poll(() => data.sets.length).toBe(9)
+  // Returning to an earlier exercise pins it, rather than just reversing the list.
+  await page.getByRole('button', { name: /種目を変える/ }).click()
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await expect(recorded.getByRole('heading').first()).toHaveText('ベンチプレス')
+  const dock = page.getByRole('region', { name: 'セット入力' }).locator('> div')
+  const finish = page.getByRole('button', { name: '記録を終了', exact: true })
+  for (const size of [{ width: 390, height: 844 }, { width: 375, height: 812 }]) {
+    await page.setViewportSize(size)
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+    await expect(finish).toBeInViewport()
+    await expect(page.getByRole('button', { name: /ベンチプレス.*種目を変える/ })).toBeInViewport()
+    expect((await finish.boundingBox())!.height).toBeGreaterThanOrEqual(56)
+    // Safari chrome changes visualViewport during scrolling, without a keyboard.
+    await page.evaluate(() => {
+      Object.defineProperty(window.visualViewport!, 'height', { configurable: true, get: () => innerHeight - 44 })
+      window.visualViewport!.dispatchEvent(new Event('scroll'))
+    })
+    const nav = (await page.getByRole('navigation', { name: 'メイン' }).boundingBox())!
+    const panel = (await dock.boundingBox())!
+    expect(panel.y + panel.height).toBeLessThan(nav.y)
+    expect((await complete.boundingBox())!.y + (await complete.boundingBox())!.height).toBeLessThan(nav.y)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/log-active-exercise-${size.width}.png` })
+    await page.evaluate(() => Reflect.deleteProperty(window.visualViewport!, 'height'))
+  }
+  await page.getByRole('button', { name: '重量を直接入力', exact: true }).click()
+  await page.evaluate(() => {
+    Object.defineProperty(window.visualViewport!, 'height', { configurable: true, get: () => 360 })
+    Object.defineProperty(window.visualViewport!, 'offsetTop', { configurable: true, get: () => 48 })
+    window.visualViewport!.dispatchEvent(new Event('resize'))
+  })
+  await expect.poll(async () => { const box = (await complete.boundingBox())!; return box.y + box.height }).toBeLessThanOrEqual(408)
+  await page.evaluate(() => {
+    Reflect.deleteProperty(window.visualViewport!, 'height')
+    Reflect.deleteProperty(window.visualViewport!, 'offsetTop')
+    window.visualViewport!.dispatchEvent(new Event('resize'))
+  })
+  await page.getByRole('spinbutton', { name: '重量', exact: true }).press('Tab')
+  await finish.click()
+  await expect(page).toHaveURL(/\/$/)
+  expect(data.sets).toHaveLength(9)
+  expect(errors).toEqual([])
+})
+
 test('mobile: direct logging, body groups, past dates, editing and deletion', async ({ page }) => {
   const data = await mockApi(page)
   await expect(page.getByRole('searchbox')).toHaveCount(0)
@@ -361,7 +422,7 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await expect(page.getByRole('button', { name: 'ログアウト', exact: true })).toHaveCount(0)
   await expect(page.getByRole('link', { name: /続きを記録.*今日 1セット/ })).toBeVisible()
   await page.getByRole('link', { name: /続きを記録/ }).click()
-  await page.getByRole('button', { name: '終了', exact: true }).click()
+  await page.getByRole('button', { name: '記録を終了', exact: true }).click()
   // Finishing returns home, which lists today's workout.
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByRole('region', { name: '今日のトレーニング' })).toContainText('ベンチプレス')
@@ -450,7 +511,7 @@ test('personal exercise creation stays in the chosen body group', async ({ page 
   expect(data.exercises.at(-1)).toMatchObject({ muscle_group: 'shoulders', created_by: USER, is_preset: false })
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(1)
-  await page.getByRole('button', { name: '終了', exact: true }).click()
+  await page.getByRole('button', { name: '記録を終了', exact: true }).click()
   await page.getByRole('link', { name: /続きを記録|記録する/ }).click()
   await page.getByRole('button', { name: '肩', exact: true }).click()
   await expect(page.getByRole('region', { name: '肩の種目' }).getByRole('button', { name: 'ケーブルサイドレイズ 自分の種目', exact: true })).toBeVisible()
@@ -501,7 +562,7 @@ test('routines and catalog order persist; history switches edit targets without 
   await expect.poll(() => data.sets.length).toBe(2)
   expect(data.sets.map((s) => s.exercise_id)).toEqual(['machine', 'bench'])
   await page.screenshot({ path: 'test-results/routine-mobile.png', fullPage: true })
-  await page.getByRole('button', { name: '終了', exact: true }).click()
+  await page.getByRole('button', { name: '記録を終了', exact: true }).click()
   await page.getByRole('button', { name: /トレーニングあり/ }).click()
   await page.getByRole('link', { name: '編集', exact: true }).click()
   await page.getByRole('button', { name: /チェストプレス 40kg.*を編集/ }).click()
@@ -606,7 +667,7 @@ test('reopening the app mid-workout goes straight to recording; otherwise it ope
   await expect(page.getByRole('region', { name: '今月のトレーニング' }).getByRole('button', { name: /トレーニングあり/ })).toHaveCount(1)
   await expect(page.getByRole('region', { name: '今日のトレーニング' })).toContainText('ベンチプレス')
   await page.getByRole('link', { name: /続きを記録/ }).click()
-  await page.getByRole('button', { name: '終了', exact: true }).click()
+  await page.getByRole('button', { name: '記録を終了', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
   await page.goto('/')
   await expect(page).toHaveURL(/\/$/)

@@ -24,7 +24,7 @@ test.describe('中核の記録導線', () => {
     await expect(page.getByRole('button', { name: /記録しました/ })).toBeVisible()
     await expect(page.getByRole('listitem').first()).toContainText('1セット目')
 
-    await page.getByRole('button', { name: '終了' }).click()
+    await page.getByRole('button', { name: '記録を終了' }).click()
     await expect(page).toHaveURL(/\/history$/)
     await expect(page.getByText('ベンチプレス').first()).toBeVisible()
   })
