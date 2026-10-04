@@ -725,7 +725,7 @@ test('history calendar changes month by swiping left and right', async ({ page }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
-test('memo sheet replaces set controls, stays above the keyboard and keeps input on failed saves', async ({ page }) => {
+test('inline memo keeps the set list, fits above the keyboard and retains failed saves', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   const data = await mockApi(page)
@@ -736,12 +736,17 @@ test('memo sheet replaces set controls, stays above the keyboard and keeps input
   await expect(page.getByPlaceholder(/メモ（任意）/)).toHaveCount(0)
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(1)
-  await page.getByRole('button', { name: /のメモを追加/ }).click()
-  const sheet = page.getByRole('dialog', { name: 'セットのメモ' })
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets.length).toBe(2)
+  await page.getByRole('button', { name: /のメモを追加/ }).first().click()
+  const sheet = page.getByRole('form', { name: 'セットのメモ' })
   const memo = page.getByRole('textbox', { name: 'セットのメモ' })
   await expect(sheet).toContainText('ベンチプレス · 1set · 82.3kg × 7回')
   await expect(page.getByRole('region', { name: 'セット入力', includeHidden: true })).toHaveCount(0)
   await expect(memo).toBeFocused()
+  await expect(page.getByRole('dialog', { name: 'セットのメモ' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /2set.*のメモを追加/ })).toBeVisible()
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('')
 
   // iOS zooms the page when a focused field is under 16px.
   const fontSize = await memo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
@@ -749,7 +754,7 @@ test('memo sheet replaces set controls, stays above the keyboard and keeps input
 
   const longMemo = Array.from({ length: 15 }, (_, i) => `肩甲骨を寄せる${i + 1}`).join('\n')
   await memo.fill(longMemo)
-  for (const width of [375, 390]) {
+  for (const width of [320, 375, 390]) {
     await page.setViewportSize({ width, height: 844 })
     // iOS keyboard, including the visual viewport's scroll offset.
     await page.evaluate(() => {
@@ -764,11 +769,17 @@ test('memo sheet replaces set controls, stays above the keyboard and keeps input
     expect(saveBox.y + saveBox.height).toBeLessThanOrEqual(408)
     expect(saveBox.height).toBeGreaterThanOrEqual(56)
     await expect(sheet.getByRole('button', { name: '入力を閉じる' })).toBeInViewport()
+    const fieldStyle = await memo.evaluate(el => ({ outline: getComputedStyle(el).outlineStyle, border: getComputedStyle(el).borderColor }))
+    expect(fieldStyle.outline).toBe('none')
+    expect(fieldStyle.border).toBe('rgb(232, 65, 47)')
+    const formBox = (await sheet.boundingBox())!
+    expect(box.x).toBeGreaterThan(formBox.x)
+    expect(box.x + box.width).toBeLessThan(formBox.x + formBox.width)
     expect(await memo.evaluate((el: HTMLTextAreaElement) => el.scrollHeight > el.clientHeight)).toBe(true)
     await memo.evaluate((el: HTMLTextAreaElement) => { el.scrollTop = el.scrollHeight })
     expect(await memo.evaluate((el: HTMLTextAreaElement) => el.scrollTop)).toBeGreaterThan(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    await page.screenshot({ path: `test-results/set-memo-keyboard-${width}.png`, animations: 'disabled' })
+    await page.screenshot({ path: `test-results/inline-memo-keyboard-${width}.png`, animations: 'disabled' })
   }
   let writes = 0
   await page.route('https://example.supabase.co/rest/v1/workout_sets**', async route => {

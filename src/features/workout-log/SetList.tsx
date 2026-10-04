@@ -3,6 +3,7 @@ import type { LoggedSet } from './logReducer'
 import type { SetStatus } from './persistence'
 import { formatAddedLoad, totalLoad } from '../../lib/bodyweight'
 import { estimateOneRepMax } from '../../lib/strength'
+import { SetMemoEditor } from './SetMemoEditor'
 
 type Props = {
   sets: LoggedSet[]
@@ -13,13 +14,15 @@ type Props = {
   onRetry: (id: string) => void
   onEditNote?: (id: string) => void
   editingId?: string | null
+  onSaveNote?: (id: string, note: string) => Promise<void>
+  onCloseNote?: () => void
   deletingId: string | null
   bodyweightIds?: string[]
   /** Today's bodyweight, so bodyweight sets can show their estimated 1RM. */
   bodyweight?: number | null
 }
 
-export function SetList({ sets, activeExerciseId, exerciseNames, status, onDelete, onRetry, onEditNote, editingId, deletingId, bodyweightIds = [], bodyweight = null }: Props) {
+export function SetList({ sets, activeExerciseId, exerciseNames, status, onDelete, onRetry, onEditNote, editingId, onSaveNote, onCloseNote, deletingId, bodyweightIds = [], bodyweight = null }: Props) {
   if (!sets.length && !activeExerciseId) return <p className="py-8 text-center text-sm text-muted">まだ記録がありません</p>
   const ids = activeExerciseId
     ? [...new Set([activeExerciseId, ...sets.slice().reverse().map((s) => s.exercise_id)])]
@@ -39,10 +42,11 @@ export function SetList({ sets, activeExerciseId, exerciseNames, status, onDelet
           const setLoad = bodyweightIds.includes(id) ? totalLoad(s.weight_kg, bodyweight) : s.weight_kg
           const e1rm = setLoad === null ? null : estimateOneRepMax(setLoad, s.reps)
           return <SwipeRow key={s.id} label={`${exerciseNames[id] ?? '種目'} ${i + 1}set ${load} × ${s.reps}回を削除`}
-            disabled={deletingId !== null} deleting={deletingId === s.id} onDelete={() => onDelete(s.id)}
+            disabled={deletingId !== null || !!editingId} deleting={deletingId === s.id} onDelete={() => onDelete(s.id)}
             className={st === 'pending' ? 'opacity-50' : ''}>
-            {/* Tapping a set opens its memo. Pending sets wait until they are saved. */}
-            <button type="button" disabled={!onEditNote || st === 'pending'} aria-haspopup="dialog" aria-expanded={editingId === s.id}
+            {/* Keep the memo beside its set, while preserving the surrounding list. */}
+            <button type="button" disabled={!onEditNote || st === 'pending' || !!editingId} aria-expanded={editingId === s.id}
+              aria-controls={editingId === s.id ? `set-memo-${s.id}` : undefined}
               aria-label={`${exerciseNames[id] ?? '種目'} ${i + 1}set ${load} × ${s.reps}回のメモ${s.note ? `: ${s.note}` : 'を追加'}`}
               onClick={() => onEditNote?.(s.id)}
               className="flex min-h-12 flex-1 flex-wrap items-center justify-between gap-x-2 text-left disabled:cursor-default">
@@ -54,6 +58,10 @@ export function SetList({ sets, activeExerciseId, exerciseNames, status, onDelet
               {s.note && <span className="w-full whitespace-pre-wrap break-words text-xs text-muted">{s.note}</span>}
             </button>
             {st === 'failed' && <button type="button" onClick={() => onRetry(s.id)} className="min-h-14 text-xs text-accent">未保存・再試行</button>}
+            {editingId === s.id && onSaveNote && onCloseNote && <div id={`set-memo-${s.id}`} className="w-full px-1 pb-1">
+              <SetMemoEditor note={s.note} description={`${exerciseNames[id] ?? '種目'} · ${i + 1}set · ${load} × ${s.reps}回`}
+                onSave={note => onSaveNote(s.id, note)} onDismiss={onCloseNote} />
+            </div>}
           </SwipeRow>
         })}
       </ul>

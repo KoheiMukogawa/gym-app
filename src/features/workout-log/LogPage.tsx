@@ -7,7 +7,7 @@ import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { WheelNumber } from '../../components/ui/WheelNumber'
 import { BottomInputDock } from '../../components/ui/BottomInputDock'
-import { SetMemoSheet } from './SetMemoSheet'
+import { MemoInputSpace } from './SetMemoEditor'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from '../auth/SessionProvider'
@@ -527,21 +527,19 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
 
   const currentName = state.currentExerciseId ? exerciseNames[state.currentExerciseId] : ''
   const editingSet = state.sets.find(set => set.id === editingSetId)
-  const editingSetNumber = editingSet ? state.sets.filter(set => set.exercise_id === editingSet.exercise_id)
-    .sort((a, b) => a.set_index - b.set_index).findIndex(set => set.id === editingSet.id) + 1 : 0
 
   return (
     <div className="flex min-h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] flex-col">
       {offline && <OfflineBanner />}
       <header ref={recordingHeader} className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2">
-        <button type="button" onClick={() => setPicking(true)} className="min-h-14 min-w-0 flex-1 text-left">
+        <button type="button" disabled={!!editingSet} onClick={() => setPicking(true)} className="min-h-14 min-w-0 flex-1 text-left">
           <span className="block break-words text-lg font-semibold">{currentName}</span>
           <span className="block text-xs text-muted">種目を変える</span>
         </button>
         <button
           type="button"
           onClick={() => void handleFinish()}
-          disabled={finishing}
+          disabled={finishing || !!editingSet}
           className="min-h-14 shrink-0 rounded-full border border-accent/50 bg-accent/10 px-4 text-sm font-semibold text-fg active:bg-accent/20 disabled:opacity-40"
         >
           {finishing ? '終了中…' : '記録を終了'}
@@ -550,9 +548,9 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
       {routine && <section className="mx-4 mb-3 rounded-xl border border-border bg-surface px-3" aria-label="進行中のルーティン">
         <div className="pt-3 text-sm">{routine.name} <span className="text-muted">{routine.index + 1} / {routine.exerciseIds.length}種目</span></div>
         <div className="flex justify-between gap-2">
-          <button className="min-h-14 text-sm text-muted disabled:opacity-30" disabled={routine.index === 0} onClick={() => moveRoutine(-1)}>前の種目</button>
+          <button className="min-h-14 text-sm text-muted disabled:opacity-30" disabled={routine.index === 0 || !!editingSet} onClick={() => moveRoutine(-1)}>前の種目</button>
           {routine.index < routine.exerciseIds.length - 1
-            ? <button className="min-h-14 text-sm text-accent" onClick={() => moveRoutine(1)}>次の種目へ →</button>
+            ? <button disabled={!!editingSet} className="min-h-14 text-sm text-accent" onClick={() => moveRoutine(1)}>次の種目へ →</button>
             : <span className="flex min-h-14 items-center text-xs text-muted">最後の種目です</span>}
         </div>
       </section>}
@@ -566,6 +564,8 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
           onDelete={handleDelete}
           onEditNote={setEditingSetId}
           editingId={editingSetId}
+          onSaveNote={handleNote}
+          onCloseNote={() => setEditingSetId(null)}
           onRetry={handleRetry}
           deletingId={deletingId}
           bodyweightIds={bodyweightIds}
@@ -573,9 +573,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         />
       </section>
 
-      {editingSet ? <SetMemoSheet key={editingSet.id} note={editingSet.note}
-        description={`${exerciseNames[editingSet.exercise_id] ?? '種目'} · ${editingSetNumber}set · ${bodyweightIds.includes(editingSet.exercise_id) ? formatAddedLoad(editingSet.weight_kg) : `${editingSet.weight_kg}kg`} × ${editingSet.reps}回`}
-        onSave={note => handleNote(editingSet.id, note)} onDismiss={() => setEditingSetId(null)} /> : <BottomInputDock>
+      {editingSet ? <MemoInputSpace /> : <BottomInputDock>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pt-4">
           {isBodyweight && (bodyweight === null || editingBodyweight) ? (
             <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>

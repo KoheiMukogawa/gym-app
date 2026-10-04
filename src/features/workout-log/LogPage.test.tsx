@@ -12,12 +12,6 @@ vi.mock('../routines/queries', async (original) => ({
 
 const USER = 'user-1'
 
-// jsdom has no modal top layer; the browser tests exercise focus containment.
-Object.defineProperties(HTMLDialogElement.prototype, {
-  showModal: { configurable: true, value() { this.setAttribute('open', '') } },
-  close: { configurable: true, value() { this.removeAttribute('open') } },
-})
-
 const { createWorkout, saveSet, deleteWorkoutIfEmpty, deleteSet, fetchUserSetHistory, fetchTodayWorkout, updateSetNote } = vi.hoisted(
   () => ({
     updateSetNote: vi.fn(),
@@ -303,8 +297,8 @@ describe('LogPage', () => {
     updateSetNote.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce(undefined)
     renderLogPage()
     await userEvent.click(await screen.findByRole('button', { name: /のメモ: 元のメモ/ }))
-    expect(screen.getByRole('dialog', { name: 'セットのメモ' })).toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: 'セットのメモ' })).toHaveTextContent('ベンチプレス · 1set · 80kg × 8回')
+    expect(screen.getByRole('form', { name: 'セットのメモ' })).toBeInTheDocument()
+    expect(screen.getByRole('form', { name: 'セットのメモ' })).toHaveTextContent('ベンチプレス · 1set · 80kg × 8回')
     expect(screen.queryByRole('region', { name: 'セット入力' })).not.toBeInTheDocument()
     const input = screen.getByRole('textbox', { name: 'セットのメモ' })
     expect(input).toHaveValue('元のメモ')
@@ -315,7 +309,7 @@ describe('LogPage', () => {
     expect(input).toHaveValue('肩甲骨を寄せる\n最後は補助あり')
     expect(loadDraft(USER)?.state.sets[0].note).toBe('元のメモ')
     await userEvent.click(screen.getByRole('button', { name: '保存' }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('form', { name: 'セットのメモ' })).not.toBeInTheDocument())
     expect(updateSetNote).toHaveBeenLastCalledWith('s1', '肩甲骨を寄せる\n最後は補助あり')
     expect(screen.getByRole('spinbutton', { name: '重量' })).toHaveAttribute('aria-valuenow', '82.3')
     expect(screen.getByRole('spinbutton', { name: '回数' })).toHaveAttribute('aria-valuenow', '7')
@@ -334,9 +328,9 @@ describe('LogPage', () => {
       await userEvent.click(await screen.findByRole('button', { name: /のメモ: 元のメモ/ }))
       await userEvent.type(screen.getByRole('textbox', { name: 'セットのメモ' }), '変更')
       await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
-      expect(screen.getByRole('dialog', { name: 'セットのメモ' })).toBeInTheDocument()
+      expect(screen.getByRole('form', { name: 'セットのメモ' })).toBeInTheDocument()
       await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.queryByRole('form', { name: 'セットのメモ' })).not.toBeInTheDocument()
       expect(loadDraft(USER)?.state.sets[0].note).toBe('元のメモ')
       expect(screen.getByRole('spinbutton', { name: '重量' })).toHaveAttribute('aria-valuenow', '82.3')
       expect(updateSetNote).not.toHaveBeenCalled()
