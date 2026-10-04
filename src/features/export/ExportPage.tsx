@@ -7,7 +7,26 @@ import { useSession } from '../auth/SessionProvider'
 import { fetchWorkoutsInRange } from '../history/queries'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
 
-const field = 'min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg tabular-nums'
+type DateFieldProps = { label: string; value: string; max: string; disabled: boolean; onChange: (value: string) => void }
+
+function ExportDateField({ label, value, max, disabled, onChange }: DateFieldProps) {
+  const [year, month, day] = value.split('-')
+  const display = value ? `${year}/${Number(month)}/${Number(day)}` : '日付を選択'
+  return <label className="flex min-w-0 flex-col gap-2 text-sm text-muted">
+    <span>{label}</span>
+    <span className={`relative flex min-h-[58px] min-w-0 w-full items-center justify-between gap-2 overflow-hidden rounded-xl border border-border bg-surface px-3 text-base text-fg focus-within:outline-2 focus-within:outline-accent ${disabled ? 'opacity-40' : ''}`}>
+      <span aria-hidden="true" className="min-w-0 truncate tabular-nums">{display}</span>
+      <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" />
+      </svg>
+      {/* Keep the native picker over the entire control; its locale-specific text
+          stays invisible so the displayed Gregorian date is consistent on iOS. */}
+      <input type="date" aria-label={label} lang="ja-JP" value={value} max={max} disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="absolute inset-0 h-full min-w-0 w-full max-w-full cursor-pointer appearance-none opacity-0" />
+    </span>
+  </label>
+}
 
 function monthsAgo(count: number): string {
   const now = new Date()
@@ -26,6 +45,7 @@ export function ExportPage() {
 
   async function build() {
     if (!userId || busy) return
+    if (!from || !to) { setError('開始日と終了日を選んでください'); return }
     if (from > to) { setError('開始日は終了日より前にしてください'); return }
     setBusy(true); setError(null); setCopied(false)
     try {
@@ -70,12 +90,8 @@ export function ExportPage() {
     </header>
 
     <div className="grid grid-cols-2 gap-3">
-      <label className="flex flex-col gap-2 text-sm text-muted">開始日
-        <input type="date" value={from} max={today} disabled={busy} onChange={(e) => setFrom(e.target.value)} className={field} />
-      </label>
-      <label className="flex flex-col gap-2 text-sm text-muted">終了日
-        <input type="date" value={to} max={today} disabled={busy} onChange={(e) => setTo(e.target.value)} className={field} />
-      </label>
+      <ExportDateField label="開始日" value={from} max={today} disabled={busy} onChange={setFrom} />
+      <ExportDateField label="終了日" value={to} max={today} disabled={busy} onChange={setTo} />
     </div>
 
     <div className="flex flex-wrap gap-2">

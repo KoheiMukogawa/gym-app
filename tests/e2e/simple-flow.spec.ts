@@ -787,6 +787,8 @@ test('the record tab is gone and reps are filled from records, then from an esti
 })
 
 test('exports the chosen period as markdown, memos included', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
   const data = await mockApi(page)
   const now = new Date()
   const at = (d: number) => new Date(now.getFullYear(), now.getMonth(), d, 12).toISOString()
@@ -794,7 +796,35 @@ test('exports the chosen period as markdown, memos included', async ({ page }) =
   data.sets.push({ id: 'x1', workout_id: 'w-x', exercise_id: 'bench', weight_kg: 80, reps: 5, set_index: 1, note: '肩甲骨を寄せる', created_at: at(now.getDate()) })
 
   await page.goto('/export')
+  const from = page.getByLabel('開始日', { exact: true })
+  const to = page.getByLabel('終了日', { exact: true })
+  await from.fill('2025-12-31')
+  const displayToday = [now.getFullYear(), now.getMonth() + 1, now.getDate()].join('/')
+  await expect(page.getByText('2025/12/31', { exact: true })).toBeVisible()
+  await expect(page.getByText(displayToday, { exact: true })).toBeVisible()
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    const startBox = (await from.boundingBox())!
+    const endBox = (await to.boundingBox())!
+    expect(startBox.height).toBeGreaterThanOrEqual(56)
+    expect(endBox.height).toBeGreaterThanOrEqual(56)
+    expect(startBox.x).toBeGreaterThanOrEqual(16)
+    expect(startBox.x + startBox.width).toBeLessThan(endBox.x)
+    expect(endBox.x + endBox.width).toBeLessThanOrEqual(width - 16)
+    expect(await page.getByText('2025/12/31', { exact: true }).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    // The transparent native input must receive taps over the displayed date.
+    expect(await from.evaluate(el => {
+      const box = el.getBoundingClientRect()
+      return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === el
+    })).toBe(true)
+    await page.screenshot({ path: `test-results/export-dates-${width}.png` })
+  }
+  await from.fill('')
+  await page.getByRole('button', { name: 'Markdownを作成', exact: true }).click()
+  await expect(page.getByRole('alert')).toHaveText('開始日と終了日を選んでください')
   await page.getByRole('button', { name: '今月', exact: true }).click()
+  await expect(page.getByText(`${now.getFullYear()}/${now.getMonth() + 1}/1`, { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Markdownを作成', exact: true }).click()
 
   const output = page.getByRole('textbox', { name: 'エクスポートした内容' })
@@ -803,6 +833,7 @@ test('exports the chosen period as markdown, memos included', async ({ page }) =
   // 80kg×5 の推定1RM は 90.0kg
   await expect(output).toContainText('| 1 | 80.0 kg | 5 | 90.0 kg | 肩甲骨を寄せる |')
   await expect(page.getByRole('button', { name: 'ファイルで保存' })).toBeVisible()
+  expect(errors).toEqual([])
 })
 
 
