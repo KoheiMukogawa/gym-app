@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from './SessionProvider'
+import { useCaptcha } from './captcha'
 
 const RESET_PASSWORD_PATH = '/reset-password'
 const inputClass = 'mt-1 min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg'
@@ -23,16 +24,17 @@ export function ForgotPasswordPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
+  const captcha = useCaptcha()
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (submitting) return
     setError(null); setSubmitting(true)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + RESET_PASSWORD_PATH })
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + RESET_PASSWORD_PATH, captchaToken: captcha.token })
       if (error) throw error
       setSent(true)
     } catch (e) { setError(toMessage(e)) }
-    finally { setSubmitting(false) }
+    finally { setSubmitting(false); captcha.reset() }
   }
   return <AuthScreen title="パスワードの再設定">
     {sent ? <div className="space-y-4">
@@ -46,8 +48,9 @@ export function ForgotPasswordPage() {
         <input type="email" autoComplete="email" required value={email} disabled={submitting}
           onChange={(e) => setEmail(e.target.value)} className={inputClass} />
       </label>
+      {captcha.widget}
       {error && <p role="alert" className="text-sm text-accent">{error}</p>}
-      <Button type="submit" disabled={submitting}>{submitting ? '送信中…' : '再設定メールを送る'}</Button>
+      <Button type="submit" disabled={submitting || !captcha.ready}>{submitting ? '送信中…' : '再設定メールを送る'}</Button>
       <Link to="/login" className="flex min-h-14 items-center justify-center text-sm text-muted">ログインへ戻る</Link>
     </form>}
   </AuthScreen>

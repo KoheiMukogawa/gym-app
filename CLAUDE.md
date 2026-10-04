@@ -42,6 +42,7 @@
 - Supabaseプロジェクト: `lombbjpiftuqkacasmzg`
 - キーは新形式の `sb_publishable_...`（旧 `eyJ...` のJWT形式ではない）。`@supabase/supabase-js` はどちらも受け付ける
 - Vercelの環境変数は **Sensitive にしないこと**。Viteはビルド時に値を埋め込むため、Sensitive指定だと空文字のままビルドされる
+- CAPTCHA（Cloudflare Turnstile）: Vercelの `VITE_TURNSTILE_SITE_KEY`（Sensitiveにしない）があると、ログイン・新規登録・パスワード再設定に確認欄が出てトークンを送る。未設定なら出さない（手元・テスト）。SupabaseでCAPTCHAを有効にすると3つすべてでトークンが必須になるので、必ずサイトキー入りのビルドを公開してから有効にする。問題が出たら Authentication → Bot and Abuse Protection のスイッチを切れば戻る。Turnstileのホスト名には `gym-app-ruddy-nine.vercel.app` と `gym-app-gym-app10.vercel.app` の両方を登録する
 - 環境変数が空だと `src/lib/supabase.ts` の throw が静的に確定し、以降のコードがtree-shakingで丸ごと消える。
   ホーム以外の画面は遅延読み込みなのでサイズでは判別しにくい。公開中の `/assets/*.js` に `lombbjpiftuqkacasmzg` が含まれていれば環境変数は入っている
 

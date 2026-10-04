@@ -11,6 +11,7 @@ export function toMessage(error: unknown): string {
   const e = (error ?? {}) as ErrorLike
 
   if (e.code === '23505') return '同じ名前の種目がすでに登録されています。'
+  if (e.code === 'captcha_failed') return 'ボットではないことの確認に失敗しました。もう一度お試しください。'
   if (e.code === 'over_email_send_rate_limit') return 'メールの送信回数が上限に達しました。しばらく待ってからお試しください。'
   if (e.code === 'same_password') return '今のパスワードとは別のパスワードを入力してください。'
   if (e.code === 'weak_password') return 'パスワードが短すぎるか、推測されやすいものです。別のパスワードを入力してください。'
