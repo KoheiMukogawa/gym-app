@@ -18,11 +18,19 @@ export function DeleteAccountPage() {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const lock = useRef(false)
+  const signOutOnLeave = useRef(false)
   const load = useCallback(() => {
     setLoadError(null); setSummary(null)
     fetchDeletionSummary().then(setSummary).catch((e: unknown) => setLoadError(accountMessage(e)))
   }, [])
   useEffect(() => { load() }, [load])
+  // Sign out only once this page has left the screen. React Router applies navigations as
+  // transitions, so signing out earlier lets RequireAuth redirect this route to /login first,
+  // whereas "/" becomes the introduction once signed out.
+  useEffect(() => () => {
+    // The account and its server sessions are gone, so only this device needs signing out.
+    if (signOutOnLeave.current) void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  }, [])
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -35,8 +43,7 @@ export function DeleteAccountPage() {
       return
     }
     clearDraft(userId)
-    // The account and its server sessions are gone, so only this device needs signing out.
-    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    signOutOnLeave.current = true
     show('退会しました')
     navigate('/', { replace: true })
   }
