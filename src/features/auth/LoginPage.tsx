@@ -22,6 +22,7 @@ export function LoginPage({ signup = false }: { signup?: boolean }) {
       {signup&&<><label className="flex min-h-14 items-center gap-3 text-sm"><input type="checkbox" checked={publicRank} disabled={submitting} onChange={e=>setPublicRank(e.target.checked)} className="h-5 w-5 accent-accent"/>全体ランキングに参加する</label>
         <p className="text-xs leading-relaxed text-muted">参加すると、名前・アイコン・BIG3の重量がログイン中の利用者に公開されます。名前・アイコン・参加設定は後からプロフィールで変更できます。</p></>}
       {error&&<p role="alert" className="text-sm text-accent">{error}</p>}
+      {signup&&<p className="text-xs leading-relaxed text-muted">登録すると、<Link to="/terms" className="text-accent underline">利用規約</Link>と<Link to="/privacy" className="text-accent underline">プライバシーポリシー</Link>に同意したものとみなします。</p>}
       <Button type="submit" disabled={submitting||(signup&&!name.trim())}>{submitting?'処理中…':signup?'アカウントを作成':'ログイン'}</Button>
       <Link className="flex min-h-14 items-center justify-center text-sm text-muted" to={signup?'/login':'/signup'}>{signup?'アカウントをお持ちの方':'アカウントを作成する'}</Link>
     </form>}</main>

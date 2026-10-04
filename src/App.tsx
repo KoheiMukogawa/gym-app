@@ -1,4 +1,4 @@
-import { lazy } from 'react'
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from './features/auth/SessionProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
@@ -7,6 +7,7 @@ import { ForgotPasswordPage, ResetPasswordPage } from './features/auth/PasswordR
 import { AppShell } from './components/AppShell'
 import { ToastProvider } from './components/ui/Toast'
 import { HomePage } from './features/home/HomePage'
+import { Spinner } from './components/ui/Spinner'
 
 // Screens other than home and recording load on first visit, so charts and
 // rankings do not slow down opening the app. The service worker precaches them.
@@ -18,6 +19,8 @@ const Big3Page = lazy(() => import('./features/community/Big3Page').then((m) => 
 const RankingPage = lazy(() => import('./features/community/RankingPage').then((m) => ({ default: m.RankingPage })))
 const ExportPage = lazy(() => import('./features/export/ExportPage').then((m) => ({ default: m.ExportPage })))
 const BodyPage = lazy(() => import('./features/body/BodyPage').then((m) => ({ default: m.BodyPage })))
+const TermsPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.TermsPage })))
+const PrivacyPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.PrivacyPage })))
 const DeleteAccountPage = lazy(() => import('./features/account/DeleteAccountPage').then((m) => ({ default: m.DeleteAccountPage })))
 
 // 以前のBIG3のURL（/strength?view=...）は /big3 に移した。
@@ -36,6 +39,8 @@ export default function App() {
             <Route path="/signup" element={<LoginPage key="signup" signup />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/terms" element={<Suspense fallback={<Spinner />}><TermsPage /></Suspense>} />
+            <Route path="/privacy" element={<Suspense fallback={<Spinner />}><PrivacyPage /></Suspense>} />
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
                 <Route path="/" element={<HomePage />} />
