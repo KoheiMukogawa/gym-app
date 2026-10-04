@@ -10,7 +10,7 @@ export const DEFAULT_REPS = 10
 
 /** 種目名の表記揺れを吸収する。重複検出とサジェストに使う。 */
 export function normalizeExerciseName(name: string): string {
-  return name.toLowerCase().replace(/[\s　]/g, '')
+  return name.toLowerCase().replace(/[\s\u3000]/g, '')
 }
 
 export function totalVolume(sets: Pick<WorkoutSet, 'weight_kg' | 'reps'>[]): number {

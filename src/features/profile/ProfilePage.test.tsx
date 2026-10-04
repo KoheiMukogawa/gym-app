@@ -21,8 +21,10 @@ it('requires a formula before opting in, then saves profile and DOTS settings', 
   renderPage()
   await userEvent.click(await screen.findByRole('checkbox', { name: 'DOTSランキングに参加する' }))
   expect(screen.getByRole('button', { name: 'プロフィールを保存' })).toBeDisabled()
+  expect(screen.getByText('保存するには係数を選んでください。')).toBeInTheDocument()
   expect(screen.getByText(/体重の公開に同意したことになります/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('radio', { name: '女性用' }))
+  expect(screen.queryByText('保存するには係数を選んでください。')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'プロフィールを保存' }))
   expect(await screen.findByRole('status')).toHaveTextContent('保存しました')
   expect(rpc.mock.calls.map((c) => c[0])).toEqual(['save_glog_profile', 'save_dots_settings'])
@@ -56,4 +58,10 @@ it('keeps the error on screen when only the DOTS settings fail to save', async (
   await userEvent.click(screen.getByRole('button', { name: 'プロフィールを保存' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('DOTSの係数を選んでください')
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+it('links to account deletion at the bottom', async () => {
+  profile.mockResolvedValue({ ...base, dots_opt_in: false, dots_formula: null })
+  renderPage()
+  expect(await screen.findByRole('link', { name: '退会する' })).toHaveAttribute('href', '/account/delete')
 })

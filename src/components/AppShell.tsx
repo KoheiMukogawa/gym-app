@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
+import { Spinner } from './ui/Spinner'
 import { useSession } from '../features/auth/SessionProvider'
 import { toMessage } from '../lib/errors'
 import { Avatar } from '../features/profile/Avatar'
@@ -25,9 +26,9 @@ export function AppShell(){
   return <div className="mx-auto flex min-h-dvh max-w-lg flex-col">
     <header className="flex items-center justify-between px-4 py-2"><Link to="/" aria-label="Glog トップへ" className="flex min-h-14 items-center text-3xl font-bold tracking-tight">Glog</Link>
       <div ref={menu} className="relative"><button className="flex min-h-14 min-w-14 items-center justify-center" aria-label="プロフィールメニュー" aria-expanded={open} onClick={()=>setOpen(v=>!v)}><Avatar icon={profile?.icon} name={profile?.display_name}/></button>
-        {open&&<div className="absolute right-0 z-50 w-64 rounded-xl border border-border bg-surface p-3 shadow-xl"><p className="break-words px-3 py-2 font-semibold">{profile?.display_name||'プロフィール'}</p><Link to="/profile" className="flex min-h-14 items-center px-3 text-sm">プロフィールを編集</Link><Link to="/export" className="flex min-h-14 items-center px-3 text-sm">データをエクスポート</Link>{error&&<p role="alert" className="text-sm text-accent">{error}</p>}<button className="min-h-14 w-full px-3 text-left text-sm text-muted" disabled={busy} onClick={async()=>{setBusy(true);setError(null);try{await signOut()}catch(e){setError(toMessage(e))}finally{setBusy(false)}}}>{busy?'ログアウト中…':'ログアウト'}</button></div>}
+        {open&&<div className="absolute right-0 z-50 w-64 rounded-xl border border-border bg-surface p-3 shadow-xl"><p className="break-words px-3 py-2 font-semibold">{profile?.display_name||'プロフィール'}</p><Link to="/profile" className="flex min-h-14 items-center px-3 text-sm">プロフィールを編集</Link><Link to="/export" className="flex min-h-14 items-center px-3 text-sm">データをエクスポート</Link><Link to="/terms" className="flex min-h-14 items-center px-3 text-sm text-muted">利用規約</Link><Link to="/privacy" className="flex min-h-14 items-center px-3 text-sm text-muted">プライバシーポリシー</Link>{error&&<p role="alert" className="text-sm text-accent">{error}</p>}<button className="min-h-14 w-full px-3 text-left text-sm text-muted" disabled={busy} onClick={async()=>{setBusy(true);setError(null);try{await signOut()}catch(e){setError(toMessage(e))}finally{setBusy(false)}}}>{busy?'ログアウト中…':'ログアウト'}</button></div>}
       </div></header>
-    <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">{showLog&&<div hidden={location.pathname!=='/log'}><LogPage key={logKey} onFinished={()=>setLogKey(k=>k+1)}/></div>}<Outlet/></main>
+    <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">{showLog&&<div hidden={location.pathname!=='/log'}><LogPage key={logKey} onFinished={()=>setLogKey(k=>k+1)}/></div>}<Suspense fallback={<Spinner/>}><Outlet/></Suspense></main>
     <nav aria-label="メイン" className="glass-navigation fixed inset-x-3 bottom-[calc(0.25rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[calc(32rem-1.5rem)] rounded-full">{TABS.map(t=><NavLink key={t.to} to={t.to} end={t.to==='/'} className="flex h-14 min-h-14 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-xs">{({isActive})=><span className={`flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-full transition-colors ${isActive?'bg-white/10 font-semibold text-accent':'text-fg/75 hover:bg-white/5'}`}>{t.label}</span>}</NavLink>)}</nav>
   </div>
 }

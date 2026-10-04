@@ -8,5 +8,6 @@ export function LandingPage() {
     </section>
     <section className="divide-y divide-border" aria-label="Glogでできること">{[['すぐに記録','ルーティンから開始。重量と回数を選んで、セットを残す。'],['成長が見える','カレンダーで振り返り、推定1RMで重量の伸びを確認。'],['仲間と続ける','招待制コミュニティで競い合う。全体ランキングへの参加は自分で選べます。']].map(([title,text])=><div key={title} className="py-6"><h2 className="text-lg font-semibold">{title}</h2><p className="mt-2 text-sm leading-relaxed text-muted">{text}</p></div>)}</section>
     <p className="mt-6 text-xs text-muted">スマートフォン・PCに対応。ホーム画面に追加して使えます。</p>
+    <nav className="mt-6 flex gap-6 text-xs text-muted" aria-label="規約"><Link to="/terms" className="flex min-h-14 items-center">利用規約</Link><Link to="/privacy" className="flex min-h-14 items-center">プライバシーポリシー</Link></nav>
   </main>
 }
