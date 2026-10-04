@@ -96,3 +96,11 @@ export function buildStrengthSnapshot(
     currentEstimatedTotal: strengthTotal(LIFT_KEYS.map((key) => lifts[key].currentE1rm)),
   }
 }
+
+// At least 5 kg of headroom on each side, split into at most 4 even steps.
+export function e1rmTicks(values: number[]): number[] {
+  const min = Math.min(...values) - 5, max = Math.max(...values) + 5
+  const step = [5, 10, 20, 25, 50, 100, 200].find((size) => Math.ceil(max / size) - Math.floor(min / size) <= 4) ?? 500
+  const low = Math.floor(min / step) * step, count = Math.ceil(max / step) - Math.floor(min / step)
+  return Array.from({ length: count + 1 }, (_, i) => low + i * step)
+}

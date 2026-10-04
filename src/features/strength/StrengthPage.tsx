@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { toMessage } from '../../lib/errors'
+import { useSeenOnce } from '../../lib/motion'
 import { currentGoal, saveCurrentGoal } from './currentGoal'
 import { StrengthScore } from './StrengthScore'
 import { useSession } from '../auth/SessionProvider'
@@ -16,6 +17,7 @@ import {
   type StrengthGoal,
   type StrengthSnapshot,
 } from './queries'
+import { e1rmTicks } from './strengthSnapshot'
 
 function formatKg(value: number | null): string {
   if (value === null) return '—'
@@ -26,6 +28,9 @@ function formatKg(value: number | null): string {
 
 function LiftCard({ lift }: { lift: LiftSnapshot }) {
   const navigate = useNavigate()
+  // Recharts draws the line when it mounts, so wait until the chart scrolls into view.
+  const [chartRef, chartSeen] = useSeenOnce<HTMLDivElement>()
+  const ticks = lift.e1rmPoints.length >= 2 ? e1rmTicks(lift.e1rmPoints.map((point) => point.e1rm)) : []
   const content = (
     <div className="rounded-xl border border-border bg-surface p-4">
       <div className="mb-3 flex items-center justify-between">
@@ -43,10 +48,10 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
       {lift.e1rmPoints.length >= 2 && (
         <div className="mt-4 border-t border-border pt-3">
           <div className="mb-2 text-xs text-muted">e1RMの推移</div>
-          <div className="h-28 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div ref={chartRef} className="h-28 w-full">
+            {chartSeen && <ResponsiveContainer width="100%" height="100%">
               {/* The overview stays a clean line; a tap opens the exercise page, where days can be inspected. */}
-              <LineChart data={lift.e1rmPoints} margin={{ top: 4, right: 4, bottom: 0, left: -24 }}
+              <LineChart data={lift.e1rmPoints} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
                 style={lift.exerciseId ? { cursor: 'pointer' } : undefined}
                 onClick={() => { if (lift.exerciseId) navigate(`/exercises/${lift.exerciseId}`) }}>
                 <XAxis
@@ -61,8 +66,9 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
                   tick={{ fill: '#8A8A93', fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
-                  width={44}
-                  domain={['dataMin - 5', 'dataMax + 5']}
+                  width={32}
+                  domain={[ticks[0], ticks[ticks.length - 1]]}
+                  ticks={ticks}
                 />
                 <Tooltip
                   contentStyle={{
@@ -83,7 +89,7 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
                   activeDot={{ r: 3 }}
                 />
               </LineChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer>}
           </div>
         </div>
       )}

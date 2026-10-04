@@ -46,3 +46,12 @@ describe('deferred recording screen', () => {
     expect(mounted).toHaveBeenCalledOnce()
   })
 })
+
+describe('profile menu', () => {
+  it('links to the terms and the privacy policy', async () => {
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    expect(screen.getByRole('link', { name: '利用規約' })).toHaveAttribute('href', '/terms')
+    expect(screen.getByRole('link', { name: 'プライバシーポリシー' })).toHaveAttribute('href', '/privacy')
+  })
+})

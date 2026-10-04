@@ -14,10 +14,12 @@ it('ranks DOTS among opted-in members only, sharing ranks on ties and leaving mi
     member('a', { dots: 400, dots_opt_in: true, total: 500 }),
     member('b', { dots: 450, dots_opt_in: true, total: 400 }),
     member('c', { dots: 400, dots_opt_in: true, total: 300 }),
+    member('f', { dots: 350, dots_opt_in: true, total: 200 }),
     member('d', { dots: null, dots_opt_in: true, total: 600 }),
     member('e', { dots: null, dots_opt_in: false, total: 700 }),
   ], 'dots')
-  expect(rows.map((r) => [r.user_id, r.rank])).toEqual([['b', 1], ['a', 2], ['c', 2], ['d', null]])
+  // The rank after a tie skips the shared places (2, 2, then 4).
+  expect(rows.map((r) => [r.user_id, r.rank])).toEqual([['b', 1], ['a', 2], ['c', 2], ['f', 4], ['d', null]])
 })
 
 it('keeps every member in the kg rankings', () => {

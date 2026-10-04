@@ -1,3 +1,4 @@
+import { useRevealProgress } from '../../lib/motion'
 import { strengthTotal } from '../../lib/strength'
 import type { StrengthGoal, StrengthSnapshot } from './queries'
 
@@ -9,11 +10,13 @@ const lifts = [
 ] as const
 // Gap between segments, in pathLength units (the ring is 100).
 const GAP = 0.8
+const FILL_MS = 1000
 const kg = (value: number | null) => value === null ? '—' : Number.isInteger(value) ? String(value) : value.toFixed(1)
 
 export function StrengthScore({ snapshot, goal, onEdit }: {
   snapshot: StrengthSnapshot; goal: StrengthGoal | null; onEdit: () => void
 }) {
+  const progress = useRevealProgress(FILL_MS)
   const total = strengthTotal(lifts.map(({ key }) => snapshot.lifts[key].allTimeE1rm))
   const ratio = total !== null && goal ? Math.min(1, total / goal.target_total_kg) : null
   const remaining = total !== null && goal ? Math.max(0, goal.target_total_kg - total) : null
@@ -27,14 +30,19 @@ export function StrengthScore({ snapshot, goal, onEdit }: {
     start += length
     return segment
   })
+  // On open the ring sweeps from empty, S → B → D, to where the lifts stand.
+  const filled = progress * start
   return <section className="overflow-hidden rounded-3xl border border-border bg-surface p-5" aria-label="Big3スコア">
     <h2 className="text-sm font-semibold">推定1RM合計</h2>
     <div className="relative mx-auto my-2 aspect-square w-full max-w-72">
       <svg viewBox="0 0 240 240" className="h-full w-full -rotate-90" aria-hidden="true">
         <circle cx="120" cy="120" r="104" fill="none" stroke="#2A2A2F" strokeWidth="10" />
-        {total !== null && segments.map((seg) => seg.length > GAP && <circle key={seg.key} cx="120" cy="120" r="104" fill="none"
-          stroke="var(--color-accent)" strokeOpacity={seg.opacity} strokeWidth="10" pathLength="100"
-          strokeDasharray={`${seg.length - GAP} ${100 - seg.length + GAP}`} strokeDashoffset={-seg.start} />)}
+        {total !== null && segments.map((seg) => {
+          const shown = Math.min(seg.length, Math.max(0, filled - seg.start))
+          return shown > GAP && <circle key={seg.key} cx="120" cy="120" r="104" fill="none"
+            stroke="var(--color-accent)" strokeOpacity={seg.opacity} strokeWidth="10" pathLength="100"
+            strokeDasharray={`${shown - GAP} ${100 - shown + GAP}`} strokeDashoffset={-seg.start} />
+        })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center px-7 text-center">
         <span className="mb-2 text-xs tracking-widest text-muted">BIG 3 TOTAL</span>
