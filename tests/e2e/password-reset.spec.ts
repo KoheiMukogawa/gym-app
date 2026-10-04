@@ -25,10 +25,10 @@ const recoveryHash = () => '#' + new URLSearchParams({ access_token: 'recovery-a
 
 test('a forgotten password is reset from the emailed link', async ({ page }) => {
   const calls = await mockAuth(page)
-  page.on('framenavigated', frame => console.log('[diag] navigated', Date.now(), frame.url()))
-  page.on('console', msg => console.log('[diag] console', Date.now(), msg.text()))
   await page.goto('/login')
   await page.getByRole('link', { name: 'パスワードを忘れた方' }).click()
+  // The login form has an email field too; fill only once the reset page is showing.
+  await expect(page.getByRole('heading', { name: 'パスワードの再設定' })).toBeVisible()
   await page.getByLabel('メールアドレス').fill('me@example.com')
   await page.getByRole('button', { name: '再設定メールを送る' }).click()
   await expect(page.getByRole('status')).toContainText('再設定用のメールを送りました')
