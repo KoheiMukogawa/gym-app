@@ -178,33 +178,39 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     </header>
 
     <section className="flex flex-col gap-3" aria-label="推移">
-      {/* The period picker shares the heading row; each button keeps a 56px tap height. */}
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">推移</h2>
-        <div className="flex" role="group" aria-label="表示期間">
-          {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
-            className="flex min-h-14 items-center px-1 text-sm" onClick={() => setMonths(p.months)}>
-            <span className={`rounded-full px-2.5 py-1 ${months === p.months ? 'bg-border font-semibold text-fg' : 'text-muted'}`}>{p.label}</span>
-          </button>)}
-        </div>
-      </div>
       {/* The legend carries the latest values, so no separate card repeats the two metrics. */}
-      <section aria-label="最新の記録" className="flex flex-col gap-2">
-        <p className="text-xs text-muted tabular-nums">
-          {!loading && !loadError && latest ? <>最新 <time dateTime={latest.date}>{latest.date.slice(5).replace('-', '/')}</time></> : '最新の記録'}
-        </p>
-        <div className="grid grid-cols-2 gap-3">
+      <section aria-label="最新の記録" className="flex flex-col gap-3 pb-2">
+        {!loading && !loadError && latest && <time dateTime={latest.date} className="text-right text-xs text-muted tabular-nums">
+          {latest.date.slice(5).replace('-', '/')}
+        </time>}
+        <div className="grid grid-cols-2 gap-4">
           <LatestValue label="体重" unit="kg" axis="左の目盛り" color={WEIGHT_COLOR} value={loading || loadError ? null : latest?.weight ?? null}
             change={latest?.weightChange ?? null} pending={loading} />
           <LatestValue label="体脂肪率" unit="%" axis="右の目盛り" color={FAT_COLOR} value={loading || loadError ? null : latest?.fat ?? null}
             change={latest?.fatChange ?? null} pending={loading} />
         </div>
       </section>
+      <div className="flex rounded-full bg-surface p-1" role="group" aria-label="表示期間">
+        {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
+          className={`min-h-14 min-w-0 flex-1 rounded-full text-sm transition-colors ${months === p.months ? 'bg-border font-semibold text-fg' : 'text-muted'}`}
+          onClick={() => setMonths(p.months)}>{p.label}</button>)}
+      </div>
       {loading ? <Spinner /> : loadError ? null : points.length === 0
         ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
         : <BodyTrendChart points={points} showYear={months === null} onSelectDay={onSelectDay} />}
-      <p className="text-xs text-muted">点はその日の記録、線は7日平均。</p>
-      <p className="text-xs text-muted">グラフをタップすると、その日の記録を修正・削除できます。</p>
+      <details className="border-t border-border">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between text-xs text-muted [&::-webkit-details-marker]:hidden">
+          グラフの見方
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="h-4 w-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+          </svg>
+        </summary>
+        <div className="space-y-2 pb-4 text-xs leading-relaxed text-muted">
+          <p>体重は左の目盛り（kg）、体脂肪率は右の目盛り（%）です。</p>
+          <p>点はその日の記録、線は7日平均。</p>
+          <p>グラフをタップすると、その日の記録を修正・削除できます。</p>
+        </div>
+      </details>
     </section>
 
     {notice && <p role="status" className="text-sm">{notice}</p>}
@@ -258,11 +264,11 @@ function LatestValue({ label, unit, axis, color, value, change, pending }: {
   const spoken = value === null ? `${label} 未記録` : `${label} ${value}${unit}、前回比${change === null ? 'なし' : ` ${signed(change)}${unit}`}`
   return <div role="group" aria-label={pending ? `${label} 読み込み中` : spoken} className="min-w-0">
     <p className="flex items-center gap-1.5 text-xs text-muted">
-      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} /><span>{label}・{axis}</span>
+      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} /><span>{label}</span><span className="sr-only">・{axis}</span>
     </p>
-    <p className="text-2xl font-semibold tracking-tight tabular-nums">
+    <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
       {pending ? '…' : value === null ? <span className="text-muted">—</span> : <>{value}<span className="ml-0.5 text-xs font-normal text-muted">{unit}</span></>}
     </p>
-    <p className="text-xs text-muted tabular-nums">{pending ? '\u00a0' : value === null ? '未記録' : change === null ? '前回比 —' : `前回比 ${signed(change)}`}</p>
+    {!pending && value !== null && change !== null && <p className="mt-1 text-xs text-muted tabular-nums">前回比 {signed(change)}{unit}</p>}
   </div>
 }

@@ -196,7 +196,7 @@ describe('BodyPage', () => {
     expect(screen.getByRole('button', { name: earlier + ' の記録を修正' })).toBeInTheDocument()
   })
 
-  it('uses the latest values as the chart legend, naming each axis', async () => {
+  it('keeps the latest values above the chart and axis descriptions accessible', async () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: today, bodyweight_kg: 70, body_fat_pct: 15 }])
     await renderPage()
     const trend = screen.getByRole('region', { name: '推移' })
@@ -278,7 +278,9 @@ it('removes the record list; past days are reached from the chart', async () => 
   ])
   await renderPage()
   expect(screen.queryByRole('region', { name: '最近の記録' })).not.toBeInTheDocument()
-  expect(screen.getByText('グラフをタップすると、その日の記録を修正・削除できます。')).toBeInTheDocument()
+  expect(screen.getByText('グラフをタップすると、その日の記録を修正・削除できます。')).not.toBeVisible()
+  await userEvent.click(screen.getByText('グラフの見方', { exact: true }))
+  expect(screen.getByText('グラフをタップすると、その日の記録を修正・削除できます。')).toBeVisible()
   await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
   const form = screen.getByRole('dialog')
   expect(within(form).getByRole('heading')).toHaveTextContent(pastDate.slice(5).replace('-', '/') + 'の記録')

@@ -37,9 +37,12 @@ export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, o
       onSelectDay(weightDays[nearest])
     } else if (activeLabel !== undefined) onSelectDay(String(activeLabel))
   }
-  return <div ref={box} className="h-56 w-full">
+  return <div ref={box} className="relative h-56 w-full">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 flex justify-between text-[10px] text-muted">
+        <span>kg</span>{hasFat && <span>%</span>}
+      </div>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={points} margin={{ top: 8, right: 0, bottom: 0, left: 0 }} style={{ cursor: 'pointer' }}
+        <LineChart data={points} margin={{ top: 20, right: 0, bottom: 0, left: 0 }} style={{ cursor: 'pointer' }}
           onClick={(state, event) => pick(state.activeLabel, event?.clientX ?? NaN)}>
           <XAxis dataKey="date" tick={tick} axisLine={false} tickLine={false} tickFormatter={date} minTickGap={24} />
           <YAxis yAxisId="weight" orientation="left" tick={tick} axisLine={false} tickLine={false} width={40}

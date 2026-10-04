@@ -209,7 +209,7 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
   const overview = page.getByRole('region',{name:'最新の記録'})
   await expect(overview).toContainText('70.3')
   await expect(overview).toContainText('前回比 +0.2')
-  await expect(overview).toContainText('未記録')
+  await expect(overview.getByRole('group', {name:'体脂肪率 未記録'})).toContainText('—')
   const trend = page.getByRole('region',{name:'推移'})
   await expect(trend.locator('path.recharts-line-curve[stroke="#E8412F"]')).toHaveCount(1)
   const refresh = page.getByRole('button',{name:'記録を再読み込み'})
@@ -238,7 +238,21 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
     return tops.size
   }))
   expect(navLines).toEqual([1,1,1,1,1])
-  await page.screenshot({path:'test-results/body-overview-mobile.png',fullPage:true})
+  const guide = page.getByText('点はその日の記録、線は7日平均。', {exact:true})
+  await expect(guide).not.toBeVisible()
+  await page.getByText('グラフの見方', {exact:true}).click()
+  await expect(guide).toBeVisible()
+  await page.getByText('グラフの見方', {exact:true}).click()
+  for (const width of [320,375,390]) {
+    await page.setViewportSize({width,height:812})
+    const latestBox = (await overview.boundingBox())!
+    const periodBox = (await page.getByRole('group',{name:'表示期間'}).boundingBox())!
+    const graphBox = (await trend.locator('svg.recharts-surface').boundingBox())!
+    expect(latestBox.y + latestBox.height).toBeLessThanOrEqual(periodBox.y)
+    expect(periodBox.y + periodBox.height).toBeLessThanOrEqual(graphBox.y)
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+    await page.screenshot({path:`test-results/body-simple-${width}.png`,fullPage:true})
+  }
   await page.getByRole('button',{name:'ヘルスケア連携',exact:true}).click()
   await expect(page.getByText('未接続',{exact:true})).toBeVisible()
 })
