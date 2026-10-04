@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildStrengthSnapshot,
+  e1rmTicks,
   resolveBig3Exercises,
   type Big3ExerciseMapping,
   type StrengthExercise,
@@ -92,5 +93,15 @@ describe('buildStrengthSnapshot', () => {
     expect(snapshot.lifts.squat.pr1rm).toBeNull()
     expect(snapshot.prTotal).toBeNull()
     expect(snapshot.currentEstimatedTotal).toBeNull()
+  })
+})
+
+describe('e1rmTicks', () => {
+  it('pads the range by 5 kg and splits it into even steps', () => {
+    expect(e1rmTicks([100.6, 110])).toEqual([95, 100, 105, 110, 115])
+    expect(e1rmTicks([180, 260])).toEqual([175, 200, 225, 250, 275])
+  })
+  it('still gives a range when every point is the same', () => {
+    expect(e1rmTicks([60, 60])).toEqual([55, 60, 65])
   })
 })
