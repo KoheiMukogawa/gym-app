@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { SessionProvider } from './features/auth/SessionProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { LoginPage } from './features/auth/LoginPage'
+import { ForgotPasswordPage, ResetPasswordPage } from './features/auth/PasswordResetPages'
 import { AppShell } from './components/AppShell'
 import { ToastProvider } from './components/ui/Toast'
 import { HomePage } from './features/home/HomePage'
@@ -32,6 +33,8 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage key="login" />} />
             <Route path="/signup" element={<LoginPage key="signup" signup />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
                 <Route path="/" element={<HomePage />} />

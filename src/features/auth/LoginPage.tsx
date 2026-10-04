@@ -18,6 +18,7 @@ export function LoginPage({ signup = false }: { signup?: boolean }) {
       <label className="block text-sm text-muted">メールアドレス<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg" disabled={submitting}/></label>
       <label className="block text-sm text-muted">パスワード<input type="password" minLength={signup?8:undefined} autoComplete={signup?'new-password':'current-password'} required value={password} onChange={e=>setPassword(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg" disabled={submitting}/></label>
       {signup&&<p className="text-xs text-muted">8文字以上。</p>}
+      {!signup&&<Link to="/forgot-password" className="flex min-h-14 items-center justify-end text-sm text-muted">パスワードを忘れた方</Link>}
       {signup&&<><label className="flex min-h-14 items-center gap-3 text-sm"><input type="checkbox" checked={publicRank} disabled={submitting} onChange={e=>setPublicRank(e.target.checked)} className="h-5 w-5 accent-accent"/>全体ランキングに参加する</label>
         <p className="text-xs leading-relaxed text-muted">参加すると、名前・アイコン・BIG3の重量がログイン中の利用者に公開されます。名前・アイコン・参加設定は後からプロフィールで変更できます。</p></>}
       {error&&<p role="alert" className="text-sm text-accent">{error}</p>}

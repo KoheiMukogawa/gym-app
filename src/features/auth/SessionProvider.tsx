@@ -54,7 +54,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setLoading(false)
       })
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // If Supabase sent the reset link back to the site URL instead, still ask for the new password.
+      if (event === 'PASSWORD_RECOVERY' && window.location.pathname !== '/reset-password') {
+        window.location.replace('/reset-password')
+        return
+      }
       const id = session?.user.id ?? null
       setUserId(id)
       if (id) loadProfile(id)

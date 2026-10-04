@@ -17,6 +17,14 @@ describe('toMessage', () => {
       .toBe('同じ名前の種目がすでに登録されています。')
   })
 
+  it('maps password reset errors from Supabase Auth', () => {
+    expect(toMessage({ code: 'over_email_send_rate_limit' }))
+      .toBe('メールの送信回数が上限に達しました。しばらく待ってからお試しください。')
+    expect(toMessage({ code: 'same_password' })).toBe('今のパスワードとは別のパスワードを入力してください。')
+    expect(toMessage({ code: 'weak_password' }))
+      .toBe('パスワードが短すぎるか、推測されやすいものです。別のパスワードを入力してください。')
+  })
+
   it('falls back to a generic message for unknown errors', () => {
     expect(toMessage(new Error('boom')))
       .toBe('エラーが発生しました。もう一度お試しください。')
