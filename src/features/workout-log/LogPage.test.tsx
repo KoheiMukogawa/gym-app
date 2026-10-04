@@ -12,6 +12,12 @@ vi.mock('../routines/queries', async (original) => ({
 
 const USER = 'user-1'
 
+// jsdom has no modal top layer; the browser tests exercise focus containment.
+Object.defineProperties(HTMLDialogElement.prototype, {
+  showModal: { configurable: true, value() { this.setAttribute('open', '') } },
+  close: { configurable: true, value() { this.removeAttribute('open') } },
+})
+
 const { createWorkout, saveSet, deleteWorkoutIfEmpty, deleteSet, fetchUserSetHistory, fetchTodayWorkout, updateSetNote } = vi.hoisted(
   () => ({
     updateSetNote: vi.fn(),
@@ -286,6 +292,55 @@ describe('LogPage', () => {
     await userEvent.click(screen.getByRole('button', { name: '保存' }))
     await waitFor(() => expect(updateSetNote).toHaveBeenCalledWith(saveSet.mock.calls[0][1].id, '最後は補助あり'))
     expect(await screen.findByText('最後は補助あり')).toBeInTheDocument()
+  })
+
+  it('keeps failed memo input for retry and restores the set controls after saving', async () => {
+    saveDraft(USER, {
+      state: { currentExerciseId: 'bench', weight_kg: 82.3, reps: 7, sets: [
+        { id: 's1', exercise_id: 'bench', set_index: 3, weight_kg: 80, reps: 8, note: '元のメモ' },
+      ] }, workoutId: 'w1', status: {},
+    })
+    updateSetNote.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce(undefined)
+    renderLogPage()
+    await userEvent.click(await screen.findByRole('button', { name: /のメモ: 元のメモ/ }))
+    expect(screen.getByRole('dialog', { name: 'セットのメモ' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'セットのメモ' })).toHaveTextContent('ベンチプレス · 1set · 80kg × 8回')
+    expect(screen.queryByRole('region', { name: 'セット入力' })).not.toBeInTheDocument()
+    const input = screen.getByRole('textbox', { name: 'セットのメモ' })
+    expect(input).toHaveValue('元のメモ')
+    await userEvent.clear(input)
+    await userEvent.type(input, '肩甲骨を寄せる\n最後は補助あり')
+    await userEvent.click(screen.getByRole('button', { name: '保存' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(input).toHaveValue('肩甲骨を寄せる\n最後は補助あり')
+    expect(loadDraft(USER)?.state.sets[0].note).toBe('元のメモ')
+    await userEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(updateSetNote).toHaveBeenLastCalledWith('s1', '肩甲骨を寄せる\n最後は補助あり')
+    expect(screen.getByRole('spinbutton', { name: '重量' })).toHaveAttribute('aria-valuenow', '82.3')
+    expect(screen.getByRole('spinbutton', { name: '回数' })).toHaveAttribute('aria-valuenow', '7')
+    expect(loadDraft(USER)?.state.currentExerciseId).toBe('bench')
+  })
+
+  it('asks before discarding memo changes and leaves the saved memo and entry values intact', async () => {
+    saveDraft(USER, {
+      state: { currentExerciseId: 'bench', weight_kg: 82.3, reps: 7, sets: [
+        { id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 80, reps: 8, note: '元のメモ' },
+      ] }, workoutId: 'w1', status: {},
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    try {
+      renderLogPage()
+      await userEvent.click(await screen.findByRole('button', { name: /のメモ: 元のメモ/ }))
+      await userEvent.type(screen.getByRole('textbox', { name: 'セットのメモ' }), '変更')
+      await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
+      expect(screen.getByRole('dialog', { name: 'セットのメモ' })).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(loadDraft(USER)?.state.sets[0].note).toBe('元のメモ')
+      expect(screen.getByRole('spinbutton', { name: '重量' })).toHaveAttribute('aria-valuenow', '82.3')
+      expect(updateSetNote).not.toHaveBeenCalled()
+    } finally { confirm.mockRestore() }
   })
 
   it('calls deleteSet when undoing a saved set', async () => {

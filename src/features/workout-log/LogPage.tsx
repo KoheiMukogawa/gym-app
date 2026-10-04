@@ -7,6 +7,7 @@ import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { WheelNumber } from '../../components/ui/WheelNumber'
 import { BottomInputDock } from '../../components/ui/BottomInputDock'
+import { SetMemoSheet } from './SetMemoSheet'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from '../auth/SessionProvider'
@@ -103,6 +104,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const [bodyweightDraft, setBodyweightDraft] = useState('')
   const [editingBodyweight, setEditingBodyweight] = useState(false)
   const [savingBodyweight, setSavingBodyweight] = useState(false)
+  const [editingSetId, setEditingSetId] = useState<string | null>(null)
   const recordingHeader = useRef<HTMLElement>(null)
 
   useEffect(() => {
@@ -356,8 +358,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   async function handleNote(setId: string, note: string) {
     const value = note.trim() ? note.trim().slice(0, 200) : null
     if ((statusById[setId] ?? 'saved') === 'saved') {
-      try { await updateSetNote(setId, note) }
-      catch (e) { show(toMessage(e)); throw e }
+      await updateSetNote(setId, note)
     }
     dispatch({ type: 'set-note', id: setId, note: value })
   }
@@ -525,6 +526,9 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   }
 
   const currentName = state.currentExerciseId ? exerciseNames[state.currentExerciseId] : ''
+  const editingSet = state.sets.find(set => set.id === editingSetId)
+  const editingSetNumber = editingSet ? state.sets.filter(set => set.exercise_id === editingSet.exercise_id)
+    .sort((a, b) => a.set_index - b.set_index).findIndex(set => set.id === editingSet.id) + 1 : 0
 
   return (
     <div className="flex min-h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] flex-col">
@@ -560,7 +564,8 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
           exerciseNames={exerciseNames}
           status={statusById}
           onDelete={handleDelete}
-          onNote={handleNote}
+          onEditNote={setEditingSetId}
+          editingId={editingSetId}
           onRetry={handleRetry}
           deletingId={deletingId}
           bodyweightIds={bodyweightIds}
@@ -568,7 +573,9 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         />
       </section>
 
-      <BottomInputDock>
+      {editingSet ? <SetMemoSheet key={editingSet.id} note={editingSet.note}
+        description={`${exerciseNames[editingSet.exercise_id] ?? '種目'} · ${editingSetNumber}set · ${bodyweightIds.includes(editingSet.exercise_id) ? formatAddedLoad(editingSet.weight_kg) : `${editingSet.weight_kg}kg`} × ${editingSet.reps}回`}
+        onSave={note => handleNote(editingSet.id, note)} onDismiss={() => setEditingSetId(null)} /> : <BottomInputDock>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pt-4">
           {isBodyweight && (bodyweight === null || editingBodyweight) ? (
             <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
@@ -608,7 +615,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
             {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
           </Button>
         </div>
-      </BottomInputDock>
+      </BottomInputDock>}
     </div>
   )
 }

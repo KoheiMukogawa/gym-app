@@ -725,31 +725,80 @@ test('history calendar changes month by swiping left and right', async ({ page }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
-test('set memo field is iOS-zoom safe and grows so long text stays visible', async ({ page }) => {
+test('memo sheet replaces set controls, stays above the keyboard and keeps input on failed saves', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
   const data = await mockApi(page)
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await enterWheelValue(page, '重量', '82.3')
+  await enterWheelValue(page, '回数', '7')
   // The entry area has no memo field; memos are added to a recorded set.
   await expect(page.getByPlaceholder(/メモ（任意）/)).toHaveCount(0)
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(1)
   await page.getByRole('button', { name: /のメモを追加/ }).click()
+  const sheet = page.getByRole('dialog', { name: 'セットのメモ' })
   const memo = page.getByRole('textbox', { name: 'セットのメモ' })
+  await expect(sheet).toContainText('ベンチプレス · 1set · 82.3kg × 7回')
+  await expect(page.getByRole('region', { name: 'セット入力', includeHidden: true })).toHaveCount(0)
+  await expect(memo).toBeFocused()
 
   // iOS zooms the page when a focused field is under 16px.
   const fontSize = await memo.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
   expect(fontSize).toBeGreaterThanOrEqual(16)
 
-  const oneLine = (await memo.boundingBox())!.height
-  await memo.fill('フォームを意識する。\n肩甲骨を寄せたまま下ろし、最後の1回だけ補助をもらった。')
-  const grown = (await memo.boundingBox())!.height
-  expect(grown).toBeGreaterThan(oneLine)
-  // Every line is visible: nothing is scrolled out of view.
-  expect(await memo.evaluate((el: HTMLTextAreaElement) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1)
-
-  await page.getByRole('button', { name: '保存', exact: true }).click()
+  const longMemo = Array.from({ length: 15 }, (_, i) => `肩甲骨を寄せる${i + 1}`).join('\n')
+  await memo.fill(longMemo)
+  for (const width of [375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    // iOS keyboard, including the visual viewport's scroll offset.
+    await page.evaluate(() => {
+      Object.defineProperty(window.visualViewport!, 'height', { configurable: true, get: () => 360 })
+      Object.defineProperty(window.visualViewport!, 'offsetTop', { configurable: true, get: () => 48 })
+      window.visualViewport!.dispatchEvent(new Event('resize'))
+    })
+    await expect.poll(async () => { const box = (await sheet.boundingBox())!; return box.y + box.height }).toBeLessThanOrEqual(408)
+    const box = (await memo.boundingBox())!
+    const saveBox = (await sheet.getByRole('button', { name: '保存', exact: true }).boundingBox())!
+    expect(box.y + box.height).toBeLessThan(saveBox.y)
+    expect(saveBox.y + saveBox.height).toBeLessThanOrEqual(408)
+    expect(saveBox.height).toBeGreaterThanOrEqual(56)
+    await expect(sheet.getByRole('button', { name: '入力を閉じる' })).toBeInViewport()
+    expect(await memo.evaluate((el: HTMLTextAreaElement) => el.scrollHeight > el.clientHeight)).toBe(true)
+    await memo.evaluate((el: HTMLTextAreaElement) => { el.scrollTop = el.scrollHeight })
+    expect(await memo.evaluate((el: HTMLTextAreaElement) => el.scrollTop)).toBeGreaterThan(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: `test-results/set-memo-keyboard-${width}.png`, animations: 'disabled' })
+  }
+  let writes = 0
+  await page.route('https://example.supabase.co/rest/v1/workout_sets**', async route => {
+    if (route.request().method() === 'PATCH' && ++writes === 1) {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'temporary failure' }) })
+    } else await route.fallback()
+  })
+  await sheet.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(sheet.getByRole('alert')).toBeVisible()
+  await expect(memo).toHaveValue(longMemo)
+  expect(data.sets[0]?.note).toBeFalsy()
+  await page.evaluate(() => {
+    Reflect.deleteProperty(window.visualViewport!, 'height')
+    Reflect.deleteProperty(window.visualViewport!, 'offsetTop')
+    window.visualViewport!.dispatchEvent(new Event('resize'))
+  })
+  await sheet.getByRole('button', { name: '保存', exact: true }).click()
   await expect.poll(() => data.sets[0]?.note).toContain('肩甲骨')
-  // The saved memo keeps its line break on screen.
-  await expect(page.getByText('肩甲骨を寄せたまま下ろし', { exact: false })).toBeVisible()
+  await expect(sheet).toHaveCount(0)
+  await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '82.3')
+  await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveAttribute('aria-valuenow', '7')
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('')
+  // Closing an unchanged existing memo returns to recording without another save.
+  await page.getByRole('button', { name: /のメモ: / }).click()
+  await expect(memo).toHaveValue(longMemo)
+  await sheet.getByRole('button', { name: '入力を閉じる' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'セット入力' })).toBeVisible()
+  expect(writes).toBe(2)
+  expect(errors).toEqual([])
 })
 
 test('the record tab is gone and reps are filled from records, then from an estimate', async ({ page }) => {
