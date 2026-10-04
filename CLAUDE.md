@@ -9,7 +9,7 @@
 - 公開済みの機能: 記録（ダイアル入力、セットごとの推定1RM、メモは記録後にセットをタップ）、履歴と編集、BIG3、ランキング（kg・DOTS）、体組成、コミュニティ、Health同期、Markdown出力、パスワード再設定、退会
 - 本番に適用済みのmigration: `account_deletion`（2026-10-04）まで。Edge Function `body-metrics` も稼働中
 - `account_deletion` はClaude Codeの自動許可モードが `apply_migration` を止めたため、本人がSQL Editorで適用した。Supabaseのmigration履歴（`list_migrations`）には載らない。関数2つ・権限・中身は読み取りで確認済み。設計は `docs/superpowers/specs/2026-10-04-account-deletion-design.md`
-- 退会は `delete_my_account('退会する')` で本人の記録・自作種目・`auth.users` を消し、残りは外部キーの連鎖で消える。自分が作ったコミュニティはメンバーごと消える
+- 退会は `delete_my_account('退会する')` で本人の記録・自作種目・`auth.users` を消し、残りは外部キーの連鎖で消える。自分が作ったコミュニティはメンバーごと消える。2026-10-04に本番のテスト用アカウントで退会し、`auth` の内部テーブルを含め、そのユーザーを参照する行が残らないことを読み取りで確認済み
 - `rls_initplan` はRLSの `auth.uid()` を `(select auth.uid())` に変え、`communities.owner_id` のインデックスとDOTS参加時の係数必須チェックを追加した。適用後、advisorsの `auth_rls_initplan`・`unindexed_foreign_keys` は解消、本人として本人の記録だけが見えることを確認済み
 - 最後のセットを削除すると、空になったワークアウトもその場で消える（記録画面・履歴の編集画面とも）
 - 主な設計: DOTS `docs/superpowers/specs/2026-10-02-dots-ranking-design.md`、Health同期 `docs/superpowers/specs/2026-10-02-health-sync-design.md`（停止手順は `docs/health-sync-release.md`）、体組成 `docs/superpowers/plans/2026-10-02-body-composition.md`
@@ -53,7 +53,6 @@
 ## 未完了の作業
 
 0. メール: Supabase標準のメール送信では件名・本文を変えられず（英語の標準文面）、送信先にも制限がある。独自ドメインとResendなどのSMTPを設定してから、`docs/email-templates/reset-password.html` を貼る。本人のアドレスには再設定メールが届くことを確認済み（2026-10-04）。新規登録のメール確認は現在オフ
-0. 退会: 本番での実際の退会は、本人が用意したテスト用アカウントでまだ確認していない。確認後、そのユーザーIDの行が `auth.users` と `profiles` を参照する全テーブルに残っていないことを読み取りで確かめる
 1. 漏洩パスワード保護（Leaked password protection）はProプラン限定のため無料プランでは使えない。advisorsの `auth_leaked_password_protection` 警告は既知として残す。代わりにダッシュボードの Authentication → パスワード設定で最小文字数を8（アプリの新規登録画面と同じ）にする
 2. 管理者アカウントの `profiles.display_name` が `mukougawakouhei`（メールのローカル部）のまま。SQLで更新すればよい（本番データなので本人の許可を取る）
 3. 筋トレMemoからの本人の記録移行。手順と注意は `docs/kintore-memo-migration.md`。
