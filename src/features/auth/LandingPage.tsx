@@ -1,13 +1,103 @@
 import { Link } from 'react-router-dom'
+import { LandingPreview } from './LandingPreview'
+import './LandingPage.css'
+
+const features = [
+  { number: '01', title: '記録を渡して、AIに相談。', text: '期間内の全セットとメモを、Markdownでまとめて書き出し。使っているAIに貼り付けて、次のメニューや記録の傾向を相談できます。', tag: 'データのエクスポート' },
+  { number: '02', title: '見やすいから、振り返りたくなる。', text: 'BIG3も、いつもの種目も、伸びがわかるグラフに。気になる日をタップすれば、その日のセットまで確認。記録から振り返りまで、すっきりした画面で。', tag: '種目別グラフ・シンプルなUI' },
+  { number: '03', title: '自分たちのランキングを作ろう。', text: 'ジム仲間や友人を、招待コードで自分のコミュニティへ。BIG3合計・各BIG3種目の重量・DOTSで競い合えます。全体ランキングへの参加も選べます。', tag: '招待制コミュニティ・ランキング' },
+]
+
+const questions = [
+  ['アプリのインストールは必要ですか？', 'ブラウザーからそのまま使えます。スマートフォンのホーム画面に追加すれば、アイコンからGlogを開けます。PCからも同じアカウントで使えます。'],
+  ['BIG3以外の種目も記録できますか？', '部位から種目を選んで記録できます。リストにない種目は自分用に追加でき、いつものメニューはルーティンとして保存できます。'],
+  ['ランキングに参加しなくても使えますか？', 'はい。記録やグラフは、参加せずに使えます。コミュニティ・全体・DOTSの参加を選べます。公開する情報は参加画面で確認でき、参加設定はあとから変更できます。'],
+  ['AIにはどうやって相談しますか？', 'Glogで期間を選んでデータをエクスポートし、使っているAIに貼り付けます。「この記録をもとに次回のメニューを考えて」のように質問して相談できます。相談はGlogの外で行います。'],
+]
+
 export function LandingPage() {
-  return <main className="mx-auto max-w-lg px-6 pb-12">
-    <header className="flex min-h-20 items-center justify-between"><span className="text-3xl font-bold tracking-tight">Glog</span><Link className="flex min-h-14 items-center text-sm text-muted" to="/login">ログイン</Link></header>
-    <section className="py-8"><p className="text-xs tracking-[0.2em] text-muted">YOUR TRAINING, YOUR PROGRESS</p><h1 className="mt-5 text-4xl font-semibold leading-tight">今日の積み重ねを、<br />次の自己ベストへ。</h1><p className="mt-5 leading-relaxed text-muted">重量と回数を、迷わず記録。<br />自分の成長も、仲間との競争も、Glogで。</p>
-      <img src="/glog-icon-512.png" alt="バーベルを持つアスリート" className="mx-auto my-6 h-52 w-52 rounded-3xl" />
-      <Link to="/signup" className="flex min-h-14 items-center justify-center rounded-xl bg-accent font-semibold text-white">アカウントを作って始める</Link>
+  return <main className="landing-page">
+    <header className="landing-header landing-container">
+      <Link to="/" className="landing-brand" aria-label="Glog トップへ">Glog<span>筋トレ記録</span></Link>
+      <nav aria-label="ページ案内" className="landing-header-links">
+        <a href="#features" className="landing-feature-link">できること</a>
+        <Link to="/login" className="landing-login">ログイン<span aria-hidden="true">↗</span></Link>
+      </nav>
+    </header>
+
+    <section className="landing-hero landing-container" aria-labelledby="landing-title">
+      <div className="landing-hero-copy">
+        <p className="landing-eyebrow"><span aria-hidden="true" />記録を、振り返りと次の一歩へ。</p>
+        <h1 id="landing-title">その記録を、<br /><span>次の成長につなげる。</span></h1>
+        <p className="landing-lead">グラフで伸びを確かめ、AIに相談する。<br />仲間とのランキングで、続ける力に。<br />記録したその先まで、Glog。</p>
+        <Link to="/signup" className="landing-cta">アカウントを作って始める<span aria-hidden="true">→</span></Link>
+        <p className="landing-start-note">スマホ・PC対応 / ホーム画面から起動</p>
+      </div>
+      <LandingPreview />
     </section>
-    <section className="divide-y divide-border" aria-label="Glogでできること">{[['すぐに記録','ルーティンから開始。重量と回数を選んで、セットを残す。'],['成長が見える','カレンダーで振り返り、推定1RMで重量の伸びを確認。'],['仲間と続ける','招待制コミュニティで競い合う。全体ランキングへの参加は自分で選べます。']].map(([title,text])=><div key={title} className="py-6"><h2 className="text-lg font-semibold">{title}</h2><p className="mt-2 text-sm leading-relaxed text-muted">{text}</p></div>)}</section>
-    <p className="mt-6 text-xs text-muted">スマートフォン・PCに対応。ホーム画面に追加して使えます。</p>
-    <nav className="mt-6 flex gap-6 text-xs text-muted" aria-label="規約"><Link to="/terms" className="flex min-h-14 items-center">利用規約</Link><Link to="/privacy" className="flex min-h-14 items-center">プライバシーポリシー</Link></nav>
+
+    <section id="features" className="landing-features landing-container" aria-labelledby="features-title">
+      <div className="landing-section-heading">
+        <p className="landing-eyebrow">記録した先にある、3つの楽しみ</p>
+        <h2 id="features-title">振り返る。相談する。競い合う。</h2>
+      </div>
+      <div className="landing-feature-grid">
+        {features.map(feature => <article key={feature.number} className="landing-feature">
+          <span className="landing-feature-number" aria-hidden="true">{feature.number}</span>
+          <h3>{feature.title}</h3><p>{feature.text}</p><span className="landing-feature-tag">{feature.tag}</span>
+        </article>)}
+      </div>
+    </section>
+
+    <section className="landing-beyond landing-container" aria-labelledby="beyond-title">
+      <div className="landing-beyond-heading">
+        <p className="landing-eyebrow">毎日の使いやすさも、大切に</p>
+        <h2 id="beyond-title">記録は、気持ちよくシンプルに。</h2>
+        <p>親指で入力しやすく、変化も見つけやすく。<br />毎日のトレーニングに寄り添う画面です。</p>
+      </div>
+      <div className="landing-beyond-grid">
+        <article className="landing-beyond-card">
+          <div className="landing-mini-body" aria-hidden="true"><span>体重<strong>72.4<small>kg</small></strong></span><span>体脂肪率<strong>16.2<small>%</small></strong></span></div>
+          <h3>身体の変化も、ひとつの場所に。</h3>
+          <p>体重と体脂肪率を同じグラフで確認。日々の測定とトレーニングを、まとめて振り返れます。</p>
+        </article>
+        <article className="landing-beyond-card">
+          <div className="landing-mini-body" aria-hidden="true"><span>重量<strong>80<small>kg</small></strong></span><span>回数<strong>8<small>回</small></strong></span></div>
+          <h3>セットの合間に、さっと入力。</h3>
+          <p>重量と回数はダイアルで選択。よく使う種目はルーティンに、フォームの気づきはセットのメモに残せます。</p>
+        </article>
+      </div>
+      <p className="landing-sample-note">表示している数値はサンプルです。</p>
+    </section>
+
+    <section className="landing-start landing-container" aria-labelledby="start-title">
+      <div className="landing-section-heading"><p className="landing-eyebrow">始めるのは、シンプル</p><h2 id="start-title">次のトレーニングから。</h2></div>
+      <ol className="landing-steps">
+        {[
+          ['プロフィールを作る', '名前・メールアドレス・パスワードを登録。'],
+          ['種目を選ぶ', '部位から選ぶ。いつものメニューも保存できます。'],
+          ['最初のセットを残す', '重量と回数を選んで完了。メモはあとから。'],
+        ].map(([title, text], index) => <li key={title}><span className="landing-step-number">{index + 1}</span><div><h3>{title}</h3><p>{text}</p></div></li>)}
+      </ol>
+    </section>
+
+    <section className="landing-faq landing-container" aria-labelledby="faq-title">
+      <h2 id="faq-title">始める前に、気になること。</h2>
+      <div>{questions.map(([question, answer]) => <details key={question}>
+        <summary><span>{question}</span><span className="landing-faq-plus" aria-hidden="true">+</span></summary><p>{answer}</p>
+      </details>)}</div>
+    </section>
+
+    <section className="landing-finish landing-container" aria-labelledby="finish-title">
+      <p className="landing-eyebrow">その1セットを、未来の自分へ</p>
+      <h2 id="finish-title">今日の頑張りを、残そう。</h2>
+      <Link to="/signup" className="landing-cta">Glogを始める<span aria-hidden="true">→</span></Link>
+      <Link to="/login" className="landing-existing">アカウントをお持ちの方はこちら</Link>
+    </section>
+
+    <footer className="landing-footer landing-container">
+      <span className="landing-footer-brand">Glog<span>あなたのトレーニングを、あなたの記録に。</span></span>
+      <nav aria-label="規約"><Link to="/terms">利用規約</Link><Link to="/privacy">プライバシーポリシー</Link></nav>
+    </footer>
   </main>
 }

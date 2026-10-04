@@ -28,6 +28,7 @@ import {
   updateSetNote,
 } from './queries'
 import { SetList } from './SetList'
+import { PreviousWorkoutCard } from './PreviousWorkoutCard'
 import { formatAddedLoad, latestBodyweight, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs, parseBodyweight, saveBodyweight } from '../profile/bodyweightQueries'
 
@@ -555,6 +556,9 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         </div>
       </section>}
 
+      {userId && state.currentExerciseId && <div className="px-4 pt-3">
+        <PreviousWorkoutCard key={`${userId}:${state.currentExerciseId}`} userId={userId} exerciseId={state.currentExerciseId} isBodyweight={isBodyweight} />
+      </div>}
       <section aria-label="記録済みセット" className="px-4 pb-4 pt-3">
         <SetList
           sets={state.sets}

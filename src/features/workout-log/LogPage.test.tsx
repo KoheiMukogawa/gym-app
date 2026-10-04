@@ -12,9 +12,10 @@ vi.mock('../routines/queries', async (original) => ({
 
 const USER = 'user-1'
 
-const { createWorkout, saveSet, deleteWorkoutIfEmpty, deleteSet, fetchUserSetHistory, fetchTodayWorkout, updateSetNote } = vi.hoisted(
+const { createWorkout, saveSet, deleteWorkoutIfEmpty, deleteSet, fetchUserSetHistory, fetchTodayWorkout, updateSetNote, fetchPreviousWorkout } = vi.hoisted(
   () => ({
     updateSetNote: vi.fn(),
+    fetchPreviousWorkout: vi.fn(),
     fetchTodayWorkout: vi.fn(),
     createWorkout: vi.fn(),
     saveSet: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock('./queries', () => ({
   fetchUserSetHistory,
   fetchTodayWorkout,
   updateSetNote,
+  fetchPreviousWorkout,
 }))
 
 const lastDeleteButton = () => screen.getAllByRole('button', { name: /を削除$/ }).at(-1)!
@@ -107,6 +109,7 @@ describe('LogPage', () => {
     fetchExercises.mockResolvedValue([BENCH])
     fetchRecentExerciseIds.mockResolvedValue([])
     fetchUserSetHistory.mockResolvedValue([])
+    fetchPreviousWorkout.mockResolvedValue(null)
     fetchTodayWorkout.mockResolvedValue(null)
     fetchBodyweightLogs.mockResolvedValue([])
     saveSet.mockResolvedValue(undefined)
@@ -117,6 +120,21 @@ describe('LogPage', () => {
   afterEach(() => {
     onLineSpy?.mockRestore()
     onLineSpy = null
+  })
+
+  it('keeps set recording available when previous-workout loading fails', async () => {
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+    fetchPreviousWorkout.mockRejectedValueOnce(new Error('Failed to fetch'))
+    renderLogPage()
+    expect(await screen.findByRole('alert')).toHaveTextContent('前回の記録を読み込めませんでした')
+    const complete = screen.getByRole('button', { name: 'セット完了' })
+    expect(complete).toBeEnabled()
+    await userEvent.click(complete)
+    await waitFor(() => expect(saveSet).toHaveBeenCalledWith('w1', expect.objectContaining({ exercise_id: 'bench', weight_kg: 80, reps: 8 })))
+    await userEvent.click(screen.getByRole('button', { name: '再試行' }))
+    await screen.findByText('この種目の前回の記録はありません')
+    expect(fetchUserSetHistory).toHaveBeenCalledTimes(1)
   })
 
   it('makes exactly one createWorkout call for two rapid セット完了 taps, and both saves target the same workout', async () => {

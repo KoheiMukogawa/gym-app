@@ -17,9 +17,9 @@ async function holdDrag(page: Page, source: Locator, target: Locator, cancel = f
 }
 
 const USER = '11111111-1111-4111-8111-111111111111'
-type SetRow = { id: string; workout_id: string; exercise_id: string; weight_kg: number; reps: number; set_index: number; created_at: string }
+type SetRow = { id: string; workout_id: string; exercise_id: string; weight_kg: number; reps: number; set_index: number; created_at: string; note?: string | null }
 type WorkoutRow = { id: string; user_id: string; performed_at: string; created_at: string }
-async function mockApi(page: Page) {
+async function mockApi(page: Page, withPreviousWorkout = false) {
   const bodyweights: { recorded_on: string; bodyweight_kg: number; body_fat_pct?: number | null }[] = []
   const exercises = [
     { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', muscle_group: 'chest', is_preset: true, created_by: null },
@@ -33,6 +33,14 @@ async function mockApi(page: Page) {
   ] as Array<{ id: string; name: string; name_normalized: string; muscle_group: string; is_preset: boolean; created_by: string | null }>
   const workouts: WorkoutRow[] = []
   const sets: SetRow[] = []
+  if (withPreviousWorkout) {
+    workouts.push({ id: 'previous', user_id: USER, performed_at: '2025-09-20T03:00:00Z', created_at: '2025-09-20T03:00:00Z' })
+    sets.push(
+      { id: 'previous-1', workout_id: 'previous', exercise_id: 'bench', set_index: 1, weight_kg: 60, reps: 10, created_at: '2025-09-20T03:00:00Z' },
+      { id: 'previous-2', workout_id: 'previous', exercise_id: 'bench', set_index: 2, weight_kg: 80, reps: 8, note: '最後は補助あり\n次回はフォームを意識して同じ重量で挑戦する', created_at: '2025-09-20T03:01:00Z' },
+      { id: 'previous-chin', workout_id: 'previous', exercise_id: 'chin', set_index: 1, weight_kg: -20, reps: 5, created_at: '2025-09-20T03:02:00Z' },
+    )
+  }
   const goals: Array<{ id: string; user_id: string; label: string; target_date: string; target_total_kg: number; created_at: string }> = []
   const routines: Array<{id: string; user_id: string; name: string; exercise_ids: string[]}> = []
   let preference: { user_id: string; exercise_order: string[] } | null = null
@@ -121,11 +129,14 @@ async function mockApi(page: Page) {
         return respond(null)
       }
       const filters = url.searchParams.getAll('performed_at')
-      const result = match.filter((w) => filters.every((filter) =>
+      const exerciseId = eq('workout_sets.exercise_id')
+      const matchingDays = match.filter((w) => (!exerciseId || sets.some(s => s.workout_id === w.id && s.exercise_id === exerciseId)) && filters.every((filter) =>
         filter.startsWith('gte.') ? w.performed_at >= filter.slice(4) :
-        filter.startsWith('lt.') ? w.performed_at < filter.slice(3) : true)).map((w) => ({
+        filter.startsWith('lt.') ? w.performed_at < filter.slice(3) : true))
+      if (url.searchParams.get('order')?.startsWith('performed_at.desc')) matchingDays.sort((a, b) => b.performed_at.localeCompare(a.performed_at))
+      const result = matchingDays.slice(0, Number(url.searchParams.get('limit') ?? matchingDays.length)).map((w) => ({
         ...w, profiles: { display_name: 'テストユーザー' },
-        workout_sets: sets.filter((s) => s.workout_id === w.id).map((s) => ({ ...s, exercises: { name: exercises.find((e) => e.id === s.exercise_id)?.name } })),
+        workout_sets: sets.filter((s) => s.workout_id === w.id && (!exerciseId || s.exercise_id === exerciseId)).map((s) => ({ ...s, exercises: { name: exercises.find((e) => e.id === s.exercise_id)?.name } })),
       }))
       return respond(req.headers().accept?.includes('object') ? result[0] ?? null : result)
     }
@@ -158,6 +169,52 @@ async function mockApi(page: Page) {
   await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
   return { sets, workouts, exercises, routines, goals, bodyweights }
 }
+
+test('recording references the previous day and memos without changing input or current sets', async ({ page }) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
+  const data = await mockApi(page, true)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  const previous = page.locator('details[aria-label="前回の記録"]')
+  await expect(previous).toContainText('2025/9/20 · 2セット')
+  await expect(previous).not.toHaveAttribute('open')
+  const weight = page.getByRole('spinbutton', { name: '重量' })
+  const reps = page.getByRole('spinbutton', { name: '回数' })
+  await expect(weight).toHaveAttribute('aria-valuenow', '80')
+  await expect(reps).toHaveAttribute('aria-valuenow', '8')
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    await previous.locator('summary').click()
+    await expect(previous.getByText(/最後は補助あり/)).toBeVisible()
+    await expect(previous.getByRole('listitem')).toHaveCount(2)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    const summaryBox = (await previous.locator('summary').boundingBox())!
+    expect(summaryBox.height).toBeGreaterThanOrEqual(56)
+    await page.screenshot({ path: `test-results/previous-workout-expanded-${width}.png`, animations: 'disabled' })
+    await previous.locator('summary').click()
+  }
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({ path: 'test-results/previous-workout-compact-390.png', animations: 'disabled' })
+  await expect(weight).toHaveAttribute('aria-valuenow', '80')
+  await expect(reps).toHaveAttribute('aria-valuenow', '8')
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets.length).toBe(4)
+  const today = page.getByRole('region', { name: '記録済みセット' })
+  await expect(today.getByRole('listitem')).toHaveCount(1)
+  await expect(today).not.toContainText('最後は補助あり')
+  await previous.locator('summary').click()
+  await expect(previous.getByRole('listitem')).toHaveCount(2)
+  await page.getByRole('button', { name: /ベンチプレス.*種目を変える/ }).click()
+  await page.getByRole('button', { name: '背中', exact: true }).click()
+  await page.getByRole('button', { name: 'チンニング', exact: true }).click()
+  await expect(previous).not.toHaveAttribute('open')
+  await expect(previous).toContainText('−20 kg × 5回')
+  await expect(previous).not.toContainText('最後は補助あり')
+  await page.getByRole('button', { name: '記録を終了', exact: true }).click()
+  await expect(page.getByRole('region', { name: '今日のトレーニング' })).toBeVisible()
+  expect(errors).toEqual([])
+})
 
 test('mobile: floating record actions stay above navigation and open the correct entry', async ({ page }) => {
   const errors: string[] = []

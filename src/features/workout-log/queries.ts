@@ -2,6 +2,28 @@ import { supabase } from '../../lib/supabase'
 import type { Workout, WorkoutSet } from '../../lib/types'
 import type { LoggedSet } from './logReducer'
 
+export type PreviousWorkout = { performed_at: string; sets: LoggedSet[] }
+
+/** The most recent completed day for this exercise, including all its sets and memos. */
+export async function fetchPreviousWorkout(userId: string, exerciseId: string): Promise<PreviousWorkout | null> {
+  const [start] = todayRange()
+  const { data, error } = await supabase
+    .from('workouts')
+    .select('performed_at, workout_sets!inner(id, exercise_id, set_index, weight_kg, reps, note)')
+    .eq('user_id', userId)
+    .eq('workout_sets.exercise_id', exerciseId)
+    .lt('performed_at', start)
+    .order('performed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  const row = data as unknown as { performed_at: string; workout_sets: LoggedSet[] }
+  const sets = row.workout_sets.map(set => ({ ...set, weight_kg: Number(set.weight_kg) }))
+    .sort((a, b) => a.set_index - b.set_index)
+  return sets.length ? { performed_at: row.performed_at, sets } : null
+}
+
 function todayRange(): [string, string] {
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
