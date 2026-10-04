@@ -59,3 +59,9 @@ it('keeps the error on screen when only the DOTS settings fail to save', async (
   expect(await screen.findByRole('alert')).toHaveTextContent('DOTSの係数を選んでください')
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })
+
+it('links to account deletion at the bottom', async () => {
+  profile.mockResolvedValue({ ...base, dots_opt_in: false, dots_formula: null })
+  renderPage()
+  expect(await screen.findByRole('link', { name: '退会する' })).toHaveAttribute('href', '/account/delete')
+})

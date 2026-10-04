@@ -33,5 +33,9 @@ export function ProfilePage() {
       <p className="text-xs leading-relaxed text-muted">体重と体脂肪率は体組成タブで記録します。自分だけに表示されます。DOTSランキングに参加した場合だけ、スコアから体重が推定できます。</p>
       <Link to="/body" className="flex min-h-14 items-center text-sm text-accent">体組成を記録する →</Link>
     </div>
+    <div className="space-y-2 border-t border-border pt-5">
+      <h2 className="text-sm font-semibold">アカウント</h2>
+      <Link to="/account/delete" className="flex min-h-14 items-center text-sm text-muted">退会する</Link>
+    </div>
   </section>
 }
