@@ -17,6 +17,8 @@ export default defineConfig({
     command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
+    // Vite's messages (such as a dependency re-optimization reload) show up in the CI log.
+    stdout: 'pipe',
     env: { VITE_SUPABASE_URL: 'https://example.supabase.co', VITE_SUPABASE_ANON_KEY: 'mock-test-key' },
   },
 })
