@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { e1rmByDate, personalBest, totalVolume } from '../../lib/calc'
 import { toMessage } from '../../lib/errors'
 import { MUSCLE_GROUP_LABELS, type Exercise, type SetWithDate } from '../../lib/types'
@@ -13,6 +12,7 @@ import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
 import { localDate } from '../../lib/dates'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
 import { ExerciseDayDetails } from './ExerciseDayDetails'
+import { ExerciseTrendChart } from './ExerciseTrendChart'
 
 export type ExerciseSummary = {
   best: number | null
@@ -70,6 +70,9 @@ export function ExerciseDetailPage() {
     load()
   }, [load])
 
+  // 日を選ぶたびに作り直すと、グラフのスライダーが初期位置に戻る。
+  const summary = useMemo(() => summarizeExercise(sets), [sets])
+
   if (loading) return <Spinner />
 
   if (error) {
@@ -87,8 +90,6 @@ export function ExerciseDetailPage() {
 
   if (!exercise) return <p className="p-4 text-sm text-muted">種目が見つかりませんでした</p>
 
-  const summary = summarizeExercise(sets)
-
   return (
     <div className="flex flex-col gap-6 p-4">
       <header>
@@ -101,7 +102,7 @@ export function ExerciseDetailPage() {
 
       <section className="grid grid-cols-3 gap-2">
         <Stat label="自己ベスト" value={summary.best === null ? '—' : `${summary.best}`} unit="kg" />
-        <Stat label="総ボリューム" value={summary.volume.toLocaleString('en-US')} unit="kg" />
+        <Stat label="総ボリューム" value={Math.round(summary.volume).toLocaleString('en-US')} unit="kg" />
         <Stat label="総セット数" value={String(summary.setCount)} unit="セット" />
       </section>
 
@@ -110,46 +111,9 @@ export function ExerciseDetailPage() {
         {summary.points.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted">{sets.length === 0 ? 'まだ記録がありません' : '1〜10回のセットを記録すると推定1RMを表示します'}</p>
         ) : (
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={summary.points} margin={{ top: 8, right: 8, bottom: 0, left: -16 }} onClick={state => { const date = String(state?.activeLabel ?? ''); if (summary.points.some(p => p.date === date)) setSelectedDate(date) }}>
-                {selectedDate && <ReferenceLine x={selectedDate} stroke="#E8412F" strokeDasharray="3 3" />}
-                <CartesianGrid stroke="#2A2A2F" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: '#8A8A93', fontSize: 11 }}
-                  tickFormatter={(d: string) => d.slice(5).replace('-', '/')}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: '#8A8A93', fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={40}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: '#17171A',
-                    border: '1px solid #2A2A2F',
-                    borderRadius: 12,
-                    color: '#F5F5F5',
-                  }}
-                  formatter={(v) => [`${v} kg`, '推定1RM']}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="e1rm"
-                  stroke="#E8412F"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: '#E8412F' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <ExerciseTrendChart key={exercise.id} points={summary.points} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
         )}
       </section>
-      {summary.points.length > 0 && <p className="text-xs text-muted">グラフの点をタップすると、その日の記録を表示します。</p>}
       {selectedDate && <ExerciseDayDetails key={`${exercise.id}:${selectedDate}`} exerciseId={exercise.id} date={selectedDate} />}
     </div>
   )

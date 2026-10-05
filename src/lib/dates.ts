@@ -26,3 +26,14 @@ export function validateSet(weight: number, reps: number, minWeight = 0): void {
   }
   if (!Number.isInteger(reps) || reps < 0 || reps > 9999) throw new InputError('回数は0〜9999の整数で入力してください')
 }
+
+/** today の months ヶ月前の日付（YYYY-MM-DD）。月末は、その月の最終日に丸める。 */
+export function periodStart(months: number, today = localDate()): string {
+  const base = new Date(today + 'T12:00:00')
+  const day = base.getDate()
+  base.setDate(1)
+  base.setMonth(base.getMonth() - months)
+  const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate()
+  base.setDate(Math.min(day, lastDay))
+  return localDate(base)
+}

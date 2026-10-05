@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ExerciseDetailPage } from './ExerciseDetailPage'
 import { ToastProvider } from '../../components/ui/Toast'
 import type { Exercise, SetWithDate } from '../../lib/types'
+import { localDate } from '../../lib/dates'
 
 const { fetchExercise, fetchExerciseSets } = vi.hoisted(() => ({
   fetchExercise: vi.fn(),
@@ -32,6 +33,8 @@ const { captured } = vi.hoisted(() => ({
     lineChartData: undefined as unknown,
     xAxisDataKey: undefined as unknown,
     lineDataKey: undefined as unknown,
+    lineDot: undefined as unknown,
+    brush: false,
   },
 }))
 
@@ -49,8 +52,13 @@ vi.mock('recharts', () => ({
     captured.xAxisDataKey = dataKey
     return null
   },
-  Line: ({ dataKey }: { dataKey: unknown }) => {
+  Line: ({ dataKey, dot }: { dataKey: unknown; dot: unknown }) => {
     captured.lineDataKey = dataKey
+    captured.lineDot = dot
+    return null
+  },
+  Brush: () => {
+    captured.brush = true
     return null
   },
 }))
@@ -97,6 +105,8 @@ describe('ExerciseDetailPage chart wiring', () => {
     captured.lineChartData = undefined
     captured.xAxisDataKey = undefined
     captured.lineDataKey = undefined
+    captured.lineDot = undefined
+    captured.brush = false
     useSession.mockReturnValue({
       userId: USER,
       profile: null,
@@ -123,8 +133,46 @@ describe('ExerciseDetailPage chart wiring', () => {
     expect(captured.lineChartData).toEqual([{ date: '2026-08-08', e1rm: 99.3 }])
     // Days are picked by tapping the chart only; there is no separate date list.
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
-    expect(screen.getByText('グラフの点をタップすると、その日の記録を表示します。')).toBeInTheDocument()
+    expect(screen.getByText('グラフをタップすると、その日の記録を表示します。')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '記録点' }))
     expect(screen.getByText('選択日: 2026-08-08')).toBeInTheDocument()
+  })
+
+  it('opens on six months and switches the period with the buttons', async () => {
+    const day = (date: string, weight: number): SetWithDate => ({ ...SET, id: date, weight_kg: weight, created_at: `${date}T10:00:00Z`, performed_at: `${date}T10:00:00Z` })
+    const recent = localDate(new Date(Date.now() - 7 * 86400000))
+    const older = localDate(new Date(Date.now() - 30 * 86400000))
+    fetchExercise.mockResolvedValueOnce(EXERCISE)
+    fetchExerciseSets.mockResolvedValueOnce([day('2020-01-01', 60), day(older, 70), day(recent, 80)])
+    renderExerciseDetailPage()
+
+    expect(await screen.findByRole('button', { name: '6ヶ月' })).toHaveAttribute('aria-pressed', 'true')
+    expect((captured.lineChartData as { date: string }[]).map((p) => p.date)).toEqual([older, recent])
+    fireEvent.click(screen.getByRole('button', { name: '全期間' }))
+    expect(screen.getByRole('button', { name: '全期間' })).toHaveAttribute('aria-pressed', 'true')
+    expect((captured.lineChartData as { date: string }[]).map((p) => p.date)).toEqual(['2020-01-01', older, recent])
+  })
+
+  it('draws a line without daily dots and adds the range slider for long histories', async () => {
+    const days = Array.from({ length: 40 }, (_, i) => localDate(new Date(Date.now() - i * 2 * 86400000)))
+    fetchExercise.mockResolvedValueOnce(EXERCISE)
+    fetchExerciseSets.mockResolvedValueOnce(days.reverse().map((date) => ({ ...SET, id: date, created_at: `${date}T10:00:00Z`, performed_at: `${date}T10:00:00Z` })))
+    renderExerciseDetailPage()
+
+    await screen.findByRole('heading', { name: 'ベンチプレス' })
+    expect(captured.lineDot).toBe(false)
+    expect(captured.brush).toBe(true)
+    expect(screen.getByText(/下のスライダーの両端を動かすと/)).toBeInTheDocument()
+  })
+
+  it('keeps daily dots and leaves out the slider for short histories', async () => {
+    fetchExercise.mockResolvedValueOnce(EXERCISE)
+    fetchExerciseSets.mockResolvedValueOnce([SET])
+    renderExerciseDetailPage()
+
+    await screen.findByRole('heading', { name: 'ベンチプレス' })
+    expect(captured.lineDot).not.toBe(false)
+    expect(captured.brush).toBe(false)
+    expect(screen.queryByText(/スライダー/)).not.toBeInTheDocument()
   })
 })
