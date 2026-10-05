@@ -49,7 +49,7 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
       {lift.e1rmPoints.length >= 2 && (
         <div className="mt-4 border-t border-border pt-3">
           <div className="mb-2 text-xs text-muted">e1RMの推移</div>
-          <div ref={chartRef} className="h-28 w-full">
+          <div ref={chartRef} className="h-56 w-full">
             {chartSeen && <ResponsiveContainer width="100%" height="100%">
               {/* The overview stays a clean line; a tap opens the exercise page, where days can be inspected. */}
               <LineChart data={lift.e1rmPoints} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}

@@ -34,7 +34,6 @@ const { captured } = vi.hoisted(() => ({
     xAxisDataKey: undefined as unknown,
     lineDataKey: undefined as unknown,
     lineDot: undefined as unknown,
-    brush: false,
   },
 }))
 
@@ -55,10 +54,6 @@ vi.mock('recharts', () => ({
   Line: ({ dataKey, dot }: { dataKey: unknown; dot: unknown }) => {
     captured.lineDataKey = dataKey
     captured.lineDot = dot
-    return null
-  },
-  Brush: () => {
-    captured.brush = true
     return null
   },
 }))
@@ -106,7 +101,6 @@ describe('ExerciseDetailPage chart wiring', () => {
     captured.xAxisDataKey = undefined
     captured.lineDataKey = undefined
     captured.lineDot = undefined
-    captured.brush = false
     useSession.mockReturnValue({
       userId: USER,
       profile: null,
@@ -138,7 +132,7 @@ describe('ExerciseDetailPage chart wiring', () => {
     expect(screen.getByText('選択日: 2026-08-08')).toBeInTheDocument()
   })
 
-  it('opens on six months and switches the period with the buttons', async () => {
+  it('opens on the last six months and shows the whole history with the button', async () => {
     const day = (date: string, weight: number): SetWithDate => ({ ...SET, id: date, weight_kg: weight, created_at: `${date}T10:00:00Z`, performed_at: `${date}T10:00:00Z` })
     const recent = localDate(new Date(Date.now() - 7 * 86400000))
     const older = localDate(new Date(Date.now() - 30 * 86400000))
@@ -146,14 +140,15 @@ describe('ExerciseDetailPage chart wiring', () => {
     fetchExerciseSets.mockResolvedValueOnce([day('2020-01-01', 60), day(older, 70), day(recent, 80)])
     renderExerciseDetailPage()
 
-    expect(await screen.findByRole('button', { name: '6ヶ月' })).toHaveAttribute('aria-pressed', 'true')
+    await screen.findByRole('heading', { name: 'ベンチプレス' })
     expect((captured.lineChartData as { date: string }[]).map((p) => p.date)).toEqual([older, recent])
+    expect(screen.getByText(/2本指で拡大・縮小/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '全期間' }))
-    expect(screen.getByRole('button', { name: '全期間' })).toHaveAttribute('aria-pressed', 'true')
     expect((captured.lineChartData as { date: string }[]).map((p) => p.date)).toEqual(['2020-01-01', older, recent])
+    expect(screen.queryByRole('button', { name: '全期間' })).not.toBeInTheDocument()
   })
 
-  it('draws a line without daily dots and adds the range slider for long histories', async () => {
+  it('draws a line without daily dots for long histories', async () => {
     const days = Array.from({ length: 40 }, (_, i) => localDate(new Date(Date.now() - i * 2 * 86400000)))
     fetchExercise.mockResolvedValueOnce(EXERCISE)
     fetchExerciseSets.mockResolvedValueOnce(days.reverse().map((date) => ({ ...SET, id: date, created_at: `${date}T10:00:00Z`, performed_at: `${date}T10:00:00Z` })))
@@ -161,18 +156,16 @@ describe('ExerciseDetailPage chart wiring', () => {
 
     await screen.findByRole('heading', { name: 'ベンチプレス' })
     expect(captured.lineDot).toBe(false)
-    expect(captured.brush).toBe(true)
-    expect(screen.getByText(/下のスライダーの両端を動かすと/)).toBeInTheDocument()
   })
 
-  it('keeps daily dots and leaves out the slider for short histories', async () => {
+  it('keeps daily dots and leaves out zooming for short histories', async () => {
     fetchExercise.mockResolvedValueOnce(EXERCISE)
     fetchExerciseSets.mockResolvedValueOnce([SET])
     renderExerciseDetailPage()
 
     await screen.findByRole('heading', { name: 'ベンチプレス' })
     expect(captured.lineDot).not.toBe(false)
-    expect(captured.brush).toBe(false)
-    expect(screen.queryByText(/スライダー/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/2本指/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '全期間' })).not.toBeInTheDocument()
   })
 })
