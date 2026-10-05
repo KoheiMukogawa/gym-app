@@ -9,6 +9,7 @@ const { mounted, loadDraft, fetchIsAdmin, fetchUnreadFeedbackCount } = vi.hoiste
 vi.mock('../features/auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1', profile: null, refreshProfile: vi.fn(), signOut: vi.fn() }) }))
 vi.mock('../features/workout-log/persistence', () => ({ loadDraft }))
 vi.mock('../features/feedback/queries', () => ({ fetchIsAdmin, fetchUnreadFeedbackCount }))
+vi.mock('../features/announcements/queries', () => ({ fetchSeenUntil: vi.fn().mockResolvedValue(null), markAnnouncementsSeen: vi.fn() }))
 vi.mock('../features/workout-log/LogPage', () => ({ LogPage: () => {
   const [text, setText] = useState(() => { mounted(); return '' })
   return <label>入力途中<input value={text} onChange={e => setText(e.target.value)} /></label>
