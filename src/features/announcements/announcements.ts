@@ -14,7 +14,7 @@ export type Announcement = {
 export const ANNOUNCEMENTS: Announcement[] = [
   {
     id: 'feedback-box',
-    publishedAt: '2026-10-05T17:00:00+09:00',
+    publishedAt: '2026-10-05T18:10:00+09:00',
     title: 'ご意見・不具合を送れるようになりました',
     body: '右上のアイコンのメニューから、気になる点や要望を運営に送れます。運営だけが読みます。',
     link: { to: '/feedback', label: 'ご意見を送る' },

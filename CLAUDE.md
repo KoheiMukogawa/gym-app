@@ -6,13 +6,14 @@
 
 - ブランチ: `master`。push すると Vercel に自動デプロイされる。Codex も `master` に push するので、push 前に必ず `git fetch` する
 - 本番で実際に使われている（本人がiPhoneで日常的に記録。利用者6人）。本番データの書き込み・削除やmigration適用は本人の許可を取ってから
-- 公開済みの機能: 記録（ダイアル入力、セットごとの推定1RM、メモは記録後にセットをタップ）、履歴と編集、BIG3、ランキング（kg・DOTS）、体組成、コミュニティ、Health同期、Markdown出力、パスワード再設定、退会、ご意見の送信（管理者はヘッダーのメニューの「届いた意見」で読み、既読にする。未読があるとアイコンが赤い輪で囲まれる）、管理者向けの利用状況（`/admin/usage`）
-- 本番に適用済みのmigration: `usage_stats`（2026-10-05、`apply_migration` で適用）まで。Edge Function `body-metrics` も稼働中
+- 公開済みの機能: 記録（ダイアル入力、セットごとの推定1RM、メモは記録後にセットをタップ）、履歴と編集、BIG3、ランキング（kg・DOTS）、体組成、コミュニティ、Health同期、Markdown出力、パスワード再設定、退会、ご意見の送信（管理者はヘッダーのメニューの「届いた意見」で読み、既読にする。未読があるとアイコンが赤い輪で囲まれる）、管理者向けの利用状況（`/admin/usage`）、新しい機能のお知らせ（起動時のシート）
+- 本番に適用済みのmigration: `announcement_reads`（2026-10-05、`apply_migration` で適用）まで。Edge Function `body-metrics` も稼働中
 - `account_deletion` はClaude Codeの自動許可モードが `apply_migration` を止めたため、本人がSQL Editorで適用した。Supabaseのmigration履歴（`list_migrations`）には載らない。関数2つ・権限・中身は読み取りで確認済み。設計は `docs/superpowers/specs/2026-10-04-account-deletion-design.md`
 - 退会は `delete_my_account('退会する')` で本人の記録・自作種目・`auth.users` を消し、残りは外部キーの連鎖で消える。自分が作ったコミュニティはメンバーごと消える。2026-10-04に本番のテスト用アカウントで退会し、`auth` の内部テーブルを含め、そのユーザーを参照する行が残らないことを読み取りで確認済み
 - `rls_initplan` はRLSの `auth.uid()` を `(select auth.uid())` に変え、`communities.owner_id` のインデックスとDOTS参加時の係数必須チェックを追加した。適用後、advisorsの `auth_rls_initplan`・`unindexed_foreign_keys` は解消、本人として本人の記録だけが見えることを確認済み
 - ご意見: 設計は `docs/superpowers/specs/2026-10-05-feedback-design.md`。管理者は `public.admins` に1行入れて登録する（アプリからは書けない）。本人を2026-10-05に登録済み。管理者の操作は `admin_list_feedback`・`admin_unread_feedback_count`・`admin_mark_feedback_read`。一覧は新しい順に200件まで
 - 利用状況: 設計は `docs/superpowers/specs/2026-10-05-usage-dashboard-design.md`。`admin_usage_stats()` が集計値だけを返す（記録した日を使った日とし、週は日本時間の月曜始まり、`@example.com` は除外）
+- お知らせ: 知ってほしい機能を公開するときは、その機能と同じコミットで `src/features/announcements/announcements.ts` に1件足す（`publishedAt` は公開直前の日本時間、`+09:00` 付き）。レイアウト変更などでは足さない。登録より後に公開されたものだけが、次回の起動時に1枚のシートで出る（記録中は出ない）。既読は `announcement_reads` の時刻1つ。設計は `docs/superpowers/specs/2026-10-05-announcements-design.md`
 - 最後のセットを削除すると、空になったワークアウトもその場で消える（記録画面・履歴の編集画面とも）
 - 主な設計: DOTS `docs/superpowers/specs/2026-10-02-dots-ranking-design.md`、Health同期 `docs/superpowers/specs/2026-10-02-health-sync-design.md`（停止手順は `docs/health-sync-release.md`）、体組成 `docs/superpowers/plans/2026-10-02-body-composition.md`
 
