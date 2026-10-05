@@ -6,6 +6,7 @@ const { rpc, profile, refreshProfile } = vi.hoisted(() => ({ rpc: vi.fn(), profi
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'me', profile: { display_name: '自分' }, refreshProfile }) }))
 vi.mock('../community/queries', async (original) => ({ ...await original<typeof import('../community/queries')>(), profile }))
+vi.mock('../feedback/queries', () => ({ fetchIsAdmin: vi.fn().mockResolvedValue(false), fetchUnreadFeedbackCount: vi.fn() }))
 import { ProfilePage } from './ProfilePage'
 
 const base = { user_id: 'me', display_name: '自分', icon: 'initials', bio: '', global_ranking: true }
@@ -64,4 +65,12 @@ it('links to account deletion at the bottom', async () => {
   profile.mockResolvedValue({ ...base, dots_opt_in: false, dots_formula: null })
   renderPage()
   expect(await screen.findByRole('link', { name: '退会する' })).toHaveAttribute('href', '/account/delete')
+})
+
+it('links to the feedback form above the account section', async () => {
+  profile.mockResolvedValue({ ...base, dots_opt_in: false, dots_formula: null })
+  renderPage()
+  const link = await screen.findByRole('link', { name: 'ご意見・不具合を送る →' })
+  expect(link).toHaveAttribute('href', '/feedback')
+  expect(link.compareDocumentPosition(screen.getByRole('link', { name: '退会する' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 })

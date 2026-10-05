@@ -6,6 +6,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { communityMessage, profile, saveDotsSettings, type DotsFormula } from '../community/queries'
 import { AvatarPicker } from './Avatar'
 import { Link } from 'react-router-dom'
+import { FeedbackLinks } from '../feedback/FeedbackLinks'
 export function ProfilePage() {
   const { userId,profile:account,refreshProfile }=useSession()
   const [name,setName]=useState(''),[icon,setIcon]=useState('initials'),[bio,setBio]=useState(''),[publicRank,setPublicRank]=useState(false)
@@ -33,6 +34,7 @@ export function ProfilePage() {
       <p className="text-xs leading-relaxed text-muted">体重と体脂肪率は体組成タブで記録します。自分だけに表示されます。DOTSランキングに参加した場合だけ、スコアから体重が推定できます。</p>
       <Link to="/body" className="flex min-h-14 items-center text-sm text-accent">体組成を記録する →</Link>
     </div>
+    <FeedbackLinks/>
     <div className="space-y-2 border-t border-border pt-5">
       <h2 className="text-sm font-semibold">アカウント</h2>
       <Link to="/account/delete" className="flex min-h-14 items-center text-sm text-muted">退会する</Link>
