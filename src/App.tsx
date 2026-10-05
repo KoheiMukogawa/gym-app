@@ -22,6 +22,7 @@ const BodyPage = lazy(() => import('./features/body/BodyPage').then((m) => ({ de
 const TermsPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.TermsPage })))
 const PrivacyPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.PrivacyPage })))
 const DeleteAccountPage = lazy(() => import('./features/account/DeleteAccountPage').then((m) => ({ default: m.DeleteAccountPage })))
+const FeedbackPage = lazy(() => import('./features/feedback/FeedbackPage').then((m) => ({ default: m.FeedbackPage })))
 
 // 以前のBIG3のURL（/strength?view=...）は /big3 に移した。
 function StrengthRedirect() {
@@ -56,6 +57,7 @@ export default function App() {
                 <Route path="/history/:workoutId" element={<WorkoutEditorPage />} />
                 <Route path="/exercises/:exerciseId" element={<ExerciseDetailPage />} />
                 <Route path="/account/delete" element={<DeleteAccountPage />} />
+                <Route path="/feedback" element={<FeedbackPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
