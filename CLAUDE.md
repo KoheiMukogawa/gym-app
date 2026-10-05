@@ -15,6 +15,8 @@
 - 利用状況: 設計は `docs/superpowers/specs/2026-10-05-usage-dashboard-design.md`。`admin_usage_stats()` が集計値だけを返す（記録した日を使った日とし、週は日本時間の月曜始まり、`@example.com` は除外）
 - お知らせ: 知ってほしい機能を公開するときは、その機能と同じコミットで `src/features/announcements/announcements.ts` に1件足す（`publishedAt` は公開直前の日本時間、`+09:00` 付き）。レイアウト変更などでは足さない。登録より後に公開されたものだけが、次回の起動時に1枚のシートで出る（記録中は出ない）。既読は `announcement_reads` の時刻1つ。設計は `docs/superpowers/specs/2026-10-05-announcements-design.md`
 - 0回のセット: つぶれたセット（失敗試技）は0回で記録できる（記録画面・履歴の編集）。推定1RM・BIG3・ランキング・DOTSはDB・アプリとも1〜10回だけを使うので入らない。自己ベスト・日ごとの最大重量・カードの「最大」・回数の提案・次のセットの初期回数も0回を無視する。「失敗」などの印は出さない（本人の希望）
+- 黒い画面（2026-10-05に原因を特定）: デプロイ後、新しいService Workerが古い版のJSをキャッシュから消し、開いたままのページが次に開く画面の読み込みに失敗していた（Vercelは存在しないJSにもindex.htmlを200で返す）。ScreenErrorBoundary（Codex）で案内を出し、`src/lib/staleBuild.ts` が `vite:preloadError` で1回だけ自動再読み込みする（30秒以内の2回目は案内画面に任せる）
+- 単体テストのTesting Libraryの待ち時間は5秒（`src/test-setup.ts`）。並列実行で1秒だと記録画面などが時間切れになっていた
 - 最後のセットを削除すると、空になったワークアウトもその場で消える（記録画面・履歴の編集画面とも）
 - 主な設計: DOTS `docs/superpowers/specs/2026-10-02-dots-ranking-design.md`、Health同期 `docs/superpowers/specs/2026-10-02-health-sync-design.md`（停止手順は `docs/health-sync-release.md`）、体組成 `docs/superpowers/plans/2026-10-02-body-composition.md`
 
