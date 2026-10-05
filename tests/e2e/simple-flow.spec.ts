@@ -546,6 +546,16 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await page.screenshot({ path: 'test-results/history-editor-mobile.png', fullPage: true })
   await page.reload()
   await expect(page.getByLabel('トレーニング日')).toHaveValue('2020-02-04')
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    const field = page.getByLabel('トレーニング日')
+    await expect(field.locator('..')).toContainText('2020/2/4')
+    const box = (await field.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(width)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+    await page.screenshot({ path: `test-results/history-date-${width}.png` })
+  }
   await page.getByRole('button', { name: '完了', exact: true }).click()
   await expect(page.getByRole('heading', { name: '2020年2月' })).toBeVisible()
   await expect(page.getByRole('link', { name: '編集', exact: true })).toHaveCount(1)

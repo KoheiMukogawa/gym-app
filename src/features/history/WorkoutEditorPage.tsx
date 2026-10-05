@@ -1,3 +1,4 @@
+import { DateField } from '../../components/ui/DateField'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
@@ -204,9 +205,7 @@ export function WorkoutEditorPage() {
           }}>完了</button>
       </header>
       {workoutId && <section className="mx-4 space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <label className="flex flex-col gap-2 text-sm text-muted">トレーニング日
-          <input type="date" value={date} max={localDate()} disabled={busy} onChange={(e) => setDate(e.target.value)} className={fieldClass} />
-        </label>
+        <DateField label="トレーニング日" value={date} max={localDate()} disabled={busy} onChange={setDate} />
         {savedId && savedDate && date !== localDate(savedDate) && (
           <Button disabled={busy} onClick={() => void action(async () => {
             if (await findWorkoutOnDate(userId!, date, savedId)) throw new InputError('この日にはすでに記録があります。その日の記録に追加してください')
