@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { toMessage } from './errors'
+import { adminMessage, toMessage } from './errors'
 
 describe('toMessage', () => {
   it('reports a network failure in plain language', () => {
@@ -38,5 +38,19 @@ describe('toMessage', () => {
     } finally {
       spy.mockRestore()
     }
+  })
+})
+
+describe('adminMessage', () => {
+  it('shows the database reasons as they are', () => {
+    for (const message of ['ログインが必要です', '権限がありません', '送信の上限に達しました。時間をおいてお試しください'])
+      expect(adminMessage({ message })).toBe(message)
+  })
+  it('explains a missing function or table', () => {
+    for (const code of ['PGRST202', 'PGRST205'])
+      expect(adminMessage({ code, message: 'Could not find' })).toBe('この機能の準備中です。時間をおいてお試しください。')
+  })
+  it('falls back to the shared messages', () => {
+    expect(adminMessage(new Error('boom'))).toBe('エラーが発生しました。もう一度お試しください。')
   })
 })

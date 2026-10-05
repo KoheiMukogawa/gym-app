@@ -26,3 +26,12 @@ export function toMessage(error: unknown): string {
 export function isOffline(): boolean {
   return !navigator.onLine
 }
+
+// Reasons raised by the admin and feedback database functions are written for the user.
+const ADMIN_REASONS = ['ログインが必要です', '権限がありません', '送信の上限に達しました。時間をおいてお試しください']
+
+export function adminMessage(error: unknown): string {
+  const e = (error ?? {}) as ErrorLike
+  if (e.code === 'PGRST202' || e.code === 'PGRST205') return 'この機能の準備中です。時間をおいてお試しください。'
+  return ADMIN_REASONS.includes(e.message ?? '') ? e.message! : toMessage(error)
+}

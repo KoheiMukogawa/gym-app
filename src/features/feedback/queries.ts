@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import { toMessage } from '../../lib/errors'
+import { adminMessage } from '../../lib/errors'
 
 export const FEEDBACK_MAX = 2000
 
@@ -49,14 +49,7 @@ export async function markFeedbackRead(id: string): Promise<void> {
   if (error) throw error
 }
 
-// Reasons raised by the database are written for the user and shown as they are.
-const KNOWN = ['ログインが必要です', '権限がありません', '送信の上限に達しました。時間をおいてお試しください']
-
-export function feedbackMessage(error: unknown): string {
-  const e = error as { code?: string; message?: string } | null
-  if (e?.code === 'PGRST202' || e?.code === 'PGRST205') return 'この機能の準備中です。時間をおいてお試しください。'
-  return KNOWN.includes(e?.message ?? '') ? e!.message! : toMessage(error)
-}
+export const feedbackMessage = adminMessage
 
 /** 送信日時を「10/5 9:30」の形で表す（日本時間）。 */
 export function formatSentAt(iso: string): string {
