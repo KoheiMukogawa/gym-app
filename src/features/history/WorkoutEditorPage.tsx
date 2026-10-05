@@ -93,9 +93,11 @@ export function WorkoutEditorPage() {
   }
   function choose(exercise: Exercise) {
     const previous = [...sets].reverse().find((s) => s.exercise_id === exercise.id)
+    // つぶれたセット（0回）の回数は引き継がない
+    const lifted = [...sets].reverse().find((s) => s.exercise_id === exercise.id && s.reps > 0)
     setEntry((old) => old ? { ...old, exercise_id: exercise.id } : {
       id: crypto.randomUUID(), exercise_id: exercise.id,
-      weight: String(previous?.weight_kg ?? 20), reps: String(previous?.reps ?? 10), note: '', existing: false,
+      weight: String(previous?.weight_kg ?? 20), reps: String(lifted?.reps ?? 10), note: '', existing: false,
     })
     setPicking(false)
     setError(null)
@@ -261,7 +263,7 @@ export function WorkoutEditorPage() {
                 value={entry.weight} onChange={(e) => setEntry({ ...entry, weight: e.target.value })} className={fieldClass} />
             </label>
             <label className="flex flex-col gap-2 text-sm text-muted">回数
-              <input type="number" inputMode="numeric" min="1" max="9999" step="1" required disabled={busy}
+              <input type="number" inputMode="numeric" min="0" max="9999" step="1" required disabled={busy}
                 value={entry.reps} onChange={(e) => setEntry({ ...entry, reps: e.target.value })} className={fieldClass} />
             </label>
           </div>

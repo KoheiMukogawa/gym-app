@@ -40,6 +40,13 @@ describe('WheelNumber', () => {
     expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '100')
   })
 
+  it('reaches zero reps when the minimum allows a failed set', () => {
+    render(<Controlled initial={1} label="回数" unit="回" min={0} />)
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuemin', '0')
+    fireEvent.keyDown(screen.getByRole('spinbutton'), { key: 'ArrowDown' })
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '0')
+  })
+
   it('formats assisted loads and retains negative direct entry', () => {
     render(<Controlled initial={0} label="加重" min={-70} format={formatAddedLoad} />)
     expect(screen.getByRole('button', { name: '加重を直接入力' })).toHaveTextContent('自重')

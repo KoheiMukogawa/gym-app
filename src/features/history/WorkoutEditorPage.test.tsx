@@ -68,6 +68,25 @@ describe('WorkoutEditorPage', () => {
     expect(api.createDatedWorkout).not.toHaveBeenCalled()
     expect(await screen.findByRole('button', { name: /82.5kg 8回を編集/ })).toBeInTheDocument()
   })
+  it('saves a failed set with zero reps', async () => {
+    const user = setup()
+    await user.click(await screen.findByRole('button', { name: /80kg 8回を編集/ }))
+    const reps = screen.getByLabelText('回数')
+    expect(reps).toHaveAttribute('min', '0')
+    await user.clear(reps); await user.type(reps, '0')
+    await user.click(screen.getByRole('button', { name: '変更を保存' }))
+    await waitFor(() => expect(api.updateWorkoutSet).toHaveBeenCalledWith('w1', expect.objectContaining({ id: 's1', reps: 0 }), expect.any(Number)))
+  })
+
+  it('starts a new set from the last lifted reps, not from a failed set', async () => {
+    api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET, { ...SET, id: 's2', set_index: 2, weight_kg: 100, reps: 0 }] })
+    const user = setup()
+    await user.click(await screen.findByRole('button', { name: '＋ セットを追加' }))
+    await user.click(await screen.findByRole('button', { name: 'ベンチプレス' }))
+    expect(screen.getByRole('spinbutton', { name: '重量（kg）' })).toHaveValue(100)
+    expect(screen.getByLabelText('回数')).toHaveValue(8)
+  })
+
   it('retains input on failed save and permits retry', async () => {
     api.updateWorkoutSet.mockRejectedValueOnce(new Error('network'))
     const user = setup()

@@ -40,14 +40,19 @@ describe('totalVolume', () => {
 describe('personalBest', () => {
   it('returns the heaviest weight', () => {
     expect(personalBest([
-      { weight_kg: 80 },
-      { weight_kg: 100 },
-      { weight_kg: 90 },
+      { weight_kg: 80, reps: 5 },
+      { weight_kg: 100, reps: 1 },
+      { weight_kg: 90, reps: 3 },
     ])).toBe(100)
   })
 
   it('returns null for an empty list', () => {
     expect(personalBest([])).toBeNull()
+  })
+
+  it('ignores failed sets with zero reps', () => {
+    expect(personalBest([{ weight_kg: 100, reps: 3 }, { weight_kg: 120, reps: 0 }])).toBe(100)
+    expect(personalBest([{ weight_kg: 120, reps: 0 }])).toBeNull()
   })
 })
 
@@ -64,6 +69,10 @@ describe('findPrefill', () => {
 
   it('returns null when the exercise has no history', () => {
     expect(findPrefill(history, 'deadlift')).toBeNull()
+  })
+
+  it('skips failed sets, so a missed lift does not start the next set at zero', () => {
+    expect(findPrefill([{ exercise_id: 'bench', weight_kg: 100, reps: 0 }, ...history], 'bench')).toEqual({ weight_kg: 80, reps: 8 })
   })
 })
 
@@ -118,8 +127,9 @@ describe('adjustReps', () => {
     expect(adjustReps(8, 1)).toBe(9)
   })
 
-  it('never goes below 1', () => {
-    expect(adjustReps(1, -1)).toBe(1)
+  it('goes down to zero for a failed set, and no lower', () => {
+    expect(adjustReps(1, -1)).toBe(0)
+    expect(adjustReps(0, -1)).toBe(0)
   })
 })
 
@@ -212,5 +222,23 @@ describe('suggestReps follows the lifter\'s own curve', () => {
     // 60kg と 80kg がどちらも10回だけだと傾きが取れないので、推定1RMから逆算する
     const flat = history.slice(0, 2)
     expect(suggestReps(flat, 'bench', 90)).toEqual({ reps: 6, source: 'estimate' })
+  })
+})
+
+describe('failed sets with zero reps', () => {
+  it('are ignored by the reps suggestions and the daily maximum', () => {
+    const history = [
+      { exercise_id: 'bench', weight_kg: 100, reps: 0 },
+      { exercise_id: 'bench', weight_kg: 90, reps: 5 },
+      { exercise_id: 'bench', weight_kg: 80, reps: 8 },
+    ]
+    expect(maxRepsAt(history, 'bench', 100)).toBeNull()
+    expect(suggestReps(history, 'bench', 100)?.reps).not.toBe(0)
+    expect(suggestReps(history, 'bench', 90)).toEqual({ reps: 5, source: 'record' })
+    const base = { id: 's', workout_id: 'w', exercise_id: 'bench', set_index: 1, created_at: '' }
+    expect(maxWeightByDate([
+      { ...base, weight_kg: 100, reps: 0, performed_at: '2026-08-10T03:00:00Z' },
+      { ...base, weight_kg: 90, reps: 5, performed_at: '2026-08-10T03:00:00Z' },
+    ])).toEqual([{ date: '2026-08-10', max_weight: 90 }])
   })
 })

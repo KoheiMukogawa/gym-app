@@ -24,5 +24,5 @@ export function validateSet(weight: number, reps: number, minWeight = 0): void {
       ? `加重は${minWeight}〜9999.9kg、小数1桁までで入力してください（アシストはマイナス）`
       : '重量は0〜9999.9kg、小数1桁までで入力してください')
   }
-  if (!Number.isInteger(reps) || reps < 1 || reps > 9999) throw new InputError('回数は1〜9999の整数で入力してください')
+  if (!Number.isInteger(reps) || reps < 0 || reps > 9999) throw new InputError('回数は0〜9999の整数で入力してください')
 }

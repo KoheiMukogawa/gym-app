@@ -96,9 +96,15 @@ describe('logReducer', () => {
   it('clamps direct entry to the allowed range', () => {
     let state = withExercise()
     state = logReducer(state, { type: 'set-weight', value: -5 })
-    state = logReducer(state, { type: 'set-reps', value: 0 })
+    state = logReducer(state, { type: 'set-reps', value: -3 })
     expect(state.weight_kg).toBe(0)
-    expect(state.reps).toBe(1)
+    expect(state.reps).toBe(0)
+  })
+
+  it('records a failed set with zero reps', () => {
+    let state = withExercise()
+    state = logReducer(state, { type: 'set-reps', value: 0 })
+    expect(state.reps).toBe(0)
   })
 
   it('removes the chosen set only, even from the middle', () => {
@@ -215,5 +221,35 @@ describe('reps follow the best ever done at the chosen weight', () => {
     state = logReducer(state, { type: 'set-reps', value: 3 })
     state = logReducer(state, { type: 'set-weight', value: 80 })
     expect(state.reps).toBe(3)
+  })
+})
+
+describe('failed sets with zero reps', () => {
+  it('records the failed set, then starts the next set from the last lifted reps', () => {
+    let state = withExercise()
+    state = logReducer(state, { type: 'complete-set', id: 's1' })
+    state = logReducer(state, { type: 'set-weight', value: 100 })
+    state = logReducer(state, { type: 'set-reps', value: 0 })
+    state = logReducer(state, { type: 'complete-set', id: 's2' })
+    expect(state.sets.map((s) => s.reps)).toEqual([8, 0])
+    expect(state.weight_kg).toBe(100)
+    expect(state.reps).toBe(8)
+  })
+
+  it('falls back to the default reps when nothing was lifted yet', () => {
+    let state = logReducer(initialLogState, { type: 'select-exercise', exerciseId: 'bench', prefill: null })
+    state = logReducer(state, { type: 'set-reps', value: 0 })
+    state = logReducer(state, { type: 'complete-set', id: 's1' })
+    expect(state.reps).toBe(10)
+  })
+
+  it('does not start from zero when returning to an exercise whose last set failed', () => {
+    let state = withExercise()
+    state = logReducer(state, { type: 'set-reps', value: 0 })
+    state = logReducer(state, { type: 'complete-set', id: 's1' })
+    state = logReducer(state, { type: 'select-exercise', exerciseId: 'squat', prefill: null })
+    state = logReducer(state, { type: 'select-exercise', exerciseId: 'bench', prefill: { weight_kg: 80, reps: 8 } })
+    expect(state.weight_kg).toBe(80)
+    expect(state.reps).toBe(8)
   })
 })

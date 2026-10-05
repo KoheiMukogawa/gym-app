@@ -604,9 +604,11 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
               label="回数"
               value={state.reps}
               unit="回"
+              min={0}
               onEnter={(value) => dispatch({ type: 'set-reps', value })}
             />
-          </div>          {isBodyweight && bodyweight !== null && <p className="mb-2 text-center text-xs text-muted">
+          </div>
+          {isBodyweight && bodyweight !== null && <p className="mb-2 text-center text-xs text-muted">
             体重 {bodyweight} kg {formatAddedLoad(state.weight_kg) === '自重' ? '' : formatAddedLoad(state.weight_kg).replace('+', '＋ ').replace('−', '− ')} ＝ 総重量 <strong className="text-fg tabular-nums">{load} kg</strong>
             <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
           </p>}
