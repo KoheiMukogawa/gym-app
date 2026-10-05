@@ -59,6 +59,17 @@ describe('profile menu', () => {
 
 describe('feedback in the profile menu', () => {
   const flush = () => act(async () => {})
+  it('hides the usage page from users', async () => {
+    renderShell(); await flush()
+    await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    expect(screen.queryByRole('link', { name: '利用状況' })).not.toBeInTheDocument()
+  })
+  it('shows the usage page link to an admin', async () => {
+    fetchIsAdmin.mockResolvedValue(true); fetchUnreadFeedbackCount.mockResolvedValue(0)
+    renderShell(); await flush()
+    await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    expect(screen.getByRole('link', { name: '利用状況' })).toHaveAttribute('href', '/admin/usage')
+  })
   it('offers everyone the feedback form without marking the icon', async () => {
     renderShell(); await flush()
     expect(screen.getByRole('button', { name: 'プロフィールメニュー' })).not.toHaveAttribute('data-unread')

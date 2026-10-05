@@ -67,7 +67,7 @@ function ActiveUsersChart({ weeks }: { weeks: UsageWeek[] }) {
   return <div className="h-48 w-full" aria-hidden="true">
     <ResponsiveContainer>
       <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -24 }}>
-        <XAxis dataKey="label" tick={tick} tickLine={false} axisLine={false} interval={1} />
+        <XAxis dataKey="label" tick={tick} tickLine={false} axisLine={false} interval="preserveEnd" minTickGap={12} />
         <YAxis allowDecimals={false} tick={tick} tickLine={false} axisLine={false} width={40} />
         <Tooltip cursor={{ fill: 'rgba(255,255,255,0.06)' }}
           contentStyle={{ background: '#17171A', border: '1px solid #2A2A2F', borderRadius: 12 }}
