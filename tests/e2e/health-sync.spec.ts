@@ -94,10 +94,14 @@ test('Health connection, historical sync, keep/overwrite and revoke use real mob
   const curves=trend.locator('path.recharts-line-curve[stroke="#E8412F"]'),tooltip=trend.locator('.recharts-tooltip-wrapper')
   await expect(dots).toHaveCount(2);await expect(fatDots).toHaveCount(1);await expect(curves).toHaveCount(1)
   await expect(trend.locator('.recharts-xAxis-tick-labels')).toContainText('2015/')
+  // A reload redraws the chart and replaces its dots, so a dot found mid-redraw can detach.
+  // Retry the whole hover until the tooltip shows the expected values.
   const inspect=async (index:number,...texts:string[]) => {
-    const dot=dots.nth(index);await dot.scrollIntoViewIfNeeded();const box=(await dot.boundingBox())!
-    await page.mouse.move(box.x+box.width/2,box.y+box.height/2)
-    for(const text of texts) await expect(tooltip).toContainText(text)
+    await expect(async () => {
+      const dot=dots.nth(index);await dot.scrollIntoViewIfNeeded({timeout:2000});const box=(await dot.boundingBox())!
+      await page.mouse.move(box.x+box.width/2,box.y+box.height/2)
+      for(const text of texts) await expect(tooltip).toContainText(text,{timeout:1000})
+    }).toPass({timeout:15000})
   }
   await inspect(0,'60 kg','14 %')
   await inspect(1,'62 kg','61 kg')
