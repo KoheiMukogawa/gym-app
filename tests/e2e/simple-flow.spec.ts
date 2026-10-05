@@ -1,6 +1,19 @@
 import { expect, test, type Page, type Locator } from '@playwright/test'
 import { enterWheelValue } from './wheel'
 
+test('failed screen download keeps navigation available', async ({ page }) => {
+  await mockApi(page)
+  await page.goto('/log')
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await page.route('**/features/history/HistoryPage.tsx*', route => route.abort())
+  await page.getByRole('navigation', { name: 'メイン' }).getByRole('link', { name: '履歴', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('画面を表示できませんでした')
+  await expect(page.getByRole('button', { name: '再読み込み' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'メイン' })).toBeVisible()
+  await page.getByRole('navigation', { name: 'メイン' }).getByRole('link', { name: 'ホーム', exact: true }).click()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 async function holdDrag(page: Page, source: Locator, target: Locator, cancel = false) {
   await expect(source).toBeEnabled()
   await source.scrollIntoViewIfNeeded()
