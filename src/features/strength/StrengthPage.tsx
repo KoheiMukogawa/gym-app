@@ -36,7 +36,8 @@ function LiftCard({ lift }: { lift: LiftSnapshot }) {
       <div className="mb-3 flex items-center justify-between">
         <div className="min-w-0">
           <h2 className="font-semibold">{lift.label}</h2>
-          <p className="break-words text-xs text-muted">{lift.exerciseName ?? '対象種目が見つかりません'}</p>
+          {/* 見出しと同じ名前なら繰り返さない。割り当てた別の種目や、見つからないときだけ出す */}
+          {lift.exerciseName !== lift.label && <p className="break-words text-xs text-muted">{lift.exerciseName ?? '対象種目が見つかりません'}</p>}
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2 text-center">
