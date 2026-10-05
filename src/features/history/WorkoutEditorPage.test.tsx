@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { WorkoutEditorPage } from './WorkoutEditorPage'
@@ -68,6 +68,21 @@ describe('WorkoutEditorPage', () => {
     expect(api.createDatedWorkout).not.toHaveBeenCalled()
     expect(await screen.findByRole('button', { name: /82.5kg 8回を編集/ })).toBeInTheDocument()
   })
+  it('docks the set form at the bottom, with its errors, only while a set is edited', async () => {
+    api.updateWorkoutSet.mockRejectedValueOnce(new Error('network'))
+    const user = setup()
+    await screen.findByRole('button', { name: /80kg 8回を編集/ })
+    expect(screen.queryByRole('region', { name: 'セット入力' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /80kg 8回を編集/ }))
+    const dock = screen.getByRole('region', { name: 'セット入力' })
+    expect(within(dock).getByRole('button', { name: '変更を保存' })).toBeInTheDocument()
+    expect(within(dock).getByRole('button', { name: 'キャンセル' })).toBeInTheDocument()
+    await user.click(within(dock).getByRole('button', { name: '変更を保存' }))
+    expect(await within(dock).findByRole('alert')).toBeInTheDocument()
+    await user.click(within(dock).getByRole('button', { name: 'キャンセル' }))
+    expect(screen.queryByRole('region', { name: 'セット入力' })).not.toBeInTheDocument()
+  })
+
   it('saves a failed set with zero reps', async () => {
     const user = setup()
     await user.click(await screen.findByRole('button', { name: /80kg 8回を編集/ }))
