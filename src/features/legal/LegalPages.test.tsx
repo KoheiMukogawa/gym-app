@@ -16,6 +16,9 @@ describe('legal pages', () => {
     expect(within(services).getByRole('cell', { name: '日本（東京リージョン）' })).toBeInTheDocument()
     expect(screen.getAllByText(/glog\.app\.help@gmail\.com/).length).toBeGreaterThan(0)
     expect(screen.getByRole('link', { name: 'Glog トップへ' })).toHaveAttribute('href', '/')
+    expect(screen.getByText(/ご意見・不具合の報告: 送った内容と、送信時のブラウザの情報/)).toBeInTheDocument()
+    expect(screen.getByText(/送ったご意見は、ほかの利用者には表示されません/)).toBeInTheDocument()
+    expect(screen.getByText('改定日: 2026年10月5日')).toBeInTheDocument()
   })
 
   it('shows the terms with numbered rules', () => {
