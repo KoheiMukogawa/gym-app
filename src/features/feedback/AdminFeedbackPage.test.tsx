@@ -45,6 +45,20 @@ describe('AdminFeedbackPage', () => {
     expect(within(row('記録画面が重い')).getByText('既読')).toBeInTheDocument()
   })
 
+  it('tells the header to refresh its new count after marking, but not after a failure', async () => {
+    const heard = vi.fn()
+    window.addEventListener('glog-feedback-read', heard)
+    markFeedbackRead.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(undefined)
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: '既読にする' }))
+    await within(row('記録画面が重い')).findByRole('alert')
+    expect(heard).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: '既読にする' }))
+    await screen.findByText('未読 0件')
+    expect(heard).toHaveBeenCalledOnce()
+    window.removeEventListener('glog-feedback-read', heard)
+  })
+
   it('shows a failed mark in the row and lets it be tried again', async () => {
     markFeedbackRead.mockRejectedValueOnce(new Error('boom'))
     renderPage()

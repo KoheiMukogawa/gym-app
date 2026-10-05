@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
 import { feedbackMessage, fetchAllFeedback, formatSentAt, markFeedbackRead, type AdminFeedback } from './queries'
+import { notifyFeedbackRead } from './useFeedbackInbox'
 
 export function AdminFeedbackPage() {
   const [items, setItems] = useState<AdminFeedback[] | null>(null)
@@ -24,6 +25,7 @@ export function AdminFeedbackPage() {
       await markFeedbackRead(id)
       const now = new Date().toISOString()
       setItems((list) => list && list.map((item) => item.id === id ? { ...item, read_at: now } : item))
+      notifyFeedbackRead()
     } catch (e) {
       setRowErrors((errors) => ({ ...errors, [id]: feedbackMessage(e) }))
     } finally {

@@ -18,7 +18,7 @@ test('a user sends feedback from the profile and an admin marks it read', async 
     }
     if (path.endsWith('/rest/v1/feedback')) return reply([{ id: 'f1', body: '前に送った意見', created_at: '2026-10-04T03:00:00Z', read_at: '2026-10-04T04:00:00Z' }])
     if (path.endsWith('/rest/v1/admins')) return reply([{ user_id: uid }])
-    if (path.endsWith('/admin_unread_feedback_count')) return reply(1)
+    if (path.endsWith('/admin_unread_feedback_count')) return reply(marked.length ? 0 : 1)
     if (path.endsWith('/admin_list_feedback')) return reply([{ id: 'f9', body: `記録画面が重い ${longUrl}`, user_agent: 'TestAgent/1.0', created_at: '2026-10-05T00:30:00Z', read_at: null, display_name: '利用者A' }])
     if (path.endsWith('/admin_mark_feedback_read')) { marked.push(req.postDataJSON()); return route.fulfill({ status: 204 }) }
     if (path.endsWith('/profiles')) return reply({ id: uid, display_name: '運営' })
@@ -27,8 +27,9 @@ test('a user sends feedback from the profile and an admin marks it read', async 
   })
   const fitsWidth = () => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
 
-  await page.goto('/profile')
-  await page.getByRole('link', { name: 'ご意見・不具合を送る →' }).click()
+  await page.goto('/')
+  await page.getByRole('button', { name: 'プロフィールメニュー（新着の意見があります）' }).click()
+  await page.getByRole('link', { name: 'ご意見・不具合を送る' }).click()
   await expect(page.getByRole('heading', { name: 'ご意見・不具合の報告' })).toBeVisible()
   await expect(page.getByText(/運営が確認済み/)).toBeVisible()
   await page.getByLabel('内容').fill(`  休憩タイマーがほしい ${longUrl}  `)
@@ -48,4 +49,7 @@ test('a user sends feedback from the profile and an admin marks it read', async 
   await page.getByRole('button', { name: '既読にする' }).click()
   await expect(page.getByText('未読 0件')).toBeVisible()
   expect(marked).toEqual([{ p_id: 'f9' }])
+  await expect(page.getByRole('button', { name: 'プロフィールメニュー', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'プロフィールメニュー', exact: true }).click()
+  await expect(page.getByRole('link', { name: '届いた意見', exact: true })).toBeVisible()
 })
