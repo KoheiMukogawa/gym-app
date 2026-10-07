@@ -17,6 +17,9 @@ test('an admin opens the usage dashboard from the profile menu', async ({ page }
     if (path.endsWith('/rest/v1/admins')) return reply([{ user_id: uid }])
     if (path.endsWith('/admin_unread_feedback_count')) return reply(0)
     if (path.endsWith('/admin_usage_stats')) return reply({ total_users: 6, active_7d: 2, active_30d: 4, weeks })
+    if (path.endsWith('/admin_growth_stats')) return reply({ weekly_active_lifters: 2, lifters_2plus_days_7d: 1, workouts_7d: 3, sets_7d: 30,
+      retention: { d1: { eligible: 4, retained: 2 }, d7: { eligible: 3, retained: 1 }, d30: { eligible: 0, retained: 0 } },
+      signups_by_source_90d: [{ source: 'calc-1rm', signups: 2 }] })
     if (path.endsWith('/profiles')) return reply({ id: uid, display_name: '運営' })
     return reply([])
   })
@@ -26,6 +29,8 @@ test('an admin opens the usage dashboard from the profile menu', async ({ page }
   await expect(page.getByRole('heading', { name: '利用状況' })).toBeVisible()
   await expect(page.getByText('直近30日に記録した人')).toBeVisible()
   await expect(page.locator('.recharts-bar-rectangle')).toHaveCount(9)
-  await expect(page.getByRole('table').getByRole('row')).toHaveCount(13)
+  await expect(page.getByRole('table', { name: '週ごとの利用状況' }).getByRole('row')).toHaveCount(13)
+  await expect(page.getByText('D1リテンション').locator('+ dd')).toHaveText('2/4人（50%）')
+  await expect(page.getByRole('row', { name: /calc-1rm/ })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

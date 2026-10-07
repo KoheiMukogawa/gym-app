@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { track } from '../../lib/analytics'
+import { rememberFirstTouch } from '../../lib/attribution'
 import { LandingPreview } from './LandingPreview'
 import './LandingPage.css'
 
@@ -16,6 +19,10 @@ const questions = [
 ]
 
 export function LandingPage() {
+  useEffect(() => {
+    rememberFirstTouch('landing')
+    track({ name: 'landing_view' })
+  }, [])
   return <main className="landing-page">
     <header className="landing-header landing-container">
       <Link to="/" className="landing-brand" aria-label="Glog トップへ">Glog<span>筋トレ記録</span></Link>
@@ -97,6 +104,7 @@ export function LandingPage() {
 
     <footer className="landing-footer landing-container">
       <span className="landing-footer-brand">Glog<span>あなたのトレーニングを、あなたの記録に。</span></span>
+      <nav aria-label="計算ツール"><Link to="/calculators/1rm">1RM計算</Link><Link to="/calculators/dots">DOTS計算</Link></nav>
       <nav aria-label="規約"><Link to="/terms">利用規約</Link><Link to="/privacy">プライバシーポリシー</Link></nav>
     </footer>
   </main>

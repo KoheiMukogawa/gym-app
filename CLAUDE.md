@@ -1,13 +1,13 @@
 # Claude Code 引き継ぎメモ
 
-最終更新: 2026-10-05
+最終更新: 2026-10-07
 
 ## 現在地
 
 - ブランチ: `master`。push すると Vercel に自動デプロイされる。Codex も `master` に push するので、push 前に必ず `git fetch` する
 - 本番で実際に使われている（本人がiPhoneで日常的に記録。利用者6人）。本番データの書き込み・削除やmigration適用は本人の許可を取ってから
 - 公開済みの機能: 記録（ダイアル入力、セットごとの推定1RM、メモは記録後にセットをタップ）、履歴と編集、BIG3、ランキング（kg・DOTS）、体組成、コミュニティ、Health同期、Markdown出力、パスワード再設定、退会、ご意見の送信（管理者はヘッダーのメニューの「届いた意見」で読み、既読にする。未読があるとアイコンが赤い輪で囲まれる）、管理者向けの利用状況（`/admin/usage`）、新しい機能のお知らせ（起動時のシート）
-- 本番に適用済みのmigration: `zero_rep_sets`（2026-10-05、`apply_migration` で適用）まで。Edge Function `body-metrics` も稼働中
+- 本番に適用済みのmigration: `zero_rep_sets`（2026-10-05、`apply_migration` で適用）、`growth_stats`（2026-10-07、`apply_migration` で適用。anonから実行不可を確認済み）。Edge Function `body-metrics` も稼働中
 - `account_deletion` はClaude Codeの自動許可モードが `apply_migration` を止めたため、本人がSQL Editorで適用した。Supabaseのmigration履歴（`list_migrations`）には載らない。関数2つ・権限・中身は読み取りで確認済み。設計は `docs/superpowers/specs/2026-10-04-account-deletion-design.md`
 - 退会は `delete_my_account('退会する')` で本人の記録・自作種目・`auth.users` を消し、残りは外部キーの連鎖で消える。自分が作ったコミュニティはメンバーごと消える。2026-10-04に本番のテスト用アカウントで退会し、`auth` の内部テーブルを含め、そのユーザーを参照する行が残らないことを読み取りで確認済み
 - `rls_initplan` はRLSの `auth.uid()` を `(select auth.uid())` に変え、`communities.owner_id` のインデックスとDOTS参加時の係数必須チェックを追加した。適用後、advisorsの `auth_rls_initplan`・`unindexed_foreign_keys` は解消、本人として本人の記録だけが見えることを確認済み
@@ -66,10 +66,11 @@
    次の一歩は本人から履歴画面のスクリーンショット1〜2枚と移行期間を受け取り、試し読みすること。本番への書き込み前に必ず本人の許可を取る
 4. 実SupabaseのE2E（`npm run test:e2e`）は2026-08-20以降未実行。実行すると `e2e@example.com` の記録がフィードに残る
 5. Health同期: 本人のHealth測定を送る操作は明示許可後に本人の少数日で行う。トークンや本文を共有ログへ残さない。署名済みShortcutファイルの配布はない
-6. Supabase advisors の `authenticated_security_definer_function_executable`（12件、うち2件は退会、4件は管理者用の関数（ご意見3・利用状況1））と `rls_enabled_no_policy`（communities・community_members・health_sync_private.tokens）は設計どおり。どれもanonから実行不可、`search_path` 固定、`auth.uid()` で本人に限定している
+6. Supabase advisors の `authenticated_security_definer_function_executable`（13件、うち2件は退会、5件は管理者用の関数（ご意見3・利用状況1・成長の指標1））と `rls_enabled_no_policy`（communities・community_members・health_sync_private.tokens）は設計どおり。どれもanonから実行不可、`search_path` 固定、`auth.uid()` で本人に限定している
 
 ## 再開時の注意
 
+- 2026-10-07: Growth Architecture v1（設計とロードマップは `docs/growth-architecture.md`）。ログイン不要の公開ページ `/calculators`・`/calculators/1rm`・`/calculators/dots` を追加（`src/features/tools/`、Supabaseをimportしない）。`npm run build` が公開ページをビルド時に静的HTMLへ書き出し（`src/prerender.tsx`・`scripts/prerender.mjs`）、`sitemap.xml`・`robots.txt` も生成。公開ページを足すときは `pages.ts` と `vercel.json` のリライトの両方が必要（書き忘れるとビルドとテストが失敗）。URLの基準は `VITE_SITE_URL`（未設定ならvercel.app）。最初に開いた公開ページを `signup_source` として登録メタデータに入れ、プライバシーポリシーに追記（改定日10/7）。`track()`（`src/lib/analytics.ts`）は送信先なし。migration `20261007120000_growth_stats.sql`（`admin_growth_stats()`：Weekly Active Lifters・D1/D7/D30・週2日以上・登録のきっかけ）は本人の許可を受け本番に適用済み。アクセス解析の送信先は当面なし（本人が同意）。独自ドメインは費用を抑えるため当面なし（vercel.appのまま）。iPhone実機確認は未実施。
 - 2026-10-06: 種目詳細の推定1RMグラフ（`ExerciseTrendChart.tsx`）は、2本指で拡大・縮小、拡大中は1本指で左右に移動、ダブルタップか「全期間」ボタンで全体に戻る（範囲の計算は `trend.ts`）。最初は直近6ヶ月（2日未満なら全期間）。グラフの上は `touch-action: pan-y` で上下スクロールはページに任せ、Safariの `gesturestart` を止める。期間ボタンとスライダー（Brush）は本人の判断でなくした。縦軸は表示範囲に合わせて自動、30日を超える表示では日ごとの点を省略（133日分で線のアニメーションが見えなかったのは点が線を隠していたため）。線のアニメーションは初回だけ。操作直後のクリックでは日を選ばない。ページの集計は `useMemo`。BIG3画面の種目別グラフとコミュニティのメンバー詳細のグラフも高さを倍（h-56）にした。モックE2E `exercise-chart.spec.ts`（CDPの2本指タッチ）を追加。iPhone実機確認は未実施。
 - 2026-10-05: 本人の許可を受け、kyosuke8s@icloud.com に筋トレMemoのベンチ・スクワット・デッドリフト（156日・758セット）を取り込んだ。回数「-」の失敗セットは取り込まず、補助ありはメモの先頭に「補助あり」。元データ（`KYOSUKE/`）は取り込み後に削除済み。
 

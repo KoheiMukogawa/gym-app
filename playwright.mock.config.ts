@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: ['simple-flow.spec.ts', 'community.spec.ts', 'onboarding.spec.ts', 'health-sync.spec.ts', 'ranking-participation.spec.ts', 'password-reset.spec.ts', 'account-deletion.spec.ts', 'legal-pages.spec.ts', 'feedback.spec.ts', 'usage.spec.ts', 'announcements.spec.ts', 'exercise-chart.spec.ts'],
+  testMatch: ['simple-flow.spec.ts', 'community.spec.ts', 'onboarding.spec.ts', 'health-sync.spec.ts', 'ranking-participation.spec.ts', 'password-reset.spec.ts', 'account-deletion.spec.ts', 'legal-pages.spec.ts', 'feedback.spec.ts', 'usage.spec.ts', 'announcements.spec.ts', 'exercise-chart.spec.ts', 'calculators.spec.ts'],
   timeout: 60_000,
   use: {
     browserName: 'chromium',

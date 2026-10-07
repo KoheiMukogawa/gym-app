@@ -1,5 +1,10 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/calculators", "destination": "/calculators.html" },
+    { "source": "/calculators/1rm", "destination": "/calculators/1rm.html" },
+    { "source": "/calculators/dots", "destination": "/calculators/dots.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
   "headers": [
     { "source": "/(.*)", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
   ]

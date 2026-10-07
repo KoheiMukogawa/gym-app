@@ -1,16 +1,8 @@
 import { Link } from 'react-router-dom'
 import type { Member, RankMetric } from './queries'
+import { DOTS_LEVELS } from '../../lib/dots'
 
 const LABELS: Record<RankMetric, string> = { total: 'BIG3合計', growth: '今月の伸び', dots: 'DOTS' }
-const DOTS_LEVELS = [
-  ['200未満', '初心者'],
-  ['200〜300未満', '初級'],
-  ['300〜350未満', '中級'],
-  ['350〜400未満', '中級上位'],
-  ['400〜450未満', '上級'],
-  ['450〜500未満', '非常に高いレベル'],
-  ['500以上', 'エリート級'],
-] as const
 
 export function MetricTabs({ value, onChange }: { value: RankMetric; onChange: (metric: RankMetric) => void }) {
   return <div className="flex border-b border-border">{(Object.keys(LABELS) as RankMetric[]).map((m) =>
@@ -30,7 +22,7 @@ export function DotsNotice({ me }: { me: Member | undefined }) {
         <p className="text-xs leading-relaxed text-muted">BIG3（3種目合計）のスコアを基準にした目安です。</p>
         <table aria-label="DOTSスコアの目安" className="w-full text-left text-sm">
           <thead><tr className="border-b border-border text-xs text-muted"><th scope="col" className="pb-2 font-normal">スコア</th><th scope="col" className="pb-2 font-normal">レベル</th></tr></thead>
-          <tbody>{DOTS_LEVELS.map(([range, level]) => <tr key={range} className="border-b border-border last:border-0"><th scope="row" className="py-2 pr-3 font-normal tabular-nums">{range}</th><td className="py-2">{level}</td></tr>)}</tbody>
+          <tbody>{DOTS_LEVELS.map(([, range, level]) => <tr key={range} className="border-b border-border last:border-0"><th scope="row" className="py-2 pr-3 font-normal tabular-nums">{range}</th><td className="py-2">{level}</td></tr>)}</tbody>
         </table>
         <p className="text-xs leading-relaxed text-muted">DOTSに公式のレベル区分はありません。現在地や成長を知るための参考としてご覧ください。Glogでは推定1RMを使ってスコアを計算しています。</p>
       </div>

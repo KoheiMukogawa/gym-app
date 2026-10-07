@@ -4,11 +4,12 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ isSsrBuild }) => ({
   plugins: [
     react(),
     tailwindcss(),
-    VitePWA({
+    // The prerender build (scripts/prerender.mjs) only renders public pages; no service worker.
+    !isSsrBuild && VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['glog-icon-32.png', 'glog-icon-180.png', 'glog-icon-192.png', 'glog-icon-512.png', 'glog-icon-maskable.png'],
       manifest: {
@@ -47,4 +48,4 @@ export default defineConfig({
     // jsdom tests with userEvent slow down when every core runs a worker; 5s is too tight.
     testTimeout: 20_000,
   },
-})
+}))

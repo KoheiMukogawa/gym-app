@@ -3,7 +3,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recha
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
 import { adminMessage } from '../../lib/errors'
-import { fetchUsageStats, formatWeek, type UsageStats, type UsageWeek } from './usageQueries'
+import { fetchGrowthStats, fetchUsageStats, formatRate, formatWeek, perPerson, type GrowthStats, type UsageStats, type UsageWeek } from './usageQueries'
 
 // The accent is already validated on the dark surface (see BodyTrendChart).
 const BAR = '#E8412F'
@@ -42,6 +42,7 @@ export function UsagePage() {
       <figcaption className="text-sm font-semibold">記録した人数（週ごと）</figcaption>
       <ActiveUsersChart weeks={stats.weeks} />
     </figure>
+    <GrowthSection monthlyActive={stats.active_30d} />
     <table className="w-full text-sm">
       <caption className="sr-only">週ごとの利用状況</caption>
       <thead><tr className="text-xs text-muted">
@@ -59,6 +60,48 @@ export function UsagePage() {
         <td className="text-right tabular-nums">{w.signups}</td>
       </tr>)}</tbody>
     </table>
+  </section>
+}
+
+// Loaded separately: its failure (or a database without the function yet) must not hide the rest.
+function GrowthSection({ monthlyActive }: { monthlyActive: number }) {
+  const [growth, setGrowth] = useState<GrowthStats | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const load = useCallback(() => {
+    setError(null); setGrowth(null)
+    fetchGrowthStats().then(setGrowth).catch((e: unknown) => setError(adminMessage(e)))
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  return <section aria-labelledby="growth-title" className="space-y-3">
+    <h2 id="growth-title" className="text-sm font-semibold">成長の指標</h2>
+    {error ? <div className="space-y-3">
+      <p role="alert" className="text-sm text-muted">{error}</p>
+      <Button variant="ghost" onClick={load}>再試行</Button>
+    </div> : !growth ? <Spinner /> : <>
+      <dl className="grid grid-cols-2 gap-3 text-sm">{([
+        ['Weekly Active Lifters', `${growth.weekly_active_lifters}人`],
+        ['週2日以上記録した人', `${growth.lifters_2plus_days_7d}人`],
+        ['WAU/MAU', monthlyActive === 0 ? '—' : `${Math.round((growth.weekly_active_lifters / monthlyActive) * 100)}%`],
+        ['1人あたり（直近7日）', `${perPerson(growth.workouts_7d, growth.weekly_active_lifters)}回・${perPerson(growth.sets_7d, growth.weekly_active_lifters)}セット`],
+        ['D1リテンション', formatRate(growth.retention.d1)],
+        ['D7リテンション', formatRate(growth.retention.d7)],
+        ['D30リテンション', formatRate(growth.retention.d30)],
+      ] as const).map(([label, value]) => <div key={label} className="rounded-xl border border-border bg-surface p-3">
+        <dt className="text-xs text-muted">{label}</dt>
+        <dd className="mt-1 font-semibold tabular-nums">{value}</dd>
+      </div>)}</dl>
+      <p className="text-xs leading-relaxed text-muted">Weekly Active Liftersは直近7日に1回以上記録した人。D1は登録の翌日、D7は7〜13日目、D30は30〜36日目に記録した人の割合（期間を過ぎた人だけが対象）。</p>
+      <table className="w-full text-sm">
+        <caption className="pb-2 text-left text-xs text-muted">登録のきっかけ（直近90日、最初に開いた公開ページ）</caption>
+        <tbody>{growth.signups_by_source_90d.length === 0
+          ? <tr><td className="py-2 text-muted">まだありません</td></tr>
+          : growth.signups_by_source_90d.map((row) => <tr key={row.source} className="border-t border-border">
+            <th scope="row" className="py-2 text-left font-normal">{row.source === 'unknown' ? '不明（記録前の登録など）' : row.source}</th>
+            <td className="text-right tabular-nums">{row.signups}人</td>
+          </tr>)}</tbody>
+      </table>
+    </>}
   </section>
 }
 

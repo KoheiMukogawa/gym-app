@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 // Applies every migration to a throwaway database with Supabase-like roles and default grants,
 // then runs the rollback-only ranking suites. Nothing touches a real Supabase project.
 const root = resolve(import.meta.dirname, '../../..')
-const suites = ['0008_communities.sql', '0009_onboarding_global_ranking.sql', 'dots_ranking.sql', 'my_big3_data.sql', 'rls_initplan.sql', 'account_deletion.sql', 'feedback.sql', 'usage_stats.sql', 'announcements.sql', 'zero_reps.sql']
+const suites = ['0008_communities.sql', '0009_onboarding_global_ranking.sql', 'dots_ranking.sql', 'my_big3_data.sql', 'rls_initplan.sql', 'account_deletion.sql', 'feedback.sql', 'usage_stats.sql', 'announcements.sql', 'zero_reps.sql', 'growth_stats.sql']
 const db = new PGlite({ extensions: { pgcrypto } })
 try {
   await db.exec(`
