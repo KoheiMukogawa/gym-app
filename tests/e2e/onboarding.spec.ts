@@ -8,7 +8,7 @@ test('public introduction and signup save name and icon in registration metadata
   return route.fulfill({contentType:'application/json',body:JSON.stringify([])})
  })
  await page.goto('/')
- await expect(page.getByRole('heading',{name:/その記録を/})).toBeVisible()
+ await expect(page.getByRole('heading',{name:/その記録、\s*もっと活かせる/})).toBeVisible()
  await page.getByRole('link',{name:'アカウントを作って始める'}).click()
  await page.getByLabel('名前',{exact:true}).fill('新人')
  await page.getByRole('button',{name:'バーベル',exact:true}).click()
@@ -32,7 +32,7 @@ test('landing showcases graphs, AI export and personal rankings on phones and de
     return method === 'OPTIONS' ? route.fulfill({ status: 204 }) : route.fulfill({ contentType: 'application/json', body: '[]' })
   })
   await page.goto('/')
-  await expect(page.getByRole('heading', { level: 1, name: /その記録を/ })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: /その記録、\s*もっと活かせる/ })).toBeVisible()
   const preview = page.getByRole('group', { name: '画面プレビュー切り替え' })
   for (const width of [320, 375, 390, 1280]) {
     await page.setViewportSize({ width, height: width === 1280 ? 900 : 844 })
@@ -64,6 +64,14 @@ test('landing showcases graphs, AI export and personal rankings on phones and de
       expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(56)
     }
   }
+  // People switching from another app: what to do, and an honest note about past records.
+  const switching = page.getByRole('region', { name: '乗り換えは、1分で。' })
+  await expect(switching.getByRole('listitem')).toHaveText([/アカウントを作る/, /BIG3のベストを入れる/, /今日から推定1RM・合計・ランキング/])
+  await expect(switching).toContainText('今のアプリの記録を自動で取り込む機能はありません。')
+  await expect(page.getByText('ほかのアプリからの乗り換えも、1分で')).toBeVisible()
+  const moving = page.locator('details').filter({ has: page.locator('summary', { hasText: '今使っているアプリの記録は移せますか？' }) })
+  await moving.locator('summary').click()
+  await expect(moving).toContainText('BIG3のベストを入れれば')
   const faq = page.locator('details').filter({ has: page.locator('summary', { hasText: 'AIにはどうやって相談しますか？' }) })
   await expect(faq).not.toHaveAttribute('open')
   await faq.locator('summary').click()
