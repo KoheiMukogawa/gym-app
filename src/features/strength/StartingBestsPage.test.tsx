@@ -90,4 +90,23 @@ describe('StartingBestsPage', () => {
     expect(await screen.findByRole('link', { name: 'BIG3の設定で種目を選んでください' })).toHaveAttribute('href', '/big3')
     expect(screen.queryByLabelText('デッドリフトの重量')).not.toBeInTheDocument()
   })
+
+  it('says a failed save is a save failure, not a problem with the numbers', async () => {
+    m.saveStartingBests.mockRejectedValueOnce(new Error('offline'))
+    open()
+    await userEvent.type(await screen.findByLabelText('ベンチプレスの重量'), '100')
+    await userEvent.click(screen.getByRole('button', { name: 'BIG3を登録' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^保存できませんでした。/)
+  })
+
+  it('ties each row error to its field for screen readers', async () => {
+    open()
+    const weight = await screen.findByLabelText('デッドリフトの重量')
+    await userEvent.type(weight, '200')
+    await userEvent.clear(screen.getByLabelText('デッドリフトの回数'))
+    await userEvent.type(screen.getByLabelText('デッドリフトの回数'), '12')
+    expect(weight).toHaveAttribute('aria-invalid', 'true')
+    expect(weight).toHaveAccessibleDescription(/11回以上は推定の誤差が大きいため使えません/)
+    expect(screen.getByLabelText('スクワットの重量')).not.toHaveAttribute('aria-invalid')
+  })
 })

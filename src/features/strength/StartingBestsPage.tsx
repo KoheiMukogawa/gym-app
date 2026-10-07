@@ -64,7 +64,8 @@ export function StartingBestsPage() {
       show('BIG3を登録しました')
       navigate('/big3')
     } catch (e: unknown) {
-      setSaveError(toMessage(e))
+      // Say it is the save that failed, so it does not read as a problem with the numbers.
+      setSaveError(`保存できませんでした。${toMessage(e)}`)
     } finally {
       setSaving(false)
     }
@@ -85,14 +86,16 @@ export function StartingBestsPage() {
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm text-muted">重量（kg）
                 <input aria-label={`${name}の重量`} inputMode="decimal" autoComplete="off" value={inputs[lift].weight}
+                  aria-invalid={check.status === 'invalid' || undefined} aria-describedby={check.status === 'invalid' ? `${lift}-error` : undefined}
                   onChange={(e) => update(lift, 'weight', e.target.value)} className={field} />
               </label>
               <label className="block text-sm text-muted">回数
                 <input aria-label={`${name}の回数`} inputMode="numeric" autoComplete="off" value={inputs[lift].reps}
+                  aria-invalid={check.status === 'invalid' || undefined} aria-describedby={check.status === 'invalid' ? `${lift}-error` : undefined}
                   onChange={(e) => update(lift, 'reps', e.target.value)} className={field} />
               </label>
             </div>
-            {check.status === 'invalid' && <p className="text-sm text-accent">{check.error}</p>}
+            {check.status === 'invalid' && <p id={`${lift}-error`} className="text-sm text-accent">{check.error}</p>}
             {check.status === 'ok' && <p className="text-sm text-muted">推定1RM <span className="font-semibold text-fg tabular-nums">{kg(check.e1rm)}</span> kg</p>}
           </>}
       </fieldset>
@@ -105,7 +108,7 @@ export function StartingBestsPage() {
       <input type="date" aria-label="いつ頃の記録？" value={date} max={localDate()} onChange={(e) => setDate(e.target.value)} className={field} />
       {dateError && <span className="mt-1 block text-sm text-accent">{dateError}</span>}
     </label>
-    {saveError && <p role="alert" className="text-sm text-accent">{saveError}</p>}
+    {saveError && <p role="alert" className="rounded-xl border border-border bg-surface p-4 text-sm">{saveError}</p>}
     <Button onClick={save} disabled={!canSave}>{saving ? '登録中…' : 'BIG3を登録'}</Button>
     <p className="text-xs leading-relaxed text-muted">選んだ日の記録として保存します。あとから履歴の画面で直したり消したりできます。</p>
   </section>
