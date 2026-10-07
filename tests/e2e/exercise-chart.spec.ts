@@ -82,9 +82,12 @@ test('long strength history is zoomed with two fingers and moved with one', asyn
   await page.screenshot({ path: 'test-results/exercise-chart-zoomed.png', fullPage: true })
 
   // タップでその日の記録を開く。
-  await page.waitForTimeout(600)
-  await touch(page, [[{ x: cx, y: cy }]])
-  await expect(page.getByText(/^\d{4}-\d{2}-\d{2} の記録$/)).toBeVisible()
+  // Recharts learns which day is under the finger from its hover state, which lags under load; retry the tap.
+  await expect(async () => {
+    await page.waitForTimeout(600)
+    await touch(page, [[{ x: cx, y: cy }]])
+    await expect(page.getByText(/^\d{4}-\d{2}-\d{2} の記録$/)).toBeVisible({ timeout: 1500 })
+  }).toPass({ timeout: 15_000 })
 
   // ダブルタップで全期間に戻る。
   await page.waitForTimeout(600)

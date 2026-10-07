@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from './features/auth/SessionProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
@@ -40,7 +40,8 @@ function StrengthRedirect() {
 function PublicRoute({ path }: { path: string }) {
   const { userId } = useSession()
   useEffect(finishPrerenderHandOff, [])
-  const Content = publicPageContent()
+  // Chosen once per mount: switching from the lazy wrapper to the loaded component would remount the page.
+  const [Content] = useState(publicPageContent)
   return <Suspense fallback={<Spinner />}><Content path={path} signedIn={userId !== null} /></Suspense>
 }
 

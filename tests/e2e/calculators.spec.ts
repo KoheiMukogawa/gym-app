@@ -12,7 +12,9 @@ test('a visitor finds the calculators from the introduction, gets a result, and 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 
   await page.getByRole('contentinfo').getByRole('link', { name: 'DOTS計算' }).click()
-  await page.getByLabel('体重').fill('80')
+  // Wait for the DOTS page: the 1RM page also has a field whose label contains 体重.
+  await expect(page.getByRole('heading', { level: 1, name: 'DOTS計算' })).toBeVisible()
+  await page.getByLabel('体重', { exact: true }).fill('80')
   await page.getByLabel('BIG3トータル').fill('500')
   await expect(page.locator('dt', { hasText: /^DOTS$/ }).locator('+ dd')).toHaveText('344.8')
   await page.getByRole('link', { name: '無料でGlogに記録する' }).click()
