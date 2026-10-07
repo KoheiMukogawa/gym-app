@@ -28,6 +28,7 @@ const PrivacyPage = lazy(() => import('./features/legal/LegalPages').then((m) =>
 const DeleteAccountPage = lazy(() => import('./features/account/DeleteAccountPage').then((m) => ({ default: m.DeleteAccountPage })))
 const FeedbackPage = lazy(() => import('./features/feedback/FeedbackPage').then((m) => ({ default: m.FeedbackPage })))
 const AdminFeedbackPage = lazy(() => import('./features/feedback/AdminFeedbackPage').then((m) => ({ default: m.AdminFeedbackPage })))
+const StartingBestsPage = lazy(() => import('./features/strength/StartingBestsPage').then((m) => ({ default: m.StartingBestsPage })))
 const UsagePage = lazy(() => import('./features/admin/UsagePage').then((m) => ({ default: m.UsagePage })))
 
 // 以前のBIG3のURL（/strength?view=...）は /big3 に移した。
@@ -62,6 +63,7 @@ export default function App() {
               <Route element={<AppShell />}>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/big3" element={<Big3Page />} />
+                <Route path="/big3/start" element={<StartingBestsPage />} />
                 <Route path="/ranking" element={<RankingPage />} />
                 <Route path="/log" element={null} />
                 <Route path="/profile" element={<ProfilePage />} />
