@@ -89,11 +89,13 @@ test('long strength history is zoomed with two fingers and moved with one', asyn
     await expect(page.getByText(/^\d{4}-\d{2}-\d{2} の記録$/)).toBeVisible({ timeout: 1500 })
   }).toPass({ timeout: 15_000 })
 
-  // ダブルタップで全期間に戻る。
-  await page.waitForTimeout(600)
-  await touch(page, [[{ x: cx, y: cy }]])
-  await touch(page, [[{ x: cx, y: cy }]])
-  await expect(page.getByRole('button', { name: '全期間' })).toHaveCount(0)
+  // ダブルタップで全期間に戻る。Under load the two taps can land more than 300ms apart; retry the pair.
+  await expect(async () => {
+    await page.waitForTimeout(600)
+    await touch(page, [[{ x: cx, y: cy }]])
+    await touch(page, [[{ x: cx, y: cy }]])
+    await expect(page.getByRole('button', { name: '全期間' })).toHaveCount(0, { timeout: 1500 })
+  }).toPass({ timeout: 15_000 })
   expect(await shownRange(page)).toBe(whole)
 
   for (const width of [320, 390]) {

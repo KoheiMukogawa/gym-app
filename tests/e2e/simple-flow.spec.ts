@@ -1091,3 +1091,34 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(errors).toEqual([])
 })
+
+test('a new user starts from BIG3 bests entered on home and sees them in BIG3', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: '前のアプリから乗り換え？' })).toBeVisible()
+  const start = page.getByRole('link', { name: 'ベストを入れて始める' })
+  expect((await start.boundingBox())!.height).toBeGreaterThanOrEqual(56)
+  await start.click()
+
+  await page.getByLabel('スクワットの重量').fill('140')
+  await page.getByLabel('ベンチプレスの重量').fill('100')
+  await page.getByLabel('ベンチプレスの回数').fill('5')
+  await expect(page.getByText('2種目の合計')).toBeVisible()
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+  await page.getByRole('button', { name: 'BIG3を登録' }).click()
+
+  await expect(page).toHaveURL(/\/big3$/)
+  // BIG3 shows each lift's estimate (the total appears only once all three lifts exist).
+  const score = page.getByRole('region', { name: 'Big3スコア' })
+  await expect(score).toContainText('スクワット140kg')
+  await expect(score).toContainText('ベンチプレス112.5kg')
+  expect(data.sets.map((s) => [s.exercise_id, s.weight_kg, s.reps, s.set_index]).sort()).toEqual([['bench', 100, 5, 1], ['squat', 140, 1, 1]])
+  expect(data.workouts).toHaveLength(1)
+
+  await page.getByRole('navigation', { name: 'メイン' }).getByRole('link', { name: 'ホーム', exact: true }).click()
+  await expect(page.getByRole('region', { name: '今月のトレーニング' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '前のアプリから乗り換え？' })).toHaveCount(0)
+})
