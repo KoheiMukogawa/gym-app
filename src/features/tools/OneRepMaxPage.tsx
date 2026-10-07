@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { track } from '../../lib/analytics'
+import { parseNumber } from '../../lib/numbers'
 import { prerenderedField } from '../../lib/prerendered'
 import { estimateOneRepMax, MAX_E1RM_REPS } from '../../lib/strength'
 import { percentageTable } from './oneRepMaxTable'
-import { FaqSection, formatKg, NumberField, parseNumber, PublicLayout, SaveCta, UpdatedOn } from './PublicLayout'
+import { FaqSection, formatKg, NumberField, PublicLayout, SaveCta, UpdatedOn } from './PublicLayout'
 import { ONE_RM_FAQ, publicPage } from './pages'
 
 const page = publicPage('/calculators/1rm')!

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { track } from '../../lib/analytics'
+import { parseNumber } from '../../lib/numbers'
 import { prerenderedField } from '../../lib/prerendered'
 import { DOTS_LEVELS, dotsLevel, dotsScore, type DotsFormula } from '../../lib/dots'
-import { FaqSection, NumberField, parseNumber, PublicLayout, SaveCta, UpdatedOn } from './PublicLayout'
+import { FaqSection, NumberField, PublicLayout, SaveCta, UpdatedOn } from './PublicLayout'
 import { DOTS_FAQ, publicPage } from './pages'
 
 const page = publicPage('/calculators/dots')!

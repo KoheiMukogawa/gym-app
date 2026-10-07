@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { setAnalyticsSink } from '../../lib/analytics'
 import { percentageTable } from './oneRepMaxTable'
 import { PUBLIC_PAGES, structuredData } from './pages'
-import { parseNumber } from './PublicLayout'
+import { parseNumber } from '../../lib/numbers'
 import { PublicPageContent } from './PublicPages'
 import vercelJson from '../../../vercel.json?raw'
 
