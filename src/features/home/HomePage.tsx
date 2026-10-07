@@ -15,6 +15,7 @@ import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
 import { currentGoal } from '../strength/currentGoal'
 import { fetchStrengthGoals, fetchStrengthSnapshot, type StrengthGoal, type StrengthSnapshot } from '../strength/queries'
 import { StartTrainingCard } from '../workout-log/StartTrainingCard'
+import { StartingBestsCard } from './StartingBestsCard'
 
 // BIG3画面のリングと同じ濃淡で、スクワット→ベンチ→デッドを見分けられるようにする
 const LIFTS = [
@@ -102,6 +103,8 @@ export function HomePage() {
           : snapshot ? <Big3Column snapshot={snapshot} goal={goal} /> : <Spinner />}
       </section>
     </div>
+
+    <StartingBestsCard snapshot={strengthError ? null : snapshot} />
 
     <section aria-label="今日のトレーニング" className="space-y-2">
       <h2 className="text-sm font-semibold">今日のトレーニング</h2>
