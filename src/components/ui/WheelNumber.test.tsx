@@ -12,6 +12,39 @@ function Controlled({ initial = 80, label = '重量', unit = 'kg', min = 0, form
 }
 
 describe('WheelNumber', () => {
+  it('only notifies once per crossed value and does not snap while held', () => {
+    vi.useFakeTimers()
+    try {
+      const onEnter = vi.fn()
+      render(<WheelNumber label="重量" value={80} unit="kg" onEnter={onEnter} />)
+      const wheel = screen.getByLabelText('重量をスクロールで選択')
+      fireEvent.pointerDown(wheel)
+      fireEvent.scroll(wheel, { target: { scrollTop: 33 * 56 + 5 } })
+      fireEvent.scroll(wheel, { target: { scrollTop: 33 * 56 + 8 } })
+      expect(onEnter).toHaveBeenCalledTimes(1)
+      expect(onEnter).toHaveBeenCalledWith(82.5)
+      act(() => vi.advanceTimersByTime(500))
+      expect(wheel.scrollTop).toBe(33 * 56 + 8)
+      fireEvent.pointerUp(wheel)
+      act(() => vi.advanceTimersByTime(200))
+      expect(wheel.scrollTop).toBe(33 * 56)
+    } finally { vi.useRealTimers() }
+  })
+
+  it('provides precise steps from custom values and clamps at the minimum', () => {
+    const view = render(<Controlled initial={82.3} />)
+    fireEvent.click(screen.getByRole('button', { name: '重量を増やす' }))
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '84.8')
+    fireEvent.click(screen.getByRole('button', { name: '重量を減らす' }))
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '82.3')
+    view.unmount()
+    render(<Controlled initial={1} label="回数" unit="回" min={0} />)
+    fireEvent.click(screen.getByRole('button', { name: '回数を減らす' }))
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '0')
+    expect(screen.getByRole('button', { name: '回数を減らす' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '回数を増やす' }))
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '1')
+  })
   it('uses the dial alone and supports keyboard adjustment', () => {
     render(<Controlled />)
     expect(screen.queryByRole('spinbutton', { name: '重量' })).toHaveAttribute('aria-valuenow', '80')
@@ -102,6 +135,7 @@ describe('WheelNumber', () => {
       fireEvent.pointerDown(wheel)
       fireEvent.scroll(wheel, { target: { scrollTop: 10 * 56 } })
       rerender(<WheelNumber label="回数" value={6} unit="回" onEnter={vi.fn()} />)
+      fireEvent.pointerUp(wheel)
       act(() => vi.advanceTimersByTime(250))
       expect(wheel.scrollTop).toBe(5 * 56)
       expect(screen.getByRole('button', { name: '回数を直接入力' })).toHaveTextContent('6')
