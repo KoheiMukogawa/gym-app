@@ -49,13 +49,18 @@ export function SetList({ sets, activeExerciseId, exerciseNames, status, onDelet
               aria-controls={editingId === s.id ? `set-memo-${s.id}` : undefined}
               aria-label={`${exerciseNames[id] ?? '種目'} ${i + 1}set ${load} × ${s.reps}回のメモ${s.note ? `: ${s.note}` : 'を追加'}`}
               onClick={() => onEditNote?.(s.id)}
-              className="flex min-h-12 flex-1 flex-wrap items-center justify-between gap-x-2 text-left disabled:cursor-default">
+              className="grid min-h-14 min-w-0 w-full grid-cols-[2rem_minmax(0,1fr)_5rem] items-center gap-x-2 text-left disabled:cursor-default">
               <span className="text-sm text-muted">{i + 1}set</span>
-              <span className="text-lg font-semibold tabular-nums">{bodyweightIds.includes(id)
-                ? <>{formatAddedLoad(s.weight_kg)}<span className="text-xs font-normal text-muted"> × </span></>
-                : <>{s.weight_kg}<span className="text-xs font-normal text-muted"> kg × </span></>}{s.reps}<span className="text-xs font-normal text-muted"> 回</span></span>
-              {e1rm !== null && <span className="text-xs text-muted tabular-nums">推定1RM {e1rm}</span>}
-              {s.note && <span className="w-full whitespace-pre-wrap break-words text-xs text-muted">{s.note}</span>}
+              <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,0.65fr)] items-baseline gap-x-1 text-lg font-semibold tabular-nums">
+                <span className="text-right break-words">{bodyweightIds.includes(id) ? formatAddedLoad(s.weight_kg) : <>{s.weight_kg}<span className="text-xs font-normal text-muted"> kg</span></>}</span>
+                <span className="text-xs font-normal text-muted">×</span>
+                <span>{s.reps}<span className="text-xs font-normal text-muted"> 回</span></span>
+              </span>
+              <span className="text-right text-xs text-muted tabular-nums">
+                <span className="block">推定1RM {e1rm ?? '—'}</span>
+                {e1rm === null && <span className="block text-[10px]">{s.reps > 10 ? '1〜10回が対象' : s.reps < 1 ? '0回は対象外' : setLoad === null ? '体重未設定' : '重量が対象外'}</span>}
+              </span>
+              {s.note && <span className="col-span-3 w-full whitespace-pre-wrap break-words text-xs text-muted">{s.note}</span>}
             </button>
             {st === 'failed' && <button type="button" onClick={() => onRetry(s.id)} className="min-h-14 text-xs text-accent">未保存・再試行</button>}
             {editingId === s.id && onSaveNote && onCloseNote && <div id={`set-memo-${s.id}`} className="w-full px-1 pb-1">

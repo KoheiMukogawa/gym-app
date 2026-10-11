@@ -1,6 +1,31 @@
 import { expect, test, type Page, type Locator } from '@playwright/test'
 import { enterWheelValue } from './wheel'
 
+test('set columns stay aligned when RM values differ or are unavailable', async ({ page }) => {
+  await mockApi(page)
+  await page.goto('/log')
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  for (const reps of [10, 9, 14]) {
+    await enterWheelValue(page, '重量', '80')
+    await enterWheelValue(page, '回数', String(reps))
+    await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  }
+  await expect(page.getByText('1〜10回が対象', { exact: true })).toBeVisible()
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    const rows = page.getByRole('button', { name: /ベンチプレス .*set .*のメモ/ })
+    await expect(rows).toHaveCount(3)
+    const positions = await rows.evaluateAll(elements => elements.map(el => {
+      const cells = el.children
+      return [cells[1].getBoundingClientRect().left, cells[2].getBoundingClientRect().left]
+    }))
+    expect(positions[0]).toEqual(positions[1])
+    expect(positions[1]).toEqual(positions[2])
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+    await page.screenshot({ path: `test-results/set-columns-${width}.png`, fullPage: true })
+  }
+})
+
 test('failed screen download keeps navigation available', async ({ page }) => {
   await mockApi(page)
   await page.goto('/log')
@@ -546,6 +571,16 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await page.screenshot({ path: 'test-results/history-editor-mobile.png', fullPage: true })
   await page.reload()
   await expect(page.getByLabel('トレーニング日')).toHaveValue('2020-02-04')
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    const field = page.getByLabel('トレーニング日')
+    await expect(field.locator('..')).toContainText('2020/2/4')
+    const box = (await field.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(width)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+    await page.screenshot({ path: `test-results/history-date-${width}.png` })
+  }
   await page.getByRole('button', { name: '完了', exact: true }).click()
   await expect(page.getByRole('heading', { name: '2020年2月' })).toBeVisible()
   await expect(page.getByRole('link', { name: '編集', exact: true })).toHaveCount(1)
