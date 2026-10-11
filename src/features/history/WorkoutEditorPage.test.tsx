@@ -39,6 +39,33 @@ beforeEach(() => {
   api.saveEditableSet.mockResolvedValue(undefined)
 })
 describe('WorkoutEditorPage', () => {
+  it('adds inside an exercise card, retaining drafts across exercises and failed saves', async () => {
+    api.fetchExercises.mockResolvedValue([EXERCISE, { ...EXERCISE, id: 'row', name: 'シーテッドロウ' }])
+    api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET,
+      { ...SET, id: 's2', set_index: 2, weight_kg: 85, reps: 5 },
+      { ...SET, id: 'r1', exercise_id: 'row', weight_kg: 60, reps: 12 },
+    ] })
+    api.saveEditableSet.mockRejectedValueOnce(new Error('network')).mockResolvedValue(undefined)
+    const user = setup()
+    await user.click(await screen.findByRole('button', { name: 'ベンチプレスにセットを追加' }))
+    const card = screen.getByRole('heading', { name: 'ベンチプレス' }).closest('section')!
+    expect(within(card).getByLabelText('重量（kg）')).toHaveValue(85)
+    expect(within(card).getByLabelText('回数')).toHaveValue(5)
+    expect(screen.queryByRole('region', { name: 'セット入力' })).not.toBeInTheDocument()
+    await user.clear(screen.getByLabelText('重量（kg）'))
+    await user.type(screen.getByLabelText('重量（kg）'), '87.5')
+    await user.click(screen.getByRole('button', { name: 'シーテッドロウにセットを追加' }))
+    expect(screen.getByLabelText('重量（kg）')).toHaveValue(60)
+    await user.click(screen.getByRole('button', { name: 'ベンチプレスにセットを追加' }))
+    expect(screen.getByLabelText('重量（kg）')).toHaveValue(87.5)
+    await user.click(screen.getByRole('button', { name: 'セットを追加' }))
+    expect(await screen.findByRole('alert')).toBeVisible()
+    expect(screen.getByLabelText('重量（kg）')).toHaveValue(87.5)
+    await user.click(screen.getByRole('button', { name: 'セットを追加' }))
+    await waitFor(() => expect(api.saveEditableSet).toHaveBeenLastCalledWith('w1', expect.objectContaining({ exercise_id: 'bench', set_index: 3, weight_kg: 87.5, reps: 5 }), 0))
+    expect(api.updateWorkoutSet).not.toHaveBeenCalled()
+    expect(api.createDatedWorkout).not.toHaveBeenCalled()
+  })
   it('switches directly between sets and retains each unsaved input', async () => {
     api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET, { ...SET, id: 's2', weight_kg: 60, set_index: 2 }] })
     const user = setup()

@@ -1,6 +1,35 @@
 import { expect, test, type Page, type Locator } from '@playwright/test'
 import { enterWheelValue } from './wheel'
 
+test('continues a finished workout from the exercise card', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.goto('/log')
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await enterWheelValue(page, '重量', '80')
+  await enterWheelValue(page, '回数', '5')
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets.length).toBe(1)
+  await page.getByRole('button', { name: '記録を終了', exact: true }).click()
+  await page.getByRole('link', { name: '今日の記録を編集' }).click()
+  await page.getByRole('button', { name: 'ベンチプレスにセットを追加', exact: true }).click()
+  const card = page.locator('section').filter({ has: page.getByRole('heading', { name: 'ベンチプレス', exact: true }) }).last()
+  await expect(card.getByLabel('重量（kg）')).toHaveValue('80')
+  await expect(card.getByLabel('回数', { exact: true })).toHaveValue('5')
+  await expect(page.getByRole('region', { name: 'セット入力' })).toHaveCount(0)
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    await card.getByLabel('重量（kg）').scrollIntoViewIfNeeded()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+    await page.screenshot({ path: `test-results/inline-add-${width}.png` })
+  }
+  await card.getByLabel('重量（kg）').fill('82.5')
+  await card.getByRole('button', { name: 'セットを追加', exact: true }).click()
+  await expect.poll(() => data.sets.length).toBe(2)
+  expect(data.sets[1]).toMatchObject({ exercise_id: 'bench', weight_kg: 82.5, reps: 5, set_index: 2, workout_id: data.sets[0].workout_id })
+  await page.reload()
+  await expect(page.getByRole('button', { name: /ベンチプレス 82.5kg 5回を編集/ })).toBeVisible()
+})
+
 test('set columns stay aligned when RM values differ or are unavailable', async ({ page }) => {
   await mockApi(page)
   await page.goto('/log')
