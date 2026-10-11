@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
-import { fetchUsageStats, formatWeek } from './usageQueries'
+import { fetchGrowthStats, fetchUsageStats, formatRate, formatWeek, perPerson } from './usageQueries'
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -18,4 +18,13 @@ it('throws the RPC error', async () => {
 it('formats a week start as month/day', () => {
   expect(formatWeek('2026-10-05')).toBe('10/5')
   expect(formatWeek('2026-01-12')).toBe('1/12')
+})
+it('reads the growth stats and formats rates', async () => {
+  rpc.mockResolvedValue({ data: { weekly_active_lifters: 1 }, error: null })
+  await expect(fetchGrowthStats()).resolves.toEqual({ weekly_active_lifters: 1 })
+  expect(rpc).toHaveBeenCalledWith('admin_growth_stats')
+  expect(formatRate({ eligible: 3, retained: 1 })).toBe('1/3人（33%）')
+  expect(formatRate({ eligible: 0, retained: 0 })).toBe('—')
+  expect(perPerson(7, 2)).toBe('3.5')
+  expect(perPerson(7, 0)).toBe('—')
 })

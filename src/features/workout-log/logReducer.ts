@@ -50,7 +50,7 @@ export function logReducer(state: LogState, action: LogAction): LogState {
         ...state,
         currentExerciseId: action.exerciseId,
         weight_kg: weight,
-        reps: bestReps(state, action, action.exerciseId, weight) ?? base?.reps ?? DEFAULT_REPS,
+        reps: bestReps(state, action, action.exerciseId, weight) ?? liftedReps(state, action.exerciseId, action.prefill),
       }
     }
     case 'adjust-weight':
@@ -71,7 +71,9 @@ export function logReducer(state: LogState, action: LogAction): LogState {
     case 'complete-set': {
       const set = nextSet(state, action.id, action.note)
       if (set === null) return state
-      return { ...state, sets: [...state.sets, set] }
+      const sets = [...state.sets, set]
+      // つぶれたセット（0回）の次は、0回から始めず直前に挙げられた回数に戻す
+      return set.reps === 0 ? { ...state, sets, reps: liftedReps({ ...state, sets }, set.exercise_id, null) } : { ...state, sets }
     }
     case 'set-note': {
       return { ...state, sets: state.sets.map((s) => (s.id === action.id ? { ...s, note: action.note } : s)) }
@@ -81,6 +83,12 @@ export function logReducer(state: LogState, action: LogAction): LogState {
     case 'load-sets':
       return { ...state, sets: action.sets }
   }
+}
+
+/** この場で最後に挙げられたセット、なければ前回値の回数。どちらも0回は使わない。 */
+function liftedReps(state: LogState, exerciseId: string, prefill: { reps: number } | null): number {
+  const lifted = state.sets.filter((s) => s.exercise_id === exerciseId && s.reps > 0)
+  return lifted[lifted.length - 1]?.reps ?? (prefill && prefill.reps > 0 ? prefill.reps : DEFAULT_REPS)
 }
 
 /** 過去の履歴と、この場で記録したセットの両方から、その重量で狙う回数を決める。 */

@@ -15,11 +15,15 @@ describe('workout dates and numbers', () => {
   it.each(['', '2020-02-31', '2099-01-01', 'invalid'])('rejects invalid or future dates: %s', (date) => {
     expect(() => workoutDateISO(date)).toThrow()
   })
-  it.each([[NaN, 8], [-1, 8], [10000, 8], [20.12, 8], [20, 0], [20, 1.5], [20, Infinity]])('rejects invalid set values %s / %s', (weight, reps) => {
+  it.each([[NaN, 8], [-1, 8], [10000, 8], [20.12, 8], [20, -1], [20, 1.5], [20, Infinity]])('rejects invalid set values %s / %s', (weight, reps) => {
     expect(() => validateSet(weight, reps)).toThrow()
   })
   it('accepts bodyweight and fractional kilograms', () => {
     expect(() => validateSet(0, 10)).not.toThrow()
     expect(() => validateSet(62.5, 8)).not.toThrow()
+  })
+  it('accepts a failed set with zero reps', () => {
+    expect(() => validateSet(140, 0)).not.toThrow()
+    expect(() => validateSet(140, -1)).toThrow('回数は0〜9999の整数で入力してください')
   })
 })

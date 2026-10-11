@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { track } from '../../lib/analytics'
+import { rememberFirstTouch } from '../../lib/attribution'
 import { LandingPreview } from './LandingPreview'
 import './LandingPage.css'
 
@@ -9,6 +12,7 @@ const features = [
 ]
 
 const questions = [
+  ['今使っているアプリの記録は移せますか？', '自動で取り込む機能はありません。BIG3のベストを入れれば、今日から推定1RMやランキングが使えます。残したい日の記録は、履歴の画面で日付を選んで入力できます。'],
   ['アプリのインストールは必要ですか？', 'ブラウザーからそのまま使えます。スマートフォンのホーム画面に追加すれば、アイコンからGlogを開けます。PCからも同じアカウントで使えます。'],
   ['BIG3以外の種目も記録できますか？', '部位から種目を選んで記録できます。リストにない種目は自分用に追加でき、いつものメニューはルーティンとして保存できます。'],
   ['ランキングに参加しなくても使えますか？', 'はい。記録やグラフは、参加せずに使えます。コミュニティ・全体・DOTSの参加を選べます。公開する情報は参加画面で確認でき、参加設定はあとから変更できます。'],
@@ -16,6 +20,10 @@ const questions = [
 ]
 
 export function LandingPage() {
+  useEffect(() => {
+    rememberFirstTouch('landing')
+    track({ name: 'landing_view' })
+  }, [])
   return <main className="landing-page">
     <header className="landing-header landing-container">
       <Link to="/" className="landing-brand" aria-label="Glog トップへ">Glog<span>筋トレ記録</span></Link>
@@ -28,10 +36,10 @@ export function LandingPage() {
     <section className="landing-hero landing-container" aria-labelledby="landing-title">
       <div className="landing-hero-copy">
         <p className="landing-eyebrow"><span aria-hidden="true" />記録を、振り返りと次の一歩へ。</p>
-        <h1 id="landing-title">その記録を、<br /><span>次の成長につなげる。</span></h1>
-        <p className="landing-lead">グラフで伸びを確かめ、AIに相談する。<br />仲間とのランキングで、続ける力に。<br />記録したその先まで、Glog。</p>
+        <h1 id="landing-title">その記録、<br /><span>もっと活かせる。</span></h1>
+        <p className="landing-lead">今のアプリから乗り換えても、<br />BIG3のベストを入れるだけ。<br />今日から推定1RM・グラフ・ランキング。</p>
         <Link to="/signup" className="landing-cta">アカウントを作って始める<span aria-hidden="true">→</span></Link>
-        <p className="landing-start-note">スマホ・PC対応 / ホーム画面から起動</p>
+        <p className="landing-start-note">ほかのアプリからの乗り換えも、1分で<br />スマホ・PC対応 / ホーム画面から起動</p>
       </div>
       <LandingPreview />
     </section>
@@ -71,14 +79,15 @@ export function LandingPage() {
     </section>
 
     <section className="landing-start landing-container" aria-labelledby="start-title">
-      <div className="landing-section-heading"><p className="landing-eyebrow">始めるのは、シンプル</p><h2 id="start-title">次のトレーニングから。</h2></div>
+      <div className="landing-section-heading"><p className="landing-eyebrow">今のアプリから、Glogへ</p><h2 id="start-title">乗り換えは、1分で。</h2></div>
       <ol className="landing-steps">
         {[
-          ['プロフィールを作る', '名前・メールアドレス・パスワードを登録。'],
-          ['種目を選ぶ', '部位から選ぶ。いつものメニューも保存できます。'],
-          ['最初のセットを残す', '重量と回数を選んで完了。メモはあとから。'],
+          ['アカウントを作る', '名前・メールアドレス・パスワードを登録。'],
+          ['BIG3のベストを入れる', '重量×回数でOK。過去の履歴を全部移す必要はありません。'],
+          ['今日から推定1RM・合計・ランキング', '続きはGlogで記録。伸びがグラフで見えます。'],
         ].map(([title, text], index) => <li key={title}><span className="landing-step-number">{index + 1}</span><div><h3>{title}</h3><p>{text}</p></div></li>)}
       </ol>
+      <p className="landing-switch-note">今のアプリの記録を自動で取り込む機能はありません。記録はこれから、という方は最初のセットから始められます。</p>
     </section>
 
     <section className="landing-faq landing-container" aria-labelledby="faq-title">
@@ -97,6 +106,7 @@ export function LandingPage() {
 
     <footer className="landing-footer landing-container">
       <span className="landing-footer-brand">Glog<span>あなたのトレーニングを、あなたの記録に。</span></span>
+      <nav aria-label="計算ツール"><Link to="/calculators/1rm">1RM計算</Link><Link to="/calculators/dots">DOTS計算</Link></nav>
       <nav aria-label="規約"><Link to="/terms">利用規約</Link><Link to="/privacy">プライバシーポリシー</Link></nav>
     </footer>
   </main>

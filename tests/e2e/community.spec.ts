@@ -44,6 +44,8 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByLabel('メールアドレス').fill('test@example.com')
   await page.getByLabel('パスワード').fill('mock-password')
   await page.getByRole('button',{name:'ログイン',exact:true}).click()
+  // Navigating before the session is saved lands back on the login page.
+  await expect(page).not.toHaveURL(/\/login/)
   await page.goto('/strength?view=ranking')
   await expect(page.getByRole('heading',{name:'ランキング',exact:true})).toBeVisible()
   await expect(page.getByRole('button',{name:'全体',exact:true})).toHaveAttribute('aria-pressed','true')

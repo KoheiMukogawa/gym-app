@@ -4,7 +4,8 @@ import { bestEstimatedOneRepMax, estimateOneRepMax, estimateRepsAt } from './str
 
 export const WEIGHT_STEP = 2.5
 export const MIN_WEIGHT = 0
-export const MIN_REPS = 1
+// 0回はつぶれたセット（失敗試技）。記録はするが、重量・回数の目安や最高重量には使わない。
+export const MIN_REPS = 0
 export const DEFAULT_WEIGHT = 20
 export const DEFAULT_REPS = 10
 
@@ -17,9 +18,10 @@ export function totalVolume(sets: Pick<WorkoutSet, 'weight_kg' | 'reps'>[]): num
   return sets.reduce((sum, s) => sum + s.weight_kg * s.reps, 0)
 }
 
-export function personalBest(sets: Pick<WorkoutSet, 'weight_kg'>[]): number | null {
-  if (sets.length === 0) return null
-  return sets.reduce((max, s) => (s.weight_kg > max ? s.weight_kg : max), sets[0].weight_kg)
+export function personalBest(sets: Pick<WorkoutSet, 'weight_kg' | 'reps'>[]): number | null {
+  const lifted = sets.filter((s) => s.reps > 0)
+  if (lifted.length === 0) return null
+  return lifted.reduce((max, s) => (s.weight_kg > max ? s.weight_kg : max), lifted[0].weight_kg)
 }
 
 /**
@@ -30,7 +32,7 @@ export function findPrefill(
   history: Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[],
   exerciseId: string,
 ): { weight_kg: number; reps: number } | null {
-  const hit = history.find((s) => s.exercise_id === exerciseId)
+  const hit = history.find((s) => s.exercise_id === exerciseId && s.reps > 0)
   if (!hit) return null
   return { weight_kg: hit.weight_kg, reps: hit.reps }
 }
@@ -46,7 +48,7 @@ export function maxRepsAt(
 ): number | null {
   let best: number | null = null
   for (const set of history) {
-    if (set.exercise_id !== exerciseId) continue
+    if (set.exercise_id !== exerciseId || set.reps === 0) continue
     // numeric(5,1) 同士なので誤差は出ないが、浮動小数の比較として安全側に倒す
     if (Math.abs(set.weight_kg - weightKg) > 1e-9) continue
     if (best === null || set.reps > best) best = set.reps
@@ -69,7 +71,7 @@ function repCurve(
 ): RepPoint[] {
   const best = new Map<number, number>()
   for (const set of history) {
-    if (set.exercise_id !== exerciseId) continue
+    if (set.exercise_id !== exerciseId || set.reps === 0) continue
     const weight = set.weight_kg + loadOffset
     const current = best.get(weight)
     if (current === undefined || set.reps > current) best.set(weight, set.reps)
@@ -141,6 +143,7 @@ export function suggestReps(
 export function maxWeightByDate(sets: SetWithDate[]): { date: string; max_weight: number }[] {
   const byDate = new Map<string, number>()
   for (const s of sets) {
+    if (s.reps === 0) continue
     const date = s.performed_at.slice(0, 10)
     const current = byDate.get(date)
     if (current === undefined || s.weight_kg > current) {

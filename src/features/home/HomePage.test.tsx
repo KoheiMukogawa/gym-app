@@ -35,6 +35,23 @@ beforeEach(() => {
 })
 
 describe('HomePage', () => {
+  it('does not offer the starting bests while the BIG3 data failed to load', async () => {
+    fetchMonthWorkouts.mockResolvedValue([])
+    fetchStrengthSnapshot.mockRejectedValue(new Error('network'))
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    // toMessage shows a generic message for an unexpected Error.
+    expect(await screen.findByText('エラーが発生しました。もう一度お試しください。')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '前のアプリから乗り換え？' })).not.toBeInTheDocument()
+  })
+
+  it('offers the starting bests to someone with no BIG3 record', async () => {
+    localStorage.clear()
+    fetchMonthWorkouts.mockResolvedValue([])
+    fetchStrengthSnapshot.mockResolvedValue(buildStrengthSnapshot([...EXERCISES], [], []))
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    expect(await screen.findByRole('heading', { name: '前のアプリから乗り換え？' })).toBeInTheDocument()
+  })
+
   it('shows the calendar with BIG3 beside it, the add button and today\'s sets numbered with RM', async () => {
     const today = new Date().getDate()
     // On the 1st there is no earlier day this month, so only today's workout exists.

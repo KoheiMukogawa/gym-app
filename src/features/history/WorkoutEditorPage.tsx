@@ -15,6 +15,7 @@ import { loadDraft, clearDraft } from '../workout-log/persistence'
 import { deleteWorkoutIfEmpty } from '../workout-log/queries'
 import { SwipeRow } from '../../components/SwipeRow'
 import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
+import { BottomInputDock } from '../../components/ui/BottomInputDock'
 import { bodyweightOn, formatAddedLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
 import { createDatedWorkout, fetchEditableWorkout, findWorkoutOnDate, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutDate, updateWorkoutSet } from './editorQueries'
@@ -94,9 +95,11 @@ export function WorkoutEditorPage() {
   }
   function choose(exercise: Exercise) {
     const previous = [...sets].reverse().find((s) => s.exercise_id === exercise.id)
+    // つぶれたセット（0回）の回数は引き継がない
+    const lifted = [...sets].reverse().find((s) => s.exercise_id === exercise.id && s.reps > 0)
     setEntry((old) => old ? { ...old, exercise_id: exercise.id } : {
       id: crypto.randomUUID(), exercise_id: exercise.id,
-      weight: String(previous?.weight_kg ?? 20), reps: String(previous?.reps ?? 10), note: '', existing: false,
+      weight: String(previous?.weight_kg ?? 20), reps: String(lifted?.reps ?? 10), note: '', existing: false,
     })
     setPicking(false)
     setError(null)
@@ -185,6 +188,11 @@ export function WorkoutEditorPage() {
     })
   }
 
+  function cancelEntry() {
+    if (entry) delete drafts.current[entry.id]
+    setEntry(null); setPicking(false); setError(null)
+  }
+
   if (loading) return <Spinner />
   if (loadError) return <div className="space-y-4 p-4"><p role="alert">{loadError}</p><Button onClick={() => void load()}>再試行</Button></div>
   if (notFound) return <div className="p-4"><p role="alert">この記録は見つからないか、編集できません。</p><Link className="flex min-h-14 items-center text-accent" to="/history">履歴へ戻る</Link></div>
@@ -216,7 +224,7 @@ export function WorkoutEditorPage() {
           })}>日付の変更を保存</Button>
         )}
       </section>}
-      {error && <p role="alert" className="px-4 text-sm text-accent">{error}</p>}
+      {error && !(entry && !picking) && <p role="alert" className="px-4 text-sm text-accent">{error}</p>}
       <section className="flex flex-col gap-3 px-4" aria-label="保存済みのセット">
         {groups.map((group) => (
           <section key={group.id} className="rounded-xl border border-border bg-surface p-4">
@@ -248,9 +256,11 @@ export function WorkoutEditorPage() {
           setEntry(draft); setPicking(false); setError(null)
         }}>{names[draft.exercise_id]}の追加を続ける（未保存）</button>)}
       {picking && <ExercisePicker exercises={exercises} recentIds={[...new Set([...sets].reverse().map((s) => s.exercise_id))]} userId={userId} onSelect={choose} onCreate={create} />}
-      {entry && !picking && (
-        <form className="mx-4 space-y-4 rounded-2xl border border-accent/40 bg-surface p-4"
+      {/* 記録画面と同じく、入力欄は画面下部に固定し、セット一覧はその上でスクロールする */}
+      {entry && !picking && <BottomInputDock>
+        <form className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4"
           onSubmit={(e) => { e.preventDefault(); void saveEntry() }}>
+          {error && <p role="alert" className="text-sm text-accent">{error}</p>}
           <button type="button" disabled={busy} onClick={() => setPicking(true)} className="min-h-14 w-full text-left font-semibold">
             {names[entry.exercise_id]} <span className="text-xs font-normal text-muted">種目を変更</span>
           </button>
@@ -260,7 +270,7 @@ export function WorkoutEditorPage() {
                 value={entry.weight} onChange={(e) => setEntry({ ...entry, weight: e.target.value })} className={fieldClass} />
             </label>
             <label className="flex flex-col gap-2 text-sm text-muted">回数
-              <input type="number" inputMode="numeric" min="1" max="9999" step="1" required disabled={busy}
+              <input type="number" inputMode="numeric" min="0" max="9999" step="1" required disabled={busy}
                 value={entry.reps} onChange={(e) => setEntry({ ...entry, reps: e.target.value })} className={fieldClass} />
             </label>
           </div>
@@ -269,12 +279,14 @@ export function WorkoutEditorPage() {
               onChange={(e) => setEntry({ ...entry, note: e.target.value })} className="min-h-14 w-full rounded-xl border border-border bg-bg px-3 py-4 text-fg" />
           </label>
           {entryIsBodyweight && <p className="text-xs text-muted">{minWeightFor(entry.exercise_id) < 0 ? '自重のみは0、加重はプラス、アシストはマイナスで入力します。' : '自重のみは0、加重はプラスで入力します。体重を記録するとアシスト（マイナス）も入力できます。'}</p>}
-          <Button type="submit" disabled={busy}>{busy ? '保存中…' : entry.existing ? '変更を保存' : 'セットを追加'}</Button>
+          <div className="flex gap-3">
+            <button type="button" className="min-h-14 shrink-0 px-4 text-sm text-muted" disabled={busy} onClick={cancelEntry}>キャンセル</button>
+            <Button type="submit" disabled={busy}>{busy ? '保存中…' : entry.existing ? '変更を保存' : 'セットを追加'}</Button>
+          </div>
         </form>
-      )}
-      {(entry || picking) ? <button className="mx-4 min-h-14 text-sm text-muted" disabled={busy}
-        onClick={() => { if (entry) delete drafts.current[entry.id]; setEntry(null); setPicking(false); setError(null) }}>キャンセル</button>
-        : <div className="px-4"><Button variant="ghost" onClick={() => setPicking(true)}>＋ セットを追加</Button></div>}
+      </BottomInputDock>}
+      {picking ? <button className="mx-4 min-h-14 text-sm text-muted" disabled={busy} onClick={cancelEntry}>キャンセル</button>
+        : !entry && <div className="px-4"><Button variant="ghost" onClick={() => setPicking(true)}>＋ セットを追加</Button></div>}
       {savedId && <button disabled={busy || !!entry || Object.keys(drafts.current).length > 0} className="mx-4 mt-4 min-h-14 text-sm text-accent"
         onClick={() => { if (window.confirm('この日のトレーニング記録を削除しますか？')) void action(async () => {
           await removeWorkout(userId!, savedId)

@@ -53,3 +53,13 @@ describe('WorkoutCard', () => {
     expect(link).toHaveClass('min-h-14')
   })
 })
+
+describe('WorkoutCard with a failed set', () => {
+  it('leaves zero-rep sets out of the maximum weight', () => {
+    renderCard({ ...ITEM, sets: [
+      { exercise_id: 'bench', exercise_name: 'ベンチプレス', weight_kg: 100, reps: 0 },
+      { exercise_id: 'bench', exercise_name: 'ベンチプレス', weight_kg: 90, reps: 3 },
+    ] })
+    expect(screen.getByText(/2セット \/ 最大 90 kg/)).toBeInTheDocument()
+  })
+})

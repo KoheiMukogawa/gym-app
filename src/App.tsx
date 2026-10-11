@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from './features/auth/SessionProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
@@ -8,6 +8,10 @@ import { AppShell } from './components/AppShell'
 import { ToastProvider } from './components/ui/Toast'
 import { HomePage } from './features/home/HomePage'
 import { Spinner } from './components/ui/Spinner'
+import { useSession } from './features/auth/SessionProvider'
+import { PUBLIC_PAGES } from './features/tools/pages'
+import { publicPageContent } from './features/tools/loadPublicPages'
+import { finishPrerenderHandOff } from './lib/prerendered'
 
 // Screens other than home and recording load on first visit, so charts and
 // rankings do not slow down opening the app. The service worker precaches them.
@@ -24,12 +28,22 @@ const PrivacyPage = lazy(() => import('./features/legal/LegalPages').then((m) =>
 const DeleteAccountPage = lazy(() => import('./features/account/DeleteAccountPage').then((m) => ({ default: m.DeleteAccountPage })))
 const FeedbackPage = lazy(() => import('./features/feedback/FeedbackPage').then((m) => ({ default: m.FeedbackPage })))
 const AdminFeedbackPage = lazy(() => import('./features/feedback/AdminFeedbackPage').then((m) => ({ default: m.AdminFeedbackPage })))
+const StartingBestsPage = lazy(() => import('./features/strength/StartingBestsPage').then((m) => ({ default: m.StartingBestsPage })))
 const UsagePage = lazy(() => import('./features/admin/UsagePage').then((m) => ({ default: m.UsagePage })))
 
 // 以前のBIG3のURL（/strength?view=...）は /big3 に移した。
 function StrengthRedirect() {
   const { search } = useLocation()
   return <Navigate to={{ pathname: '/big3', search }} replace />
+}
+
+// Public, indexable pages. Signed-in people can open them too; the call to action changes.
+function PublicRoute({ path }: { path: string }) {
+  const { userId } = useSession()
+  useEffect(finishPrerenderHandOff, [])
+  // Chosen once per mount: switching from the lazy wrapper to the loaded component would remount the page.
+  const [Content] = useState(publicPageContent)
+  return <Suspense fallback={<Spinner />}><Content path={path} signedIn={userId !== null} /></Suspense>
 }
 
 export default function App() {
@@ -44,10 +58,12 @@ export default function App() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/terms" element={<Suspense fallback={<Spinner />}><TermsPage /></Suspense>} />
             <Route path="/privacy" element={<Suspense fallback={<Spinner />}><PrivacyPage /></Suspense>} />
+            {PUBLIC_PAGES.map((page) => <Route key={page.path} path={page.path} element={<PublicRoute path={page.path} />} />)}
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/big3" element={<Big3Page />} />
+                <Route path="/big3/start" element={<StartingBestsPage />} />
                 <Route path="/ranking" element={<RankingPage />} />
                 <Route path="/log" element={null} />
                 <Route path="/profile" element={<ProfilePage />} />

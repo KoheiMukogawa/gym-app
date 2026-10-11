@@ -12,11 +12,11 @@ type Props = {
 }
 
 export function WheelNumber({ label, value, unit, onEnter, min, format }: Props) {
-  const start = unit === 'kg' ? Math.ceil((min ?? 0) / 2.5) * 2.5 : 1
+  const start = unit === 'kg' ? Math.ceil((min ?? 0) / 2.5) * 2.5 : Math.max(0, min ?? 1)
   const maximum = unit === 'kg' ? 9999.9 : 9999
   const regularValues = useMemo(() => unit === 'kg'
     ? Array.from({ length: Math.round((500 - start) / 2.5) + 1 }, (_, i) => start + i * 2.5)
-    : Array.from({ length: 100 }, (_, i) => i + 1), [unit, start])
+    : Array.from({ length: 101 - start }, (_, i) => i + start), [unit, start])
   // Retain exact custom values so scrolling away from one never shifts row positions.
   const [customValues, setCustomValues] = useState<number[]>(() => regularValues.includes(value) ? [] : [value])
   useEffect(() => {

@@ -120,6 +120,13 @@ describe('StrengthPage', () => {
     expect(screen.getAllByTestId('e1rm-line-dot').map((el) => el.textContent)).toEqual(['false', 'false', 'false'])
     expect(fetchExercises).not.toHaveBeenCalled()
   })
+  it('names each lift once when its exercise has the same name', async () => {
+    renderPage()
+    const section = await screen.findByRole('region', { name: '種目ごとの記録' })
+    expect(within(section).getAllByText('スクワット')).toHaveLength(1)
+    expect(within(section).getAllByText('デッドリフト')).toHaveLength(1)
+  })
+
   it('preserves existing mapped calculations', async () => {
     fetchStrengthSnapshot.mockResolvedValue(mapped)
     renderPage()

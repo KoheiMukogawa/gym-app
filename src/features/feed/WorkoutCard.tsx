@@ -14,15 +14,18 @@ function formatDate(iso: string): string {
 
 /** bodyweight はその日の体重。自重種目のボリュームを総重量（体重＋加重）で数えるのに使う。 */
 export function WorkoutCard({ item, editable = false, bodyweight = null, detailed = false }: { item: FeedItem; editable?: boolean; bodyweight?: number | null; detailed?: boolean }) {
-  const byExercise = new Map<string, { name: string; count: number; max: number; bodyweight: boolean }>()
+  // 最大重量は挙げられたセットだけで見る。0回（つぶれたセット）しかない種目はその重量を出す。
+  const byExercise = new Map<string, { name: string; count: number; max: number; bodyweight: boolean; lifted: boolean }>()
   for (const s of item.sets) {
+    const lifted = s.reps > 0
     const current = byExercise.get(s.exercise_id)
-    if (current) {
-      current.count += 1
-      current.max = Math.max(current.max, s.weight_kg)
-    } else {
-      byExercise.set(s.exercise_id, { name: s.exercise_name, count: 1, max: s.weight_kg, bodyweight: !!s.is_bodyweight })
+    if (!current) {
+      byExercise.set(s.exercise_id, { name: s.exercise_name, count: 1, max: s.weight_kg, bodyweight: !!s.is_bodyweight, lifted })
+      continue
     }
+    current.count += 1
+    if (lifted && !current.lifted) { current.max = s.weight_kg; current.lifted = true }
+    else if (lifted === current.lifted) current.max = Math.max(current.max, s.weight_kg)
   }
 
   const volume = Math.round(item.sets.reduce((sum, s) => sum + (s.weight_kg + (s.is_bodyweight ? bodyweight ?? 0 : 0)) * s.reps, 0) * 10) / 10

@@ -1,7 +1,8 @@
 import { toMessage } from '../../lib/errors'
 import { supabase } from '../../lib/supabase'
+import type { DotsFormula } from '../../lib/dots'
+export type { DotsFormula }
 export type Community = { id: string; name: string; owner_id: string; invite_code: string | null }
-export type DotsFormula = 'male' | 'female'
 export type RankMetric = 'total' | 'growth' | 'dots'
 export type CommunityProfile = { global_ranking?: boolean; dots_opt_in?: boolean; dots_formula?: DotsFormula | null; user_id: string; display_name: string; icon: string; bio: string }
 export type Member = CommunityProfile & {
