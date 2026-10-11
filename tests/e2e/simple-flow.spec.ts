@@ -10,7 +10,8 @@ test('set columns stay aligned when RM values differ or are unavailable', async 
     await enterWheelValue(page, '回数', String(reps))
     await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   }
-  await expect(page.getByText('1〜10回が対象', { exact: true })).toBeVisible()
+  await expect(page.getByText('参考値', { exact: true })).toBeVisible()
+  await expect(page.getByText('推定1RM 117.3', { exact: true })).toBeVisible()
   for (const width of [320, 375, 390]) {
     await page.setViewportSize({ width, height: 844 })
     const rows = page.getByRole('button', { name: /ベンチプレス .*set .*のメモ/ })
