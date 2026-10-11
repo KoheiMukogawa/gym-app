@@ -46,9 +46,8 @@ describe('SetList', () => {
     )
     const items = screen.getAllByRole('listitem')
     expect(items[0]).toHaveTextContent('推定1RM 99.3')
-    // Keep the column and explain why no estimate is available.
-    expect(items[1]).toHaveTextContent('推定1RM —')
-    expect(items[1]).toHaveTextContent('1〜10回が対象')
+    expect(items[1]).toHaveTextContent('推定1RM 84')
+    expect(items[1]).toHaveTextContent('参考値')
     // 70kg bodyweight + 10kg added, 5 reps.
     expect(items[2]).toHaveTextContent('推定1RM 90')
   })
