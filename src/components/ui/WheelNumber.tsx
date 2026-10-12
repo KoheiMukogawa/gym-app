@@ -100,10 +100,10 @@ export function WheelNumber({ label, value, unit, onEnter, min, format }: Props)
 
   const first = Math.max(0, index - 4)
   return <div>
-    <div className="flex items-center justify-between">
+    <div className="relative flex items-center justify-between">
       <button type="button" aria-label={`${label}を減らす`} disabled={value <= (min ?? (unit === 'kg' ? 0 : 1))}
         onClick={() => step(-1)} className="min-h-14 min-w-14 rounded-full text-xl text-muted active:bg-surface disabled:opacity-30">−</button>
-      <p className="text-center text-xs text-muted">{label}</p>
+      <p className="pointer-events-none absolute inset-0 flex items-center justify-center whitespace-nowrap text-xs text-muted">{label}</p>
       <button type="button" aria-label={`${label}を増やす`} disabled={value >= maximum}
         onClick={() => step(1)} className="min-h-14 min-w-14 rounded-full text-xl text-muted active:bg-surface disabled:opacity-30">＋</button>
     </div>
