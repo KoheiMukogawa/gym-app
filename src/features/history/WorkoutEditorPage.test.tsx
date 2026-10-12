@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -8,8 +9,13 @@ import { localDate } from '../../lib/dates'
 
 // Page tests isolate draft/save behavior; real wheels are covered by WheelNumber tests and browser flows.
 vi.mock('../../components/ui/WheelNumber', () => ({
-  WheelNumber: ({ label, unit, value, min, onEnter }: { label: string; unit: string; value: number; min: number; onEnter: (value: number) => void }) =>
-    <input aria-label={unit === 'kg' ? label + '（kg）' : label} type="number" step={unit === 'kg' ? 0.1 : 1} value={value} min={min} onChange={event => onEnter(Number(event.target.value))} />,
+  WheelNumber: ({ label, unit, value, min, onEnter }: { label: string; unit: string; value: number; min: number; onEnter: (value: number) => void }) => {
+    const [draft, setDraft] = useState(String(value))
+    return <input aria-label={unit === 'kg' ? label + '（kg）' : label} type="number" step={unit === 'kg' ? 0.1 : 1} value={draft} min={min} onChange={event => {
+      setDraft(event.target.value)
+      if (event.target.value.trim()) onEnter(Number(event.target.value))
+    }} />
+  },
 }))
 
 const api = vi.hoisted(() => ({

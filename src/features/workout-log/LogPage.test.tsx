@@ -294,7 +294,7 @@ describe('LogPage', () => {
     await screen.findByRole('spinbutton', { name: '重量' })
     expect(screen.queryByPlaceholderText(/メモ（任意）/)).not.toBeInTheDocument()
     expect(screen.queryByText(/この重量の(自己ベスト|目安)/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/推定1RM/)).not.toBeInTheDocument()
+    expect(screen.getByText('推定1RM 99.3')).toBeInTheDocument()
     expect(screen.queryByText('スクロール / 数字をタップして入力')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /セット完了/ }))
     await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
