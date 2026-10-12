@@ -583,7 +583,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
         <button type="button" className="min-h-14 shrink-0 px-4 text-sm text-muted" aria-expanded={dialVisible} aria-controls="recording-dials" onClick={() => setDialVisible(visible => !visible)}>
           {dialVisible ? 'ダイヤルを隠す' : 'ダイヤルを表示'}
         </button>
-        {dialVisible && <div id="recording-dials" className="min-h-0 overflow-y-auto">
+        {dialVisible && <div id="recording-dials" className="flex min-h-0 flex-col overflow-hidden">
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pt-4">
           {isBodyweight && (bodyweight === null || editingBodyweight) ? (
             <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
