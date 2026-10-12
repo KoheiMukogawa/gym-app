@@ -26,6 +26,8 @@ export function WheelNumber({ label, value, unit, onEnter, min, format }: Props)
     : [...new Set([...regularValues, ...customValues.filter(number => number >= (min ?? 0)), value])].sort((a, b) => a - b), [regularValues, customValues, value, min])
   const list = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
+  const pointerHeld = useRef(false)
+  const lastNotified = useRef(value)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const selectedPosition = useRef(values.indexOf(value))
   const [index, setIndex] = useState(() => values.indexOf(value))
@@ -34,6 +36,7 @@ export function WheelNumber({ label, value, unit, onEnter, min, format }: Props)
 
   useEffect(() => {
     setDraft(String(value))
+    lastNotified.current = value
     const next = values.indexOf(value)
     selectedPosition.current = next
     if (dragging.current) return
@@ -44,18 +47,38 @@ export function WheelNumber({ label, value, unit, onEnter, min, format }: Props)
 
   function select(next: number) {
     dragging.current = false
+    pointerHeld.current = false
     if (timer.current) clearTimeout(timer.current)
-    onEnter(values[next])
+    setIndex(next)
+    selectedPosition.current = next
+    if (list.current) list.current.scrollTop = next * ROW_HEIGHT
+    if (values[next] !== lastNotified.current) {
+      lastNotified.current = values[next]
+      onEnter(values[next])
+    }
+  }
+
+  function step(direction: number) {
+    dragging.current = false
+    pointerHeld.current = false
+    if (timer.current) clearTimeout(timer.current)
+    const next = Math.max(min ?? (unit === 'kg' ? 0 : 1), Math.min(maximum,
+      Math.round((value + direction * (unit === 'kg' ? 2.5 : 1)) * 10) / 10))
+    if (list.current) list.current.scrollTop = selectedPosition.current * ROW_HEIGHT
+    if (next !== value) onEnter(next)
   }
 
   function beginEditing() {
     dragging.current = false
+    pointerHeld.current = false
     if (timer.current) clearTimeout(timer.current)
     setEditing(true)
   }
 
   function settleScroll() {
     if (timer.current) clearTimeout(timer.current)
+    // Never snap while a finger is still controlling the wheel, even if it pauses.
+    if (pointerHeld.current) return
     timer.current = setTimeout(() => {
       dragging.current = false
       setIndex(selectedPosition.current)
@@ -77,7 +100,13 @@ export function WheelNumber({ label, value, unit, onEnter, min, format }: Props)
 
   const first = Math.max(0, index - 4)
   return <div>
-    <p className="mb-1 text-center text-xs text-muted">{label}</p>
+    <div className="relative flex items-center justify-between">
+      <button type="button" aria-label={`${label}を減らす`} disabled={value <= (min ?? (unit === 'kg' ? 0 : 1))}
+        onClick={() => step(-1)} className="min-h-14 min-w-14 rounded-full text-xl text-muted active:bg-surface disabled:opacity-30">−</button>
+      <p className="pointer-events-none absolute inset-0 flex items-center justify-center whitespace-nowrap text-xs text-muted">{label}</p>
+      <button type="button" aria-label={`${label}を増やす`} disabled={value >= maximum}
+        onClick={() => step(1)} className="min-h-14 min-w-14 rounded-full text-xl text-muted active:bg-surface disabled:opacity-30">＋</button>
+    </div>
     <div className="relative" role={editing ? undefined : 'spinbutton'} tabIndex={editing ? undefined : 0}
       aria-label={editing ? undefined : label} aria-valuenow={editing ? undefined : value}
       aria-valuemin={editing ? undefined : min ?? (unit === 'kg' ? 0 : 1)}
@@ -86,14 +115,18 @@ export function WheelNumber({ label, value, unit, onEnter, min, format }: Props)
       <div className="pointer-events-none absolute inset-x-0 top-14 h-14 rounded-xl border-y border-border bg-surface" />
       <div ref={list} aria-label={`${label}をスクロールで選択`}
         className="relative h-[168px] overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        onPointerDown={() => { dragging.current = true; if (timer.current) clearTimeout(timer.current) }}
-        onPointerUp={settleScroll} onPointerCancel={settleScroll}
+        onPointerDown={() => { dragging.current = true; pointerHeld.current = true; if (timer.current) clearTimeout(timer.current) }}
+        onPointerUp={() => { pointerHeld.current = false; settleScroll() }} onPointerCancel={() => { pointerHeld.current = false; settleScroll() }}
         onWheel={() => { dragging.current = true; settleScroll() }}
         onScroll={(event) => {
           if (!dragging.current) return
           const next = Math.max(0, Math.min(values.length - 1, Math.round(event.currentTarget.scrollTop / ROW_HEIGHT)))
-          setIndex(next)
-          onEnter(values[next])
+          if (values[next] !== lastNotified.current) {
+            lastNotified.current = values[next]
+            selectedPosition.current = next
+            setIndex(next)
+            onEnter(values[next])
+          }
           settleScroll()
         }}>
         <div style={{ height: (values.length + 2) * ROW_HEIGHT, position: 'relative' }}>

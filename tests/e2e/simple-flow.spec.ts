@@ -1,6 +1,34 @@
 import { expect, test, type Page, type Locator } from '@playwright/test'
 import { enterWheelValue } from './wheel'
 
+test('dial fine adjustment, scroll and direct entry save the displayed values', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.goto('/log')
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await enterWheelValue(page, '重量', '80')
+  await enterWheelValue(page, '回数', '5')
+  await page.getByRole('button', { name: '重量を増やす', exact: true }).click()
+  await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '82.5')
+  await page.getByRole('button', { name: '重量を減らす', exact: true }).click()
+  await page.getByRole('button', { name: '回数を増やす', exact: true }).click()
+  await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveAttribute('aria-valuenow', '6')
+  const wheel = page.getByLabel('重量をスクロールで選択', { exact: true })
+  await wheel.hover()
+  await page.mouse.wheel(0, 112)
+  await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '85')
+  await page.getByRole('button', { name: '重量を減らす', exact: true }).click()
+  await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '82.5')
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    await expect(page.getByRole('button', { name: 'セット完了', exact: true })).toBeInViewport()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+    await page.screenshot({ path: `test-results/dial-controls-${width}.png` })
+  }
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets.length).toBe(1)
+  expect(data.sets[0]).toMatchObject({ weight_kg: 82.5, reps: 6 })
+})
+
 test('continues a finished workout from the exercise card', async ({ page }) => {
   const data = await mockApi(page)
   await page.goto('/log')
