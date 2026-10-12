@@ -9,7 +9,7 @@ import { localDate } from '../../lib/dates'
 // Page tests isolate draft/save behavior; real wheels are covered by WheelNumber tests and browser flows.
 vi.mock('../../components/ui/WheelNumber', () => ({
   WheelNumber: ({ label, unit, value, min, onEnter }: { label: string; unit: string; value: number; min: number; onEnter: (value: number) => void }) =>
-    <input aria-label={unit === 'kg' ? label + '（kg）' : label} type="number" value={value} min={min} onChange={event => onEnter(Number(event.target.value))} />,
+    <input aria-label={unit === 'kg' ? label + '（kg）' : label} type="number" step={unit === 'kg' ? 0.1 : 1} value={value} min={min} onChange={event => onEnter(Number(event.target.value))} />,
 }))
 
 const api = vi.hoisted(() => ({
