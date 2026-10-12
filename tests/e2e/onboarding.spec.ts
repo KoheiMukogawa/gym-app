@@ -37,7 +37,17 @@ test('landing showcases graphs, AI export and personal rankings on phones and de
   for (const width of [320, 375, 390, 1280]) {
     await page.setViewportSize({ width, height: width === 1280 ? 900 : 844 })
     await preview.getByRole('button', { name: 'グラフ', exact: true }).click()
-    await expect(page.getByRole('region', { name: '成長グラフのサンプル' })).toBeVisible()
+    const big3 = page.getByRole('region', { name: 'BIG3画面' })
+    await expect(big3.getByLabel('Big3スコア')).toContainText('478')
+    await expect(big3.getByLabel('Big3スコア')).toContainText('目標まであと')
+    await expect(big3.getByRole('button', { name: /目標を(設定|変更)/ })).toHaveCount(0)
+    // The phone scrolls on its own down to the growth charts, which draw once they come into view.
+    const scroller = big3.getByLabel('BIG3画面（スクロールできます）')
+    await scroller.scrollIntoViewIfNeeded()
+    await scroller.evaluate(element => { element.scrollTop = element.scrollHeight })
+    await expect(big3.getByRole('heading', { name: 'デッドリフト' })).toBeInViewport()
+    await expect(big3.locator('.recharts-line-curve').last()).toBeVisible()
+    await scroller.evaluate(element => { element.scrollTop = 0 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.screenshot({ path: 'test-results/landing-graph-' + width + '.png', fullPage: true, animations: 'disabled' })

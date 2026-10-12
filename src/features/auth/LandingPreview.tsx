@@ -1,27 +1,24 @@
 import { useState } from 'react'
+import { LiftCard } from '../strength/LiftCard'
+import { StrengthScore } from '../strength/StrengthScore'
+import { landingStrengthGoal, landingStrengthSnapshot } from './landingStrengthSample'
 
 const screens = [
   { id: 'progress', label: 'グラフ' }, { id: 'export', label: 'AI相談' }, { id: 'ranking', label: 'ランキング' },
 ] as const
 type Screen = typeof screens[number]['id']
 
-function TrendPreview() {
-  return <div className="landing-demo-trend">
-    <div className="landing-demo-metrics">
-      <div><p>ベンチプレス</p><strong>100<small>kg</small></strong><span>最高推定1RM</span></div>
-      <div><p>目標</p><strong>110<small>kg</small></strong><span>あと10kg</span></div>
+// The real BIG3 screen parts, fed a member's actual record, scrolling inside the phone.
+function Big3Preview() {
+  return <div className="landing-demo-scroll" tabIndex={0} aria-label="BIG3画面（スクロールできます）">
+    <div className="flex flex-col gap-4 pb-4">
+      <h2 className="px-1 text-2xl font-bold">BIG3</h2>
+      <StrengthScore snapshot={landingStrengthSnapshot} goal={landingStrengthGoal} />
+      <section className="flex flex-col gap-3" aria-label="種目ごとの記録">
+        <h3 className="text-sm font-semibold">種目ごとの記録</h3>
+        {(['squat', 'bench', 'deadlift'] as const).map(key => <LiftCard key={key} lift={landingStrengthSnapshot.lifts[key]} />)}
+      </section>
     </div>
-    <div className="landing-demo-period" aria-hidden="true"><span>1ヶ月</span><span className="selected">3ヶ月</span><span>1年</span><span>全期間</span></div>
-    <svg viewBox="0 0 300 160" role="img" aria-label="ベンチプレスの推定1RMが伸びるサンプルグラフ">
-      <defs><linearGradient id="landing-strength-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#E8412F" stopOpacity=".25" /><stop offset="100%" stopColor="#E8412F" stopOpacity="0" /></linearGradient></defs>
-      {[25, 65, 105, 145].map(y => <line key={y} x1="8" y1={y} x2="292" y2={y} stroke="#29292d" />)}
-      <path d="M8 132 L55 117 L102 124 L150 80 L197 89 L244 54 L292 24 L292 150 L8 150Z" fill="url(#landing-strength-fill)" />
-      <polyline points="8,132 55,117 102,124 150,80 197,89 244,54 292,24" stroke="#E8412F" strokeWidth="3" strokeLinejoin="round" fill="none" />
-      <circle cx="292" cy="24" r="5" fill="#E8412F" stroke="#17171A" strokeWidth="3" />
-    </svg>
-    <div className="landing-demo-axis" aria-hidden="true"><span>7月</span><span>8月</span><span>9月</span></div>
-    <div className="landing-demo-insight"><span className="landing-demo-dot" />グラフから、その日のセットまで。</div>
-    <div className="landing-demo-history"><span>9/20 の記録</span><p><strong>75kg × 10回</strong><span>推定1RM 100kg</span></p></div>
   </div>
 }
 
@@ -60,12 +57,14 @@ export function LandingPreview() {
     </div>
     <div className="landing-phone">
       <div className="landing-phone-header" aria-hidden="true"><span>Glog</span><span className="landing-demo-avatar">G</span></div>
-      <div className="landing-demo-screen" role="region" aria-label={screen === 'export' ? 'エクスポートのサンプル' : screen === 'progress' ? '成長グラフのサンプル' : 'ランキングのサンプル'}>
-        <div className="landing-demo-heading"><h2>{screen === 'export' ? 'データをエクスポート' : screen === 'progress' ? '筋力の伸び' : 'ランキング'}</h2><span>{screen === 'export' ? 'AIに相談' : screen === 'progress' ? 'あなたの記録' : '仲間と競う'}</span></div>
-        {screen === 'progress' ? <TrendPreview /> : screen === 'export' ? <ExportPreview /> : <RankingPreview />}
+      <div className="landing-demo-screen" role="region" aria-label={screen === 'export' ? 'エクスポートのサンプル' : screen === 'progress' ? 'BIG3画面' : 'ランキングのサンプル'}>
+        {screen === 'progress' ? <Big3Preview /> : <>
+          <div className="landing-demo-heading"><h2>{screen === 'export' ? 'データをエクスポート' : 'ランキング'}</h2><span>{screen === 'export' ? 'AIに相談' : '仲間と競う'}</span></div>
+          {screen === 'export' ? <ExportPreview /> : <RankingPreview />}
+        </>}
       </div>
       <div className="landing-demo-nav" aria-hidden="true"><span>ホーム</span><span>履歴</span><span className={screen === 'progress' ? 'selected' : ''}>BIG3</span><span className={screen === 'ranking' ? 'selected' : ''}>ランキング</span><span>体組成</span></div>
     </div>
-    <figcaption>画面イメージ・数値はサンプルです。</figcaption>
+    <figcaption>{screen === 'progress' ? <>実際の画面・実際の利用者の記録です（本人の許可済み）。<br />画面の中をスクロールできます。目標はサンプルです。</> : '画面イメージ・数値はサンプルです。'}</figcaption>
   </figure>
 }

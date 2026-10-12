@@ -14,7 +14,9 @@ const FILL_MS = 1000
 const kg = (value: number | null) => value === null ? '—' : Number.isInteger(value) ? String(value) : value.toFixed(1)
 
 export function StrengthScore({ snapshot, goal, onEdit }: {
-  snapshot: StrengthSnapshot; goal: StrengthGoal | null; onEdit: () => void
+  snapshot: StrengthSnapshot; goal: StrengthGoal | null
+  // Without it (the landing page preview) the goal cannot be changed.
+  onEdit?: () => void
 }) {
   const progress = useRevealProgress(FILL_MS)
   const total = strengthTotal(lifts.map(({ key }) => snapshot.lifts[key].allTimeE1rm))
@@ -64,7 +66,7 @@ export function StrengthScore({ snapshot, goal, onEdit }: {
     </div>
     <div className="mt-4 flex flex-wrap items-center justify-end gap-x-3 text-xs text-muted">
       {goal && <p>目標期限 {goal.target_date.replaceAll('-', '/')}</p>}
-      <button type="button" onClick={onEdit} className="min-h-14 px-2 text-xs text-muted hover:text-fg">{goal ? '目標を変更' : '目標を設定'}</button>
+      {onEdit && <button type="button" onClick={onEdit} className="min-h-14 px-2 text-xs text-muted hover:text-fg">{goal ? '目標を変更' : '目標を設定'}</button>}
     </div>
   </section>
 }
