@@ -1,10 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { WorkoutEditorPage } from './WorkoutEditorPage'
 import { ToastProvider } from '../../components/ui/Toast'
 import { localDate } from '../../lib/dates'
+
+// Page tests isolate draft/save behavior; real wheels are covered by WheelNumber tests and browser flows.
+vi.mock('../../components/ui/WheelNumber', () => ({
+  WheelNumber: ({ label, unit, value, min, onEnter }: { label: string; unit: string; value: number; min: number; onEnter: (value: number) => void }) => {
+    const [draft, setDraft] = useState(String(value))
+    return <input aria-label={unit === 'kg' ? label + '（kg）' : label} type="number" step={unit === 'kg' ? 0.1 : 1} value={draft} min={min} onChange={event => {
+      setDraft(event.target.value)
+      if (event.target.value.trim()) onEnter(Number(event.target.value))
+    }} />
+  },
+}))
 
 const api = vi.hoisted(() => ({
   fetchEditableWorkout: vi.fn(), findWorkoutOnDate: vi.fn(), createDatedWorkout: vi.fn(), updateWorkoutDate: vi.fn(),
@@ -39,6 +51,13 @@ beforeEach(() => {
   api.saveEditableSet.mockResolvedValue(undefined)
 })
 describe('WorkoutEditorPage', () => {
+  it('shows estimated RM and reference values on saved history rows', async () => {
+    api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET, { ...SET, id: 's2', reps: 14, set_index: 2 }] })
+    setup()
+    expect(await screen.findByText('推定1RM 99.3')).toBeVisible()
+    expect(screen.getByText('推定1RM 117.3')).toBeVisible()
+    expect(screen.getByText('参考値')).toBeVisible()
+  })
   it('adds inside an exercise card, retaining drafts across exercises and failed saves', async () => {
     api.fetchExercises.mockResolvedValue([EXERCISE, { ...EXERCISE, id: 'row', name: 'シーテッドロウ' }])
     api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET,

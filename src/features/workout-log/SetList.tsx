@@ -2,7 +2,7 @@ import { SwipeRow } from '../../components/SwipeRow'
 import type { LoggedSet } from './logReducer'
 import type { SetStatus } from './persistence'
 import { formatAddedLoad, totalLoad } from '../../lib/bodyweight'
-import { setRm } from './setRm'
+import { SetRmLabel } from './SetRmLabel'
 import { SetMemoEditor } from './SetMemoEditor'
 
 type Props = {
@@ -40,7 +40,6 @@ export function SetList({ sets, activeExerciseId, exerciseNames, status, onDelet
           const load = bodyweightIds.includes(id) ? formatAddedLoad(s.weight_kg) : `${s.weight_kg}kg`
           const st = status[s.id] ?? 'saved'
           const setLoad = bodyweightIds.includes(id) ? totalLoad(s.weight_kg, bodyweight) : s.weight_kg
-          const e1rm = setRm(setLoad, s.reps)
           return <SwipeRow key={s.id} label={`${exerciseNames[id] ?? '種目'} ${i + 1}set ${load} × ${s.reps}回を削除`}
             disabled={deletingId !== null || !!editingId} deleting={deletingId === s.id} onDelete={() => onDelete(s.id)}
             className={st === 'pending' ? 'opacity-50' : ''}>
@@ -56,11 +55,7 @@ export function SetList({ sets, activeExerciseId, exerciseNames, status, onDelet
                 <span className="text-xs font-normal text-muted">×</span>
                 <span>{s.reps}<span className="text-xs font-normal text-muted"> 回</span></span>
               </span>
-              <span className="text-right text-xs text-muted tabular-nums">
-                <span className="block">推定1RM {e1rm?.value ?? '—'}</span>
-                {e1rm?.reference && <span className="block text-[10px]">参考値</span>}
-                {e1rm === null && <span className="block text-[10px]">{s.reps > 30 ? '30回までが対象' : s.reps < 1 ? '0回は対象外' : setLoad === null ? '体重未設定' : '重量が対象外'}</span>}
-              </span>
+              <SetRmLabel load={setLoad} reps={s.reps} />
               {s.note && <span className="col-span-3 w-full whitespace-pre-wrap break-words text-xs text-muted">{s.note}</span>}
             </button>
             {st === 'failed' && <button type="button" onClick={() => onRetry(s.id)} className="min-h-14 text-xs text-accent">未保存・再試行</button>}
