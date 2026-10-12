@@ -31,19 +31,10 @@ describe('WheelNumber', () => {
     } finally { vi.useRealTimers() }
   })
 
-  it('provides precise steps from custom values and clamps at the minimum', () => {
-    const view = render(<Controlled initial={82.3} />)
-    fireEvent.click(screen.getByRole('button', { name: '重量を増やす' }))
-    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '84.8')
-    fireEvent.click(screen.getByRole('button', { name: '重量を減らす' }))
-    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '82.3')
-    view.unmount()
-    render(<Controlled initial={1} label="回数" unit="回" min={0} />)
-    fireEvent.click(screen.getByRole('button', { name: '回数を減らす' }))
-    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '0')
-    expect(screen.getByRole('button', { name: '回数を減らす' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: '回数を増やす' }))
-    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '1')
+  it('has no plus or minus buttons above the dial', () => {
+    render(<Controlled />)
+    expect(screen.queryByRole('button', { name: /を(増や|減ら)す$/ })).toBeNull()
+    expect(screen.getByText('重量')).toBeInTheDocument()
   })
   it('uses the dial alone and supports keyboard adjustment', () => {
     render(<Controlled />)

@@ -1,16 +1,16 @@
 import { expect, test, type Page, type Locator } from '@playwright/test'
-import { enterWheelValue } from './wheel'
+import { enterWheelValue, nudgeWheel } from './wheel'
 
-test('dial fine adjustment, scroll and direct entry save the displayed values', async ({ page }) => {
+test('dial steps, scroll and direct entry save the displayed values', async ({ page }) => {
   const data = await mockApi(page)
   await page.goto('/log')
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
   await enterWheelValue(page, '重量', '80')
   await enterWheelValue(page, '回数', '5')
-  await page.getByRole('button', { name: '重量を増やす', exact: true }).click()
+  await nudgeWheel(page, '重量', 'up')
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '82.5')
-  await page.getByRole('button', { name: '重量を減らす', exact: true }).click()
-  await page.getByRole('button', { name: '回数を増やす', exact: true }).click()
+  await nudgeWheel(page, '重量', 'down')
+  await nudgeWheel(page, '回数', 'up')
   await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveAttribute('aria-valuenow', '6')
   await page.getByRole('button', { name: 'ダイヤルを隠す', exact: true }).click()
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveCount(0)
@@ -22,7 +22,7 @@ test('dial fine adjustment, scroll and direct entry save the displayed values', 
   await wheel.hover()
   await page.mouse.wheel(0, 112)
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '85')
-  await page.getByRole('button', { name: '重量を減らす', exact: true }).click()
+  await nudgeWheel(page, '重量', 'down')
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '82.5')
   for (const width of [320, 375, 390]) {
     await page.setViewportSize({ width, height: 844 })
@@ -57,7 +57,7 @@ test('continues a finished workout from the exercise card', async ({ page }) => 
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
     await page.screenshot({ path: `test-results/inline-add-${width}.png` })
   }
-  await card.getByRole('button', { name: '重量を増やす', exact: true }).click()
+  await nudgeWheel(card, '重量', 'up')
   await expect(card.getByText('推定1RM 92.8', { exact: true })).toBeVisible()
   await card.getByRole('button', { name: 'セットを追加', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(2)

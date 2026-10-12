@@ -58,16 +58,6 @@ export function WheelNumber({ label, value, unit, onEnter, min, format }: Props)
     }
   }
 
-  function step(direction: number) {
-    dragging.current = false
-    pointerHeld.current = false
-    if (timer.current) clearTimeout(timer.current)
-    const next = Math.max(min ?? (unit === 'kg' ? 0 : 1), Math.min(maximum,
-      Math.round((value + direction * (unit === 'kg' ? 2.5 : 1)) * 10) / 10))
-    if (list.current) list.current.scrollTop = selectedPosition.current * ROW_HEIGHT
-    if (next !== value) onEnter(next)
-  }
-
   function beginEditing() {
     dragging.current = false
     pointerHeld.current = false
@@ -100,13 +90,7 @@ export function WheelNumber({ label, value, unit, onEnter, min, format }: Props)
 
   const first = Math.max(0, index - 4)
   return <div>
-    <div className="relative flex items-center justify-between">
-      <button type="button" aria-label={`${label}を減らす`} disabled={value <= (min ?? (unit === 'kg' ? 0 : 1))}
-        onClick={() => step(-1)} className="min-h-14 min-w-14 rounded-full text-xl text-muted active:bg-surface disabled:opacity-30">−</button>
-      <p className="pointer-events-none absolute inset-0 flex items-center justify-center whitespace-nowrap text-xs text-muted">{label}</p>
-      <button type="button" aria-label={`${label}を増やす`} disabled={value >= maximum}
-        onClick={() => step(1)} className="min-h-14 min-w-14 rounded-full text-xl text-muted active:bg-surface disabled:opacity-30">＋</button>
-    </div>
+    <p className="mb-1 text-center text-xs text-muted">{label}</p>
     <div className="relative" role={editing ? undefined : 'spinbutton'} tabIndex={editing ? undefined : 0}
       aria-label={editing ? undefined : label} aria-valuenow={editing ? undefined : value}
       aria-valuemin={editing ? undefined : min ?? (unit === 'kg' ? 0 : 1)}

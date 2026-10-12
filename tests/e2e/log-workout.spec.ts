@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { nudgeWheel } from './wheel'
 
 const EMAIL = process.env.E2E_EMAIL ?? ''
 const PASSWORD = process.env.E2E_PASSWORD ?? ''
@@ -18,7 +19,7 @@ test.describe('中核の記録導線', () => {
     await expect(page.getByRole('heading', { name: '今日のトレーニング' })).toBeVisible()
     await page.getByRole('button', { name: /ベンチプレス/ }).first().click()
 
-    await page.getByRole('button', { name: '重量を増やす' }).click()
+    await nudgeWheel(page, '重量', 'up')
     await page.getByRole('button', { name: 'セット完了' }).click()
 
     await expect(page.getByRole('button', { name: /記録しました/ })).toBeVisible()
