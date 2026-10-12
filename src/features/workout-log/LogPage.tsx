@@ -6,6 +6,7 @@ import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { SetRmLabel } from './SetRmLabel'
+import { markWorkoutFinished } from '../install/installGuide'
 import { WheelNumber } from '../../components/ui/WheelNumber'
 import { BottomInputDock } from '../../components/ui/BottomInputDock'
 import { MemoInputSpace } from './SetMemoEditor'
@@ -479,6 +480,7 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
         10_000,
       )
       clearDraft(userId)
+      if (state.sets.length > 0) markWorkoutFinished(userId)
       onFinished?.()
       navigate('/')
     } finally {

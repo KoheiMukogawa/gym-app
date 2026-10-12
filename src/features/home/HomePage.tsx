@@ -16,6 +16,7 @@ import { currentGoal } from '../strength/currentGoal'
 import { fetchStrengthGoals, fetchStrengthSnapshot, type StrengthGoal, type StrengthSnapshot } from '../strength/queries'
 import { StartTrainingCard } from '../workout-log/StartTrainingCard'
 import { StartingBestsCard } from './StartingBestsCard'
+import { InstallCard } from '../install/InstallCard'
 
 // BIG3画面のリングと同じ濃淡で、スクワット→ベンチ→デッドを見分けられるようにする
 const LIFTS = [
@@ -105,6 +106,7 @@ export function HomePage() {
     </div>
 
     <StartingBestsCard snapshot={strengthError ? null : snapshot} />
+    <InstallCard />
 
     <section aria-label="今日のトレーニング" className="space-y-2">
       <h2 className="text-sm font-semibold">今日のトレーニング</h2>

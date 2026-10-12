@@ -55,6 +55,16 @@ describe('CAPTCHA on the auth forms', () => {
     expect(captcha.reset).toHaveBeenCalled()
   })
 
+  it('queues the add-to-home-screen guide once the new account is signed in', async () => {
+    localStorage.clear()
+    auth.signUp.mockResolvedValue({ data: { session: {}, user: { id: 'new-user' } }, error: null })
+    renderIn(<LoginPage signup />)
+    await userEvent.type(screen.getByLabelText('名前'), '新人')
+    await fillCredentials()
+    await userEvent.click(screen.getByRole('button', { name: 'アカウントを作成' }))
+    await vi.waitFor(() => expect(localStorage.getItem('glog:install-after-signup:new-user')).toBe('pending'))
+  })
+
   it('sends the token with a reset email and waits for the check', async () => {
     Object.assign(captcha, { token: undefined, ready: false })
     const { rerender } = renderIn(<ForgotPasswordPage />)
