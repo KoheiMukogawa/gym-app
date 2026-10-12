@@ -272,7 +272,7 @@ export function WorkoutEditorPage() {
           <section key={group.id} className="rounded-xl border border-border bg-surface p-4">
             <h2 className="mb-1 text-sm font-semibold">{names[group.id] ?? '種目'}</h2>
             <ul className="divide-y divide-border">
-              {group.sets.sort((a, b) => a.set_index - b.set_index).map((set, index) => (
+              {[...group.sets].sort((a, b) => a.set_index - b.set_index).map((set, index) => (
                 <SwipeRow key={set.id} label={(names[set.exercise_id] ?? '種目') + ' ' + loadLabel(set).replace(' ', '') + ' ' + set.reps + '回を削除'}
                   disabled={busy || !!entry || !!drafts.current[set.id]} onDelete={() => deleteSet(set)}>
                   <button type="button" disabled={busy} className="grid min-h-14 min-w-0 w-full grid-cols-[2rem_minmax(0,1fr)_5rem] items-center gap-x-2 text-left" aria-pressed={entry?.id === set.id}
