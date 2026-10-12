@@ -6,6 +6,12 @@ import { WorkoutEditorPage } from './WorkoutEditorPage'
 import { ToastProvider } from '../../components/ui/Toast'
 import { localDate } from '../../lib/dates'
 
+// Page tests isolate draft/save behavior; real wheels are covered by WheelNumber tests and browser flows.
+vi.mock('../../components/ui/WheelNumber', () => ({
+  WheelNumber: ({ label, unit, value, min, onEnter }: { label: string; unit: string; value: number; min: number; onEnter: (value: number) => void }) =>
+    <input aria-label={unit === 'kg' ? label + '（kg）' : label} type="number" value={value} min={min} onChange={event => onEnter(Number(event.target.value))} />,
+}))
+
 const api = vi.hoisted(() => ({
   fetchEditableWorkout: vi.fn(), findWorkoutOnDate: vi.fn(), createDatedWorkout: vi.fn(), updateWorkoutDate: vi.fn(),
   updateWorkoutSet: vi.fn(), removeWorkoutSet: vi.fn(), removeWorkout: vi.fn(),
@@ -39,6 +45,13 @@ beforeEach(() => {
   api.saveEditableSet.mockResolvedValue(undefined)
 })
 describe('WorkoutEditorPage', () => {
+  it('shows estimated RM and reference values on saved history rows', async () => {
+    api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET, { ...SET, id: 's2', reps: 14, set_index: 2 }] })
+    setup()
+    expect(await screen.findByText('推定1RM 99.3')).toBeVisible()
+    expect(screen.getByText('推定1RM 117.3')).toBeVisible()
+    expect(screen.getByText('参考値')).toBeVisible()
+  })
   it('adds inside an exercise card, retaining drafts across exercises and failed saves', async () => {
     api.fetchExercises.mockResolvedValue([EXERCISE, { ...EXERCISE, id: 'row', name: 'シーテッドロウ' }])
     api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET,

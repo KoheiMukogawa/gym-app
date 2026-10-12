@@ -5,6 +5,7 @@ import { validateSet } from '../../lib/dates'
 import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
+import { SetRmLabel } from './SetRmLabel'
 import { WheelNumber } from '../../components/ui/WheelNumber'
 import { BottomInputDock } from '../../components/ui/BottomInputDock'
 import { MemoInputSpace } from './SetMemoEditor'
@@ -105,6 +106,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const [bodyweightDraft, setBodyweightDraft] = useState('')
   const [editingBodyweight, setEditingBodyweight] = useState(false)
   const [savingBodyweight, setSavingBodyweight] = useState(false)
+  const [dialVisible, setDialVisible] = useState(true)
   const [editingSetId, setEditingSetId] = useState<string | null>(null)
   const recordingHeader = useRef<HTMLElement>(null)
 
@@ -578,6 +580,10 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
       </section>
 
       {editingSet ? <MemoInputSpace /> : <BottomInputDock>
+        <button type="button" className="min-h-14 shrink-0 px-4 text-sm text-muted" aria-expanded={dialVisible} aria-controls="recording-dials" onClick={() => setDialVisible(visible => !visible)}>
+          {dialVisible ? 'ダイヤルを隠す' : 'ダイヤルを表示'}
+        </button>
+        {dialVisible && <div id="recording-dials" className="min-h-0 overflow-y-auto">
         <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pt-4">
           {isBodyweight && (bodyweight === null || editingBodyweight) ? (
             <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
@@ -608,6 +614,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
               onEnter={(value) => dispatch({ type: 'set-reps', value })}
             />
           </div>
+          <SetRmLabel load={load} reps={state.reps} />
           {isBodyweight && bodyweight !== null && <p className="mb-2 text-center text-xs text-muted">
             体重 {bodyweight} kg {formatAddedLoad(state.weight_kg) === '自重' ? '' : formatAddedLoad(state.weight_kg).replace('+', '＋ ').replace('−', '− ')} ＝ 総重量 <strong className="text-fg tabular-nums">{load} kg</strong>
             <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
@@ -619,6 +626,7 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
             {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
           </Button>
         </div>
+        </div>}
       </BottomInputDock>}
     </div>
   )

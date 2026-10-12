@@ -1,3 +1,5 @@
+import { WheelNumber } from '../../components/ui/WheelNumber'
+import { SetRmLabel } from '../workout-log/SetRmLabel'
 import { DateField } from '../../components/ui/DateField'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -16,12 +18,11 @@ import { deleteWorkoutIfEmpty } from '../workout-log/queries'
 import { SwipeRow } from '../../components/SwipeRow'
 import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 import { BottomInputDock } from '../../components/ui/BottomInputDock'
-import { bodyweightOn, formatAddedLoad, type BodyweightLog } from '../../lib/bodyweight'
+import { bodyweightOn, formatAddedLoad, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
 import { createDatedWorkout, fetchEditableWorkout, findWorkoutOnDate, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutDate, updateWorkoutSet } from './editorQueries'
 
 type Entry = { id: string; exercise_id: string; weight: string; reps: string; note: string; existing: boolean }
-const fieldClass = 'min-h-14 min-w-0 w-full rounded-xl border border-border bg-bg px-3 text-lg tabular-nums'
 
 export function WorkoutEditorPage() {
   const { workoutId } = useParams()
@@ -215,22 +216,20 @@ export function WorkoutEditorPage() {
 
   const inlineEntry = !!entry && !entry.existing && groups.some(group => group.id === entry.exercise_id)
   const entryForm = entry && !picking ? (
-        <form className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4"
+        <form className={`min-h-0 space-y-4 overflow-y-auto overscroll-contain py-4 ${inlineEntry ? '' : 'px-4'}`}
           onSubmit={(e) => { e.preventDefault(); void saveEntry() }}>
           {error && <p role="alert" className="text-sm text-accent">{error}</p>}
           <button type="button" disabled={busy} onClick={() => setPicking(true)} className="min-h-14 w-full text-left font-semibold">
             {names[entry.exercise_id]} <span className="text-xs font-normal text-muted">種目を変更</span>
           </button>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-2 text-sm text-muted">{entryIsBodyweight ? '加重（kg）' : '重量（kg）'}
-              <input type="number" inputMode="decimal" min={minWeightFor(entry.exercise_id)} max="9999.9" step="0.1" required disabled={busy}
-                value={entry.weight} onChange={(e) => setEntry({ ...entry, weight: e.target.value })} className={fieldClass} />
-            </label>
-            <label className="flex flex-col gap-2 text-sm text-muted">回数
-              <input type="number" inputMode="numeric" min="0" max="9999" step="1" required disabled={busy}
-                value={entry.reps} onChange={(e) => setEntry({ ...entry, reps: e.target.value })} className={fieldClass} />
-            </label>
-          </div>
+          <fieldset disabled={busy} className="min-w-0 grid grid-cols-2 gap-4">
+            <WheelNumber key={entry.id + '-weight'} label={entryIsBodyweight ? '加重' : '重量'} unit="kg"
+              min={minWeightFor(entry.exercise_id)} value={Number(entry.weight)} format={entryIsBodyweight ? formatAddedLoad : undefined}
+              onEnter={value => setEntry(old => old ? { ...old, weight: String(value) } : old)} />
+            <WheelNumber key={entry.id + '-reps'} label="回数" unit="回" min={0} value={Number(entry.reps)}
+              onEnter={value => setEntry(old => old ? { ...old, reps: String(value) } : old)} />
+          </fieldset>
+          <SetRmLabel load={entryIsBodyweight ? totalLoad(Number(entry.weight), bodyweightOn(bodyweightLogs, date)) : Number(entry.weight)} reps={Number(entry.reps)} />
           <label className="flex flex-col gap-2 text-sm text-muted">メモ（任意）
             <AutoGrowTextarea maxLength={200} disabled={busy} value={entry.note} placeholder="例: 最後の1回は補助あり"
               onChange={(e) => setEntry({ ...entry, note: e.target.value })} className="min-h-14 w-full rounded-xl border border-border bg-bg px-3 py-4 text-fg" />
@@ -273,17 +272,21 @@ export function WorkoutEditorPage() {
           <section key={group.id} className="rounded-xl border border-border bg-surface p-4">
             <h2 className="mb-1 text-sm font-semibold">{names[group.id] ?? '種目'}</h2>
             <ul className="divide-y divide-border">
-              {group.sets.map((set) => (
+              {group.sets.sort((a, b) => a.set_index - b.set_index).map((set, index) => (
                 <SwipeRow key={set.id} label={(names[set.exercise_id] ?? '種目') + ' ' + loadLabel(set).replace(' ', '') + ' ' + set.reps + '回を削除'}
                   disabled={busy || !!entry || !!drafts.current[set.id]} onDelete={() => deleteSet(set)}>
-                  <button type="button" disabled={busy} className="flex min-h-12 flex-1 items-center justify-between text-left" aria-pressed={entry?.id === set.id}
+                  <button type="button" disabled={busy} className="grid min-h-14 min-w-0 w-full grid-cols-[2rem_minmax(0,1fr)_5rem] items-center gap-x-2 text-left" aria-pressed={entry?.id === set.id}
                     aria-label={(names[set.exercise_id] ?? '種目') + ' ' + loadLabel(set).replace(' ', '') + ' ' + set.reps + '回を編集'}
                     onClick={() => editSet(set)}>
-                    <span className="min-w-0">
-                      <span className="block text-lg font-semibold tabular-nums">{loadLabel(set)} <span className="text-xs font-normal text-muted">×</span> {set.reps} <span className="text-xs font-normal text-muted">回</span></span>
-                      {set.note && <span className="block whitespace-pre-wrap break-words text-xs text-muted">{set.note}</span>}
+                    <span className="text-sm text-muted">{index + 1}set</span>
+                    <span className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,0.65fr)] items-baseline gap-x-1 text-lg font-semibold tabular-nums">
+                      <span className="text-right break-words">{isBodyweightExercise(set.exercise_id) ? formatAddedLoad(set.weight_kg) : <>{set.weight_kg}<span className="text-xs font-normal text-muted"> kg</span></>}</span>
+                      <span className="text-xs font-normal text-muted">×</span>
+                      <span>{set.reps}<span className="text-xs font-normal text-muted"> 回</span></span>
                     </span>
-                    {(entry?.id === set.id || drafts.current[set.id]) && <span className="text-xs text-accent">{entry?.id === set.id ? '編集中' : '未保存'}</span>}
+                    <SetRmLabel load={isBodyweightExercise(set.exercise_id) ? totalLoad(set.weight_kg, bodyweightOn(bodyweightLogs, date)) : set.weight_kg} reps={set.reps} />
+                    {set.note && <span className="col-span-3 whitespace-pre-wrap break-words text-xs text-muted">{set.note}</span>}
+                    {(entry?.id === set.id || drafts.current[set.id]) && <span className="col-span-3 text-xs text-accent">{entry?.id === set.id ? '編集中' : '未保存'}</span>}
                   </button>
                 </SwipeRow>
               ))}
@@ -291,6 +294,7 @@ export function WorkoutEditorPage() {
             {inlineEntry && entry?.exercise_id === group.id && !picking ? entryForm : <button type="button" disabled={busy} aria-label={(names[group.id] ?? '種目') + 'にセットを追加'} className="mt-2 min-h-14 w-full rounded-xl border border-border text-sm text-muted active:bg-border" onClick={() => addToExercise(group.id)}>＋ セットを追加</button>}
           </section>
         ))}
+        {sets.some(set => set.reps > 10 && set.reps <= 30) && <p className="text-xs text-muted">11〜30回の推定1RMは参考値です。BIG3・ランキングには使用しません。</p>}
         {sets.length > 0 && <p className="text-center text-xs text-muted">セットをタップで編集、左にスワイプで削除</p>}
         {sets.length === 0 && !picking && !entry && <p className="py-4 text-sm text-muted">セットがありません。種目を選んで追加できます。</p>}
       </section>
