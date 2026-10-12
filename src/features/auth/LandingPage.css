@@ -19,33 +19,38 @@
 .landing-cta:active { transform: translateY(1px); }
 .landing-cta > span { font-size: 22px; line-height: 1; }
 .landing-start-note { margin-top: 14px; font-size: 11px; color: var(--landing-muted); }
-.landing-preview { width: min(100%, 370px); margin-inline: auto; }
-.landing-preview-switch { display: flex; gap: 4px; padding: 4px; margin: 0 auto 16px; width: min(100%, 300px); border: 1px solid var(--color-border); border-radius: 999px; background: #111113; }
-.landing-preview-switch button { min-width: 0; flex: 1; min-height: 56px; border-radius: 999px; font-size: 13px; color: var(--landing-muted); }
-.landing-preview-switch button[aria-pressed="true"] { color: var(--color-fg); background: #2a2a2e; box-shadow: inset 0 0 0 1px #ffffff08; }
-.landing-phone { border: 1px solid #38383d; border-radius: 32px; padding: 20px 16px 12px; background: #0d0d0f; box-shadow: 0 24px 64px #0006, inset 0 0 0 4px #151518; }
-.landing-phone-header { display: flex; align-items: center; justify-content: space-between; padding: 2px 5px 20px; }
-.landing-phone-header > span:first-child { font-size: 25px; font-weight: 750; letter-spacing: -1px; }
-.landing-demo-avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--color-surface); border: 1px solid var(--color-border); font-size: 12px; }
-.landing-demo-screen { min-height: 388px; }
-/* The BIG3 preview scrolls inside the phone; the page keeps scrolling once it reaches either end. */
-.landing-demo-scroll { height: 480px; overflow-y: auto; margin-inline: -4px; padding-inline: 4px; scrollbar-width: none; -webkit-mask-image: linear-gradient(#000 88%, transparent); mask-image: linear-gradient(#000 88%, transparent); }
-.landing-demo-scroll::-webkit-scrollbar { display: none; }
-.landing-demo-scroll:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.landing-preview { width: min(100%, 360px); margin-inline: auto; }
+.landing-preview-hint { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; font-size: 12px; color: var(--landing-muted); }
+.landing-preview-hint::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); }
+/* A phone about as tall as a real one, but never taller than the window. */
+.landing-phone { display: flex; flex-direction: column; height: clamp(560px, calc(100svh - 200px), 740px); border: 1px solid #38383d; border-radius: 40px; padding: 14px 10px 10px; background: var(--color-bg); box-shadow: 0 24px 64px #0006, inset 0 0 0 4px #151518; }
+.landing-phone-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 14px 6px; }
+.landing-phone-header > span:first-child { font-size: 24px; font-weight: 750; letter-spacing: -1px; }
+.landing-demo-avatar { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--color-surface); border: 1px solid var(--color-border); font-size: 12px; }
+.landing-phone-screen { flex: 1; min-height: 0; overflow-y: auto; border-radius: 12px; scrollbar-width: none; }
+.landing-phone-screen::-webkit-scrollbar { display: none; }
+.landing-phone-screen:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.landing-phone-nav { position: relative; display: flex; gap: 2px; margin-top: 8px; padding: 2px; border: 1px solid var(--color-border); border-radius: 999px; background: #1c1c1f; }
+.landing-phone-nav button { flex: 1; min-width: 0; min-height: 56px; border-radius: 999px; font-size: 11px; white-space: nowrap; color: color-mix(in srgb, var(--color-fg) 75%, transparent); }
+.landing-phone-nav button[aria-pressed="true"] { background: #ffffff1a; color: var(--color-accent); font-weight: 650; }
+.landing-phone-hint { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px; background: var(--color-accent); color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; pointer-events: none; animation: landing-hint 1.6s ease-in-out infinite; }
+.landing-phone-hint::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border: 5px solid transparent; border-top-color: var(--color-accent); }
+@keyframes landing-hint { 50% { transform: translate(-50%, -4px); } }
+.landing-ai { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 56px; align-items: center; padding-block: 52px 80px; border-top: 1px solid var(--color-border); scroll-margin-top: 24px; }
+.landing-ai h2 { margin-top: 16px; font-size: clamp(22px, 2.5vw, 32px); line-height: 1.6; font-weight: 650; letter-spacing: -.035em; }
+.landing-ai-copy > p:not(.landing-eyebrow) { margin-top: 16px; font-size: 14px; line-height: 1.9; color: var(--landing-muted); }
+.landing-ai-demo { padding: 20px 16px; border: 1px solid var(--color-border); border-radius: 24px; background: #0d0d0f; }
+.landing-demo-heading h3 { font-size: 17px; font-weight: 650; }
+.landing-feature-show { display: inline-flex; align-items: center; gap: 6px; min-height: 56px; margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--color-accent); }
 .landing-demo-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-inline: 5px; margin-bottom: 16px; }
-.landing-demo-heading h2 { font-size: 17px; font-weight: 650; }
 .landing-demo-heading > span { color: var(--landing-muted); font-size: 10px; }
 .landing-demo-save { min-height: 56px; width: 100%; margin-top: 10px; border-radius: 14px; background: var(--color-accent); font-size: 14px; font-weight: 650; }
 .landing-demo-save:hover { background: #cf3627; }
 .landing-demo-status { min-height: 27px; padding-top: 8px; text-align: center; font-size: 10px; color: var(--landing-muted); }
-.landing-demo-nav { display: flex; align-items: center; justify-content: space-around; min-height: 48px; gap: 4px; padding: 0 8px; margin-top: 14px; border: 1px solid var(--color-border); border-radius: 999px; background: #202023; font-size: 9px; color: var(--landing-muted); }
-.landing-demo-nav .selected { color: var(--color-fg); }
 .landing-preview figcaption { margin-top: 14px; font-size: 10px; line-height: 1.7; text-align: center; color: var(--landing-muted); }
-.landing-demo-insight { display: flex; gap: 7px; align-items: center; padding: 18px 4px 10px; font-size: 11px; color: var(--landing-muted); }
-.landing-demo-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color-accent); flex-shrink: 0; }
 .landing-section-heading h2, .landing-beyond h2, .landing-faq h2 { margin-top: 16px; font-size: clamp(22px, 2.5vw, 32px); line-height: 1.6; font-weight: 650; letter-spacing: -.035em; }
 .landing-features { padding-block: 52px 80px; border-top: 1px solid var(--color-border); scroll-margin-top: 24px; }
-.landing-feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 40px; }
+.landing-feature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; margin-top: 40px; }
 .landing-feature-number { display: block; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--color-accent); margin-bottom: 20px; }
 .landing-feature h3 { font-size: 18px; font-weight: 600; line-height: 1.7; }
 .landing-feature p { margin-top: 14px; font-size: 14px; line-height: 1.9; color: var(--landing-muted); }
@@ -101,6 +106,7 @@
   .landing-hero .landing-cta { width: 100%; gap: 16px; }
   .landing-start-note { text-align: center; }
   .landing-feature-grid, .landing-beyond-grid, .landing-steps, .landing-faq { grid-template-columns: minmax(0, 1fr); }
+  .landing-ai { grid-template-columns: minmax(0, 1fr); gap: 32px; padding-block: 40px 48px; }
   .landing-feature-grid { gap: 32px; margin-top: 32px; }
   .landing-feature-number { margin-bottom: 10px; }
   .landing-feature-tag { margin-top: 16px; padding-top: 12px; }
@@ -114,6 +120,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .landing-cta, .landing-faq-plus { transition: none; }
+  .landing-phone-hint { animation: none; }
 }
 
 .landing-demo-export > p:first-child { font-size: 11px; line-height: 1.8; color: var(--landing-muted); }
@@ -125,17 +132,3 @@
 .landing-demo-markdown pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.9; }
 .landing-demo-question { margin-top: 12px; padding: 12px; border-left: 2px solid var(--color-accent); background: #e8412f08; font-size: 12px; line-height: 1.8; }
 .landing-demo-question > span { display: block; font-size: 10px; color: var(--landing-muted); margin-bottom: 4px; }
-.landing-demo-group-name { padding: 12px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
-.landing-demo-group-name span { display: block; font-size: 10px; color: var(--landing-muted); }
-.landing-demo-group-name strong { display: block; font-size: 15px; font-weight: 550; margin-top: 4px; }
-.landing-demo-ranking-switch { display: flex; gap: 4px; margin-top: 16px; }
-.landing-demo-ranking-switch button { flex: 1; min-height: 56px; border-radius: 12px; border: 1px solid var(--color-border); color: var(--landing-muted); font-size: 12px; }
-.landing-demo-ranking-switch button[aria-pressed="true"] { background: var(--color-surface); border-color: #e8412f90; color: var(--color-fg); }
-.landing-demo-ranking ol { margin-top: 14px; }
-.landing-demo-ranking li { display: flex; align-items: center; min-height: 62px; gap: 10px; padding: 8px; border-bottom: 1px solid var(--color-border); font-size: 12px; }
-.landing-demo-ranking li > span:first-child { color: var(--landing-muted); width: 10px; font-variant-numeric: tabular-nums; }
-.landing-demo-rank-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #303034; font-size: 10px; }
-.landing-demo-ranking li strong { font-weight: 600; margin-left: auto; font-size: 16px; font-variant-numeric: tabular-nums; }
-.landing-demo-ranking li small { font-weight: 400; font-size: 10px; color: var(--landing-muted); margin-left: 3px; }
-.landing-demo-you { background: #e8412f0b; }
-.landing-demo-invite { font-size: 10px; line-height: 1.8; color: var(--landing-muted); padding: 12px 4px; }

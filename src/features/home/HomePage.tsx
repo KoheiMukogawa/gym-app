@@ -27,7 +27,7 @@ const LIFTS = [
 const kg = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1))
 
 /** Right-hand column next to the calendar: the BIG3 total and each lift as a bar. */
-function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goal: StrengthGoal | null }) {
+export function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goal: StrengthGoal | null }) {
   const values = LIFTS.map(({ key }) => snapshot.lifts[key].allTimeE1rm)
   const total = strengthTotal(values)
   const ratio = total !== null && goal ? Math.min(1, total / goal.target_total_kg) : null

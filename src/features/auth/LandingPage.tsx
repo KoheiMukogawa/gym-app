@@ -1,14 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { track } from '../../lib/analytics'
 import { rememberFirstTouch } from '../../lib/attribution'
-import { LandingPreview } from './LandingPreview'
+import { ExportPreview } from './ExportPreview'
+import { LandingPhone, type PhoneTab } from './LandingPhone'
 import './LandingPage.css'
 
-const features = [
-  { number: '01', title: '記録を渡して、AIに相談。', text: '期間内の全セットとメモを、Markdownでまとめて書き出し。使っているAIに貼り付けて、次のメニューや記録の傾向を相談できます。', tag: 'データのエクスポート' },
-  { number: '02', title: '見やすいから、振り返りたくなる。', text: 'BIG3も、いつもの種目も、伸びがわかるグラフに。気になる日をタップすれば、その日のセットまで確認。記録から振り返りまで、すっきりした画面で。', tag: '種目別グラフ・シンプルなUI' },
-  { number: '03', title: '自分たちのランキングを作ろう。', text: 'ジム仲間や友人を、招待コードで自分のコミュニティへ。BIG3合計・各BIG3種目の重量・DOTSで競い合えます。全体ランキングへの参加も選べます。', tag: '招待制コミュニティ・ランキング' },
+const features: { number: string; title: string; text: string; tag: string; tab: PhoneTab; action: string }[] = [
+  { number: '02', title: '見やすいから、振り返りたくなる。', text: 'BIG3も、いつもの種目も、伸びがわかるグラフに。カレンダーから日を選べば、その日のセットと推定1RMまで確認できます。', tag: '種目別グラフ・履歴', tab: 'big3', action: 'BIG3の画面を見る' },
+  { number: '03', title: '自分たちのランキングを作ろう。', text: 'ジム仲間や友人を、招待コードで自分のコミュニティへ。BIG3合計・今月の伸び・DOTSで競い合えます。全体ランキングへの参加も選べます。', tag: '招待制コミュニティ・ランキング', tab: 'ranking', action: 'ランキングの画面を見る' },
 ]
 
 const questions = [
@@ -20,6 +20,12 @@ const questions = [
 ]
 
 export function LandingPage() {
+  const [tab, setTab] = useState<PhoneTab>('home')
+  const phone = useRef<HTMLElement>(null)
+  function show(next: PhoneTab) {
+    setTab(next)
+    phone.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' })
+  }
   useEffect(() => {
     rememberFirstTouch('landing')
     track({ name: 'landing_view' })
@@ -41,18 +47,36 @@ export function LandingPage() {
         <Link to="/signup" className="landing-cta">アカウントを作って始める<span aria-hidden="true">→</span></Link>
         <p className="landing-start-note">ほかのアプリからの乗り換えも、1分で<br />スマホ・PC対応 / ホーム画面から起動</p>
       </div>
-      <LandingPreview />
+      <figure ref={phone} className="landing-preview" aria-label="アプリの画面">
+        <p className="landing-preview-hint">下のタブで、画面を切り替えられます</p>
+        <LandingPhone tab={tab} onTab={setTab} />
+        <figcaption>実際の画面です。記録は実際の利用者のもの（本人の許可済み）。<br />ランキングのほかの人・体組成・目標はサンプルです。</figcaption>
+      </figure>
     </section>
 
-    <section id="features" className="landing-features landing-container" aria-labelledby="features-title">
-      <div className="landing-section-heading">
+    <section id="features" className="landing-ai landing-container" aria-labelledby="ai-title">
+      <div className="landing-ai-copy">
+        <span className="landing-feature-number" aria-hidden="true">01</span>
         <p className="landing-eyebrow">記録した先にある、3つの楽しみ</p>
-        <h2 id="features-title">振り返る。相談する。競い合う。</h2>
+        <h2 id="ai-title">記録を渡して、AIに相談。</h2>
+        <p>期間内の全セットとメモを、Markdownでまとめて書き出し。使っているAIに貼り付けて、次のメニューや記録の傾向を相談できます。</p>
+        <span className="landing-feature-tag">データのエクスポート</span>
+      </div>
+      <div className="landing-ai-demo" role="region" aria-label="エクスポートのサンプル">
+        <div className="landing-demo-heading"><h3>データをエクスポート</h3><span>AIに相談</span></div>
+        <ExportPreview />
+      </div>
+    </section>
+
+    <section className="landing-features landing-container" aria-labelledby="features-title">
+      <div className="landing-section-heading">
+        <h2 id="features-title">振り返る。競い合う。</h2>
       </div>
       <div className="landing-feature-grid">
         {features.map(feature => <article key={feature.number} className="landing-feature">
           <span className="landing-feature-number" aria-hidden="true">{feature.number}</span>
           <h3>{feature.title}</h3><p>{feature.text}</p><span className="landing-feature-tag">{feature.tag}</span>
+          <button type="button" className="landing-feature-show" onClick={() => show(feature.tab)}>{feature.action}<span aria-hidden="true">↑</span></button>
         </article>)}
       </div>
     </section>
@@ -68,6 +92,7 @@ export function LandingPage() {
           <div className="landing-mini-body" aria-hidden="true"><span>体重<strong>72.4<small>kg</small></strong></span><span>体脂肪率<strong>16.2<small>%</small></strong></span></div>
           <h3>身体の変化も、ひとつの場所に。</h3>
           <p>体重と体脂肪率を同じグラフで確認。日々の測定とトレーニングを、まとめて振り返れます。</p>
+          <button type="button" className="landing-feature-show" onClick={() => show('body')}>体組成の画面を見る<span aria-hidden="true">↑</span></button>
         </article>
         <article className="landing-beyond-card">
           <div className="landing-mini-body" aria-hidden="true"><span>重量<strong>80<small>kg</small></strong></span><span>回数<strong>8<small>回</small></strong></span></div>
