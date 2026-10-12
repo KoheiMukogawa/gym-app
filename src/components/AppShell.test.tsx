@@ -4,6 +4,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './AppShell'
+import { saveShowScreenIds } from '../features/admin/screenIds'
 
 const { mounted, loadDraft, fetchIsAdmin, fetchUnreadFeedbackCount } = vi.hoisted(() => ({ mounted: vi.fn(), loadDraft: vi.fn(), fetchIsAdmin: vi.fn(), fetchUnreadFeedbackCount: vi.fn() }))
 vi.mock('../features/auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1', profile: null, refreshProfile: vi.fn(), signOut: vi.fn() }) }))
@@ -22,7 +23,7 @@ function renderShell(path = '/') {
     <Route path="/history" element={<Link to="/log">記録に戻る</Link>} />
   </Route></Routes></MemoryRouter>)
 }
-beforeEach(() => { vi.clearAllMocks(); loadDraft.mockReturnValue(null); fetchIsAdmin.mockResolvedValue(false) })
+beforeEach(() => { vi.clearAllMocks(); loadDraft.mockReturnValue(null); fetchIsAdmin.mockResolvedValue(false); saveShowScreenIds(false) })
 describe('deferred recording screen', () => {
   it('does not mount on home, and keeps input after tab navigation', async () => {
     const user = userEvent.setup()
@@ -102,5 +103,28 @@ describe('feedback in the profile menu', () => {
     expect(screen.getByRole('button', { name: 'プロフィールメニュー（新着の意見があります）' })).toBeInTheDocument()
     act(() => { window.dispatchEvent(new Event('glog-feedback-read')) }); await flush()
     expect(screen.getByRole('button', { name: 'プロフィールメニュー' })).not.toHaveAttribute('data-unread')
+  })
+})
+
+describe('screen IDs', () => {
+  it('lets an admin show the screen ID in the header and remembers it', async () => {
+    fetchIsAdmin.mockResolvedValue(true); fetchUnreadFeedbackCount.mockResolvedValue(0)
+    const user = userEvent.setup()
+    renderShell('/history')
+    await user.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    const toggle = await screen.findByRole('switch', { name: /画面IDを表示/ })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByLabelText(/^画面ID/)).not.toBeInTheDocument()
+    await user.click(toggle)
+    expect(screen.getByLabelText('画面ID HIS-01')).toHaveTextContent('HIS-01')
+    expect(localStorage.getItem('glog:show-screen-ids')).toBe('1')
+  })
+  it('never shows IDs or the switch to other users, even if the device remembers it', async () => {
+    saveShowScreenIds(true)
+    renderShell('/history')
+    await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    await act(async () => {})
+    expect(screen.queryByRole('switch', { name: /画面IDを表示/ })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^画面ID/)).not.toBeInTheDocument()
   })
 })

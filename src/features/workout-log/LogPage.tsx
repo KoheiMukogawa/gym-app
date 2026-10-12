@@ -61,7 +61,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'>
   })
 }
 
-export function LogPage({ onFinished }: { onFinished?: () => void }) {
+export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => void, onPickingChange?: (picking: boolean) => void }) {
   const { userId } = useSession()
   const navigate = useNavigate()
   const { show } = useToast()
@@ -98,6 +98,8 @@ export function LogPage({ onFinished }: { onFinished?: () => void }) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [picking, setPicking] = useState(draft?.state.currentExerciseId == null)
+  // 管理者向けの画面ID（種目選択 REC-01 / 記録入力 REC-02）の切り替えに使う
+  useEffect(() => { onPickingChange?.(picking) }, [picking, onPickingChange])
   const [justSaved, setJustSaved] = useState(false)
   const [offline, setOffline] = useState(isOffline())
   const [finishing, setFinishing] = useState(false)
