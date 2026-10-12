@@ -75,8 +75,9 @@ test('set columns stay aligned when RM values differ or are unavailable', async 
     await enterWheelValue(page, '回数', String(reps))
     await page.getByRole('button', { name: 'セット完了', exact: true }).click()
   }
-  await expect(page.getByText('参考値', { exact: true })).toBeVisible()
-  await expect(page.getByText('推定1RM 117.3', { exact: true })).toBeVisible()
+  const referenceSet = page.getByRole('button', { name: /ベンチプレス 3set .*のメモ/ })
+  await expect(referenceSet.getByText('参考値', { exact: true })).toBeVisible()
+  await expect(referenceSet.getByText('推定1RM 117.3', { exact: true })).toBeVisible()
   for (const width of [320, 375, 390]) {
     await page.setViewportSize({ width, height: 844 })
     const rows = page.getByRole('button', { name: /ベンチプレス .*set .*のメモ/ })
@@ -564,7 +565,7 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   expect(data.sets[0].weight_kg).toBe(62.5)
   expect(data.sets[0].reps).toBe(8)
   await page.screenshot({ path: 'test-results/log-mobile.png', fullPage: true })
-  await expect(page.getByText('推定1RM 77.6', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /ベンチプレス 1set .*のメモ/ }).getByText('推定1RM 77.6', { exact: true })).toBeVisible()
   await enterWheelValue(page, '重量', '80')
   await enterWheelValue(page, '回数', '6')
   await page.getByRole('link', { name: '履歴', exact: true }).click()
