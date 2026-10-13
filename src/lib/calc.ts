@@ -179,3 +179,11 @@ export function adjustWeight(current: number, direction: 1 | -1): number {
 export function adjustReps(current: number, direction: 1 | -1): number {
   return Math.max(MIN_REPS, current + direction)
 }
+
+/**
+ * 重量のダイヤルの刻み。その種目の最近のセット（新しい順）に、2.5で割り切れない
+ * 整数の重量（ダンベルやマシンの81kgなど）があれば1kg刻み、なければ2.5kg刻み。
+ */
+export function weightStep(recentWeights: number[], lookback = 10): 1 | 2.5 {
+  return recentWeights.slice(0, lookback).some((w) => Number.isInteger(w) && w % 2.5 !== 0) ? 1 : 2.5
+}

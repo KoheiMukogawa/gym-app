@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LogPage } from './LogPage'
 import { ToastProvider } from '../../components/ui/Toast'
@@ -120,6 +120,15 @@ describe('LogPage', () => {
   afterEach(() => {
     onLineSpy?.mockRestore()
     onLineSpy = null
+  })
+
+  it('turns the weight dial to 1 kg rows for an exercise recorded in whole kilos', async () => {
+    saveDraft(USER, { state: { currentExerciseId: 'bench', weight_kg: 22, reps: 10, sets: [] }, workoutId: null, status: {} })
+    fetchUserSetHistory.mockResolvedValue([{ exercise_id: 'bench', weight_kg: 22, reps: 10 }, { exercise_id: 'bench', weight_kg: 20, reps: 10 }])
+    renderLogPage()
+    const wheel = await screen.findByLabelText('重量をスクロールで選択')
+    expect(within(wheel).getByText('23')).toBeInTheDocument()
+    expect(within(wheel).queryByText('24.5')).toBeNull()
   })
 
   it('keeps set recording available when previous-workout loading fails', async () => {

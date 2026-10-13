@@ -1,3 +1,4 @@
+import { weightStep } from '../../lib/calc'
 import { WheelNumber } from '../../components/ui/WheelNumber'
 import { SetRmLabel } from '../workout-log/SetRmLabel'
 import { DateField } from '../../components/ui/DateField'
@@ -213,6 +214,8 @@ export function WorkoutEditorPage() {
   const names = Object.fromEntries(exercises.map((e) => [e.id, exerciseLabel(e)]))
   const groups = [...new Set(sets.map((s) => s.exercise_id))].map((id) => ({ id, sets: sets.filter((s) => s.exercise_id === id) }))
   const entryIsBodyweight = !!entry && isBodyweightExercise(entry.exercise_id)
+  // この日のその種目のセットに1kg単位の重量があれば、ダイヤルも1kg刻みにする
+  const entryStep = weightStep(entry ? [...sets].filter((s) => s.exercise_id === entry.exercise_id).sort((a, b) => b.set_index - a.set_index).map((s) => s.weight_kg) : [])
 
   const inlineEntry = !!entry && !entry.existing && groups.some(group => group.id === entry.exercise_id)
   const entryForm = entry && !picking ? (
@@ -224,7 +227,7 @@ export function WorkoutEditorPage() {
           </button>
           <fieldset disabled={busy} className="min-w-0 grid grid-cols-2 gap-4">
             <WheelNumber key={entry.id + '-weight'} label={entryIsBodyweight ? '加重' : '重量'} unit="kg"
-              min={minWeightFor(entry.exercise_id)} value={Number(entry.weight)} format={entryIsBodyweight ? formatAddedLoad : undefined}
+              min={minWeightFor(entry.exercise_id)} step={entryStep} value={Number(entry.weight)} format={entryIsBodyweight ? formatAddedLoad : undefined}
               onEnter={value => setEntry(old => old ? { ...old, weight: String(value) } : old)} />
             <WheelNumber key={entry.id + '-reps'} label="回数" unit="回" min={0} value={Number(entry.reps)}
               onEnter={value => setEntry(old => old ? { ...old, reps: String(value) } : old)} />

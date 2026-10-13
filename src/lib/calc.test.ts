@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  weightStep,
   normalizeExerciseName,
   totalVolume,
   personalBest,
@@ -240,5 +241,20 @@ describe('failed sets with zero reps', () => {
       { ...base, weight_kg: 100, reps: 0, performed_at: '2026-08-10T03:00:00Z' },
       { ...base, weight_kg: 90, reps: 5, performed_at: '2026-08-10T03:00:00Z' },
     ])).toEqual([{ date: '2026-08-10', max_weight: 90 }])
+  })
+})
+
+describe('weightStep', () => {
+  it('uses 1 kg rows when a recent set was a whole kilo off the 2.5 grid', () => {
+    expect(weightStep([20, 22, 24])).toBe(1)
+    expect(weightStep([81])).toBe(1)
+  })
+  it('keeps 2.5 kg rows for plate weights and fractional custom values', () => {
+    expect(weightStep([60, 62.5, 65])).toBe(2.5)
+    expect(weightStep([61.25, 83.8])).toBe(2.5)
+    expect(weightStep([])).toBe(2.5)
+  })
+  it('only looks at the most recent sets', () => {
+    expect(weightStep([...Array(10).fill(100), 81])).toBe(2.5)
   })
 })

@@ -70,6 +70,7 @@
 
 ## 再開時の注意
 
+- 2026-10-13: ご意見を受け、重量ダイヤルの刻みを種目ごとに自動で切り替える。その種目の最近10セット（記録画面は今日のセット→過去の記録、履歴編集はその日のセット）に2.5で割り切れない整数の重量（81kgなど）があれば1kg刻み、なければ2.5kg刻み（`weightStep`、`WheelNumber` の `step`）。設定はない。
 - 2026-10-12: 本人の希望で、ダイヤル（`WheelNumber`）上部の＋−ボタンを削除（画面が狭いため）。ラベルだけの1行にした。微調整はスクロール・直接入力・矢印キー。E2Eは `tests/e2e/wheel.ts` の `nudgeWheel`（矢印キー）で1段動かす。
 - 2026-10-12: ランディングページを作り直した。切り替えボタン3つをなくし、最初の画面のスマホ（`LandingPhone.tsx`、本物に近い縦長で画面の高さに合わせて縮む）の下のタブでホーム・履歴・BIG3・ランキング・体組成を操作できる。中は本物の部品（`MonthCalendar`・`Big3Column`（HomePageから書き出し）・`WorkoutSetDetails`・`WorkoutCard`・`StrengthScore`・`LiftCard`・`MetricTabs`・`BodyTrendChart`）。スマホ内のリンクはページを移動せず、BIG3や種目のリンクはBIG3タブを開く。記録は本人の弟の実データ（2026年4月〜10/11、メモなし、`landingDemoData.ts`）、ランキングのほかの人・今月の伸び・DOTS・体組成・目標はサンプル。AI相談の見本（`ExportPreview.tsx`）は独立した節に移し、機能カードの「〜の画面を見る」でスマホのタブを切り替える。iPhone実機確認は未実施。
 - 2026-10-12: 「ホーム画面に追加」の案内（`src/features/install/`）。登録直後に1回シートを出し（`LoginPage` が `glog:install-after-signup:<userId>` を立てる）、まだブラウザーで使っている人には最初に記録を終えた後にもう1回（`glog:install-after-workout:<userId>`）。ホームのカード（閉じると `glog:install-card-dismissed:<userId>`）とメニューの「ホーム画面に追加」からはいつでも開ける。端末はUAで判定（iPhoneのSafari／それ以外のiPhoneブラウザー／LINE（`?openExternalBrowser=1` で外部ブラウザーへ）／Instagramなどのアプリ内ブラウザー／Android（`beforeinstallprompt` があればボタン1つ））。ホーム画面のアイコンから開いている人とPCには出さない。記録中は出さない。iPhoneではホーム画面のアプリとSafariのログインが別になる前提で、手順に「アイコンから開いてログイン」を入れている（実機では未確認）。DB変更なし。お知らせは足していない（既存の利用者にはホームのカードで届く）。モックE2E `install-guide.spec.ts`（iPhoneのUA）。iPhone実機確認は未実施。

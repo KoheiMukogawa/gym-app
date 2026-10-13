@@ -31,6 +31,13 @@ describe('WheelNumber', () => {
     } finally { vi.useRealTimers() }
   })
 
+  it('moves one kilo per row when given a 1 kg step', () => {
+    render(<WheelNumber label="重量" value={20} unit="kg" step={1} onEnter={() => undefined} />)
+    const dial = screen.getByRole('spinbutton', { name: '重量' })
+    expect(screen.getByText('21')).toBeInTheDocument()
+    expect(screen.queryByText('22.5')).toBeNull()
+    expect(dial).toHaveAttribute('aria-valuenow', '20')
+  })
   it('has no plus or minus buttons above the dial', () => {
     render(<Controlled />)
     expect(screen.queryByRole('button', { name: /を(増や|減ら)す$/ })).toBeNull()

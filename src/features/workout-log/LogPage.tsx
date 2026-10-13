@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { findPrefill } from '../../lib/calc'
+import { findPrefill, weightStep } from '../../lib/calc'
 import { validateSet } from '../../lib/dates'
 import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
@@ -208,6 +208,8 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
   const bodyweight = latestBodyweight(bodyweightLogs)
   // 自重種目は体重分までのアシスト（マイナス）を許す
   const minWeight = isBodyweight && bodyweight !== null ? -bodyweight : 0
+  // ダンベルやマシンのように1kg単位で記録している種目は、ダイヤルも1kg刻みにする（今日のセット→過去の記録の新しい順）
+  const dialStep = weightStep([...[...state.sets].reverse(), ...history].filter((s) => s.exercise_id === state.currentExerciseId).map((s) => s.weight_kg))
   const load = isBodyweight ? totalLoad(state.weight_kg, bodyweight) : state.weight_kg
   const loadOffset = isBodyweight ? bodyweight ?? 0 : 0
 
@@ -608,6 +610,7 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
               unit="kg"
               min={minWeight}
               format={isBodyweight ? formatAddedLoad : undefined}
+              step={dialStep}
               onEnter={(value) => dispatch({ type: 'set-weight', value, min: minWeight, history, loadOffset })}
             />
             <WheelNumber
