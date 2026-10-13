@@ -139,16 +139,25 @@ describe('screen IDs', () => {
 describe('replies to my feedback', () => {
   const answered = { id: 'f1', body: '1kg刻みにしてほしい', created_at: '2026-10-12T00:00:00Z', read_at: '2026-10-12T01:00:00Z',
     status: 'done', reply: '1kg刻みに対応しました', replied_at: '2026-10-13T00:00:00Z', reply_seen_at: null }
-  it('rings the icon, marks the menu, and shows the reply once in a sheet', async () => {
+  it('shows the reply once in a sheet, and keeps the ring and menu mark until the feedback page is opened', async () => {
+    localStorage.clear()
     fetchMyFeedback.mockResolvedValue([answered])
     const user = userEvent.setup()
-    renderShell()
+    const view = render(<MemoryRouter initialEntries={['/']}><Routes><Route element={<AppShell />}><Route path="/" element={null} /></Route></Routes></MemoryRouter>)
     const sheet = await screen.findByRole('dialog', { name: 'ご意見への返信' })
     expect(sheet).toHaveTextContent('対応済み')
     expect(sheet).toHaveTextContent('1kg刻みに対応しました')
-    expect(screen.getByRole('button', { name: 'プロフィールメニュー（ご意見に返信があります）', hidden: true })).toHaveAttribute('data-unread')
     await user.click(screen.getByRole('button', { name: '閉じる' }))
-    expect(markRepliesSeen).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog', { name: 'ご意見への返信' })).toBeNull()
+    expect(markRepliesSeen).not.toHaveBeenCalled()
+    const menu = screen.getByRole('button', { name: 'プロフィールメニュー（ご意見に返信があります）' })
+    expect(menu).toHaveAttribute('data-unread')
+    await user.click(menu)
+    expect(screen.getByRole('link', { name: /ご意見・不具合を送る/ })).toHaveTextContent('返信 1')
+    // Opening the app again does not repeat the sheet for the same answer.
+    view.unmount()
+    renderShell()
+    await screen.findByRole('button', { name: 'プロフィールメニュー（ご意見に返信があります）' })
     expect(screen.queryByRole('dialog', { name: 'ご意見への返信' })).toBeNull()
   })
   it('waits while recording', async () => {

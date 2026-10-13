@@ -89,7 +89,11 @@ test('a sender is told about a reply once at launch and reads it on the feedback
   await expect(sheet).toContainText('ダイヤルが1kg刻みになりました')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: 'test-results/feedback-reply-sheet.png' })
-  await sheet.getByRole('button', { name: 'ご意見の画面で見る' }).click()
+  // Closing the sheet keeps the ring and the menu mark, as with an admin's new notes.
+  await sheet.getByRole('button', { name: '閉じる' }).last().click()
+  await expect(sheet).toBeHidden()
+  await page.getByRole('button', { name: 'プロフィールメニュー（ご意見に返信があります）' }).click()
+  await page.getByRole('link', { name: /ご意見・不具合を送る.*返信 1/ }).click()
   await expect(page.getByRole('heading', { name: 'ご意見・不具合の報告' })).toBeVisible()
   await expect(page.getByLabel('運営からの返信')).toContainText('1kg刻み')
   await expect.poll(() => seen).toBeGreaterThan(0)
