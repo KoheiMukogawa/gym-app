@@ -70,6 +70,7 @@
 
 ## 再開時の注意
 
+- 2026-10-13: ご意見への返信（設計 `docs/superpowers/specs/2026-10-13-feedback-replies-design.md`）。管理者は「届いた意見」で状態（検討中／対応中／対応済み／見送り）と返信を保存（`admin_reply_feedback`）。送った人は、アイコンの赤い輪・メニューの「返信あり」・起動時のシート（`FeedbackReplyGate`、記録中とご意見の画面では出さない）で知り、ご意見の画面で読む（`mark_my_feedback_replies_seen` で既読）。プライバシーポリシーを改定（10/13）。**migration `20261013120000_feedback_replies.sql` は本番に適用してからアプリを公開すること**（先に公開すると、ご意見の画面が新しい列を読めずエラーになる）。
 - 2026-10-13: ご意見を受け、重量ダイヤルの刻みを種目ごとに自動で切り替える。その種目の最近10セット（記録画面は今日のセット→過去の記録、履歴編集はその日のセット）に2.5で割り切れない整数の重量（81kgなど）があれば1kg刻み、なければ2.5kg刻み（`weightStep`、`WheelNumber` の `step`）。設定はない。
 - 2026-10-12: 本人の希望で、ダイヤル（`WheelNumber`）上部の＋−ボタンを削除（画面が狭いため）。ラベルだけの1行にした。微調整はスクロール・直接入力・矢印キー。E2Eは `tests/e2e/wheel.ts` の `nudgeWheel`（矢印キー）で1段動かす。
 - 2026-10-12: ランディングページを作り直した。切り替えボタン3つをなくし、最初の画面のスマホ（`LandingPhone.tsx`、本物に近い縦長で画面の高さに合わせて縮む）の下のタブでホーム・履歴・BIG3・ランキング・体組成を操作できる。中は本物の部品（`MonthCalendar`・`Big3Column`（HomePageから書き出し）・`WorkoutSetDetails`・`WorkoutCard`・`StrengthScore`・`LiftCard`・`MetricTabs`・`BodyTrendChart`）。スマホ内のリンクはページを移動せず、BIG3や種目のリンクはBIG3タブを開く。記録は本人の弟の実データ（2026年4月〜10/11、メモなし、`landingDemoData.ts`）、ランキングのほかの人・今月の伸び・DOTS・体組成・目標はサンプル。AI相談の見本（`ExportPreview.tsx`）は独立した節に移し、機能カードの「〜の画面を見る」でスマホのタブを切り替える。iPhone実機確認は未実施。

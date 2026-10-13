@@ -3,10 +3,33 @@ import { adminMessage } from '../../lib/errors'
 
 export const FEEDBACK_MAX = 2000
 
-export type MyFeedback = { id: string; body: string; created_at: string; read_at: string | null }
-export type AdminFeedback = MyFeedback & { user_agent: string | null; display_name: string }
+export const REPLY_MAX = 1000
+export type FeedbackStatus = 'considering' | 'in_progress' | 'done' | 'declined'
+export const STATUS_LABELS: Record<FeedbackStatus, string> = { considering: '検討中', in_progress: '対応中', done: '対応済み', declined: '見送り' }
 
-const MY_COLUMNS = 'id, body, created_at, read_at'
+type Answer = { status: FeedbackStatus | null; reply: string | null; replied_at: string | null }
+export type MyFeedback = { id: string; body: string; created_at: string; read_at: string | null } & Answer & { reply_seen_at: string | null }
+export type AdminFeedback = Omit<MyFeedback, 'reply_seen_at'> & { user_agent: string | null; display_name: string }
+
+const MY_COLUMNS = 'id, body, created_at, read_at, status, reply, replied_at, reply_seen_at'
+
+/** 運営の返信（状態の変更を含む）を、本人がまだ見ていない意見。 */
+export function hasUnseenReply(item: MyFeedback): boolean {
+  return item.replied_at !== null && (item.reply_seen_at === null || item.reply_seen_at < item.replied_at)
+}
+
+/** 本人が、ここまでの返信を見たことを記録する。 */
+export async function markRepliesSeen(): Promise<void> {
+  const { error } = await supabase.rpc('mark_my_feedback_replies_seen')
+  if (error) throw error
+}
+
+/** 管理者が状態と返信を保存する。返り値は返信の日時（内容が変わらなければ前の日時）。 */
+export async function replyFeedback(id: string, status: FeedbackStatus, reply: string): Promise<string> {
+  const { data, error } = await supabase.rpc('admin_reply_feedback', { p_id: id, p_status: status, p_reply: reply })
+  if (error) throw error
+  return data as string
+}
 
 /** 自分が送った意見（新しい順、50件まで）。RLSで本人の分だけが返る。 */
 export async function fetchMyFeedback(): Promise<MyFeedback[]> {

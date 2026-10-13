@@ -4,19 +4,21 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ui/Toast'
 
-const { fetchMyFeedback, sendFeedback } = vi.hoisted(() => ({ fetchMyFeedback: vi.fn(), sendFeedback: vi.fn() }))
+const { fetchMyFeedback, sendFeedback, markRepliesSeen } = vi.hoisted(() => ({ fetchMyFeedback: vi.fn(), sendFeedback: vi.fn(), markRepliesSeen: vi.fn() }))
 vi.mock('../../lib/supabase', () => ({ supabase: {} }))
-vi.mock('./queries', async (original) => ({ ...await original<typeof import('./queries')>(), fetchMyFeedback, sendFeedback }))
+vi.mock('./queries', async (original) => ({ ...await original<typeof import('./queries')>(), fetchMyFeedback, sendFeedback, markRepliesSeen }))
 import { FeedbackPage } from './FeedbackPage'
 
-const read = { id: '1', body: 'グラフが見にくい', created_at: '2026-10-05T00:30:00Z', read_at: '2026-10-05T01:00:00Z' }
-const unread = { id: '2', body: '種目を増やしたい', created_at: '2026-10-04T00:00:00Z', read_at: null }
+const noAnswer = { status: null, reply: null, replied_at: null, reply_seen_at: null }
+const read = { id: '1', body: 'グラフが見にくい', created_at: '2026-10-05T00:30:00Z', read_at: '2026-10-05T01:00:00Z', ...noAnswer }
+const unread = { id: '2', body: '種目を増やしたい', created_at: '2026-10-04T00:00:00Z', read_at: null, ...noAnswer }
 const renderPage = () => render(<MemoryRouter><ToastProvider><FeedbackPage /></ToastProvider></MemoryRouter>)
 const input = () => screen.getByLabelText('内容')
 
 beforeEach(() => {
   vi.clearAllMocks()
   fetchMyFeedback.mockResolvedValue([read, unread])
+  markRepliesSeen.mockResolvedValue(undefined)
 })
 
 describe('FeedbackPage', () => {
@@ -27,6 +29,25 @@ describe('FeedbackPage', () => {
     expect(await screen.findByText('グラフが見にくい')).toBeInTheDocument()
     expect(screen.getByText('10/5 9:30 ・ 運営が確認済み')).toBeInTheDocument()
     expect(screen.getAllByText(/運営が確認済み/)).toHaveLength(1)
+  })
+
+  it('shows the operator\'s status and reply, and marks new replies seen', async () => {
+    fetchMyFeedback.mockResolvedValue([{ ...read, status: 'done', reply: '見やすくしました', replied_at: '2026-10-06T00:00:00Z' }, unread])
+    renderPage()
+    const answer = await screen.findByLabelText('運営からの返信')
+    expect(answer).toHaveTextContent('対応済み')
+    expect(answer).toHaveTextContent('見やすくしました')
+    expect(answer).toHaveTextContent('新しい返信')
+    expect(markRepliesSeen).toHaveBeenCalledOnce()
+    expect(screen.getAllByLabelText('運営からの返信')).toHaveLength(1)
+  })
+
+  it('does not mark anything when every reply was seen', async () => {
+    fetchMyFeedback.mockResolvedValue([{ ...read, status: 'in_progress', replied_at: '2026-10-06T00:00:00Z', reply_seen_at: '2026-10-06T01:00:00Z' }])
+    renderPage()
+    expect(await screen.findByLabelText('運営からの返信')).toHaveTextContent('対応中')
+    expect(screen.queryByText('新しい返信')).toBeNull()
+    expect(markRepliesSeen).not.toHaveBeenCalled()
   })
 
   it('keeps the button disabled for blank text, including full-width spaces and newlines', async () => {
@@ -50,7 +71,7 @@ describe('FeedbackPage', () => {
     await userEvent.click(screen.getByRole('button', { name: '送信する' }))
     expect(screen.getByRole('button', { name: '送信中…' })).toBeDisabled()
     await userEvent.click(screen.getByRole('button', { name: '送信中…' }))
-    finish({ id: '3', body: '休憩タイマーがほしい', created_at: '2026-10-05T02:00:00Z', read_at: null })
+    finish({ id: '3', body: '休憩タイマーがほしい', created_at: '2026-10-05T02:00:00Z', read_at: null, ...noAnswer })
     expect(await screen.findByText('送信しました。ありがとうございます')).toBeInTheDocument()
     expect(sendFeedback).toHaveBeenCalledTimes(1)
     expect(sendFeedback).toHaveBeenCalledWith('休憩タイマーがほしい')

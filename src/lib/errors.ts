@@ -28,7 +28,7 @@ export function isOffline(): boolean {
 }
 
 // Reasons raised by the admin and feedback database functions are written for the user.
-const ADMIN_REASONS = ['ログインが必要です', '権限がありません', '送信の上限に達しました。時間をおいてお試しください']
+const ADMIN_REASONS = ['ログインが必要です', '権限がありません', '送信の上限に達しました。時間をおいてお試しください', '状態を選んでください', '返信は1000文字までです', '意見が見つかりません']
 
 export function adminMessage(error: unknown): string {
   const e = (error ?? {}) as ErrorLike

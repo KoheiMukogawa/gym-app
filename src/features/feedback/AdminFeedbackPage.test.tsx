@@ -3,13 +3,14 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
-const { fetchAllFeedback, markFeedbackRead } = vi.hoisted(() => ({ fetchAllFeedback: vi.fn(), markFeedbackRead: vi.fn() }))
+const { fetchAllFeedback, markFeedbackRead, replyFeedback } = vi.hoisted(() => ({ fetchAllFeedback: vi.fn(), markFeedbackRead: vi.fn(), replyFeedback: vi.fn() }))
 vi.mock('../../lib/supabase', () => ({ supabase: {} }))
-vi.mock('./queries', async (original) => ({ ...await original<typeof import('./queries')>(), fetchAllFeedback, markFeedbackRead }))
+vi.mock('./queries', async (original) => ({ ...await original<typeof import('./queries')>(), fetchAllFeedback, markFeedbackRead, replyFeedback }))
 import { AdminFeedbackPage } from './AdminFeedbackPage'
 
-const fresh = { id: 'f1', body: '記録画面が重い\n特に夜', user_agent: 'TestAgent/1.0', created_at: '2026-10-05T00:30:00Z', read_at: null, display_name: '利用者A' }
-const old = { id: 'f2', body: 'ありがとう', user_agent: null, created_at: '2026-10-01T00:00:00Z', read_at: '2026-10-02T00:00:00Z', display_name: '利用者B' }
+const noAnswer = { status: null, reply: null, replied_at: null }
+const fresh = { ...noAnswer, id: 'f1', body: '記録画面が重い\n特に夜', user_agent: 'TestAgent/1.0', created_at: '2026-10-05T00:30:00Z', read_at: null, display_name: '利用者A' }
+const old = { ...noAnswer, id: 'f2', body: 'ありがとう', user_agent: null, created_at: '2026-10-01T00:00:00Z', read_at: '2026-10-02T00:00:00Z', display_name: '利用者B' }
 const renderPage = () => render(<MemoryRouter><AdminFeedbackPage /></MemoryRouter>)
 const row = (text: string) => screen.getByText(text, { exact: false }).closest('li')!
 
@@ -28,8 +29,36 @@ describe('AdminFeedbackPage', () => {
     expect(within(first).getByText('10/5 9:30')).toBeInTheDocument()
     expect(within(first).getByText('TestAgent/1.0')).toBeInTheDocument()
     expect(within(first).getByRole('button', { name: '既読にする' })).toBeInTheDocument()
-    expect(within(row('ありがとう')).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(row('ありがとう')).queryByRole('button', { name: '既読にする' })).not.toBeInTheDocument()
     expect(within(row('ありがとう')).getByText('既読')).toBeInTheDocument()
+  })
+
+  it('answers a note with a status and a reply, which also marks it read', async () => {
+    replyFeedback.mockResolvedValue('2026-10-13T00:00:00Z')
+    renderPage()
+    await screen.findByRole('heading', { name: '届いた意見' })
+    const first = row('記録画面が重い')
+    const send = within(first).getByRole('button', { name: '返信する' })
+    expect(send).toBeDisabled() // a status is required
+    await userEvent.click(within(first).getByRole('button', { name: '対応中' }))
+    await userEvent.type(within(first).getByLabelText(/返信/), '調査しています')
+    await userEvent.click(send)
+    expect(replyFeedback).toHaveBeenCalledWith('f1', 'in_progress', '調査しています')
+    expect(await within(first).findByText(/返信済み/)).toBeInTheDocument()
+    expect(within(first).getByRole('button', { name: '返信を更新' })).toBeDisabled()
+    expect(screen.getByText('未読 0件')).toBeInTheDocument()
+  })
+
+  it('keeps the answer and shows why when saving fails', async () => {
+    replyFeedback.mockRejectedValue(new Error('返信は1000文字までです'))
+    renderPage()
+    await screen.findByRole('heading', { name: '届いた意見' })
+    const first = row('記録画面が重い')
+    await userEvent.click(within(first).getByRole('button', { name: '対応済み' }))
+    await userEvent.type(within(first).getByLabelText(/返信/), '直しました')
+    await userEvent.click(within(first).getByRole('button', { name: '返信する' }))
+    expect(await within(first).findByRole('alert')).toHaveTextContent('返信は1000文字までです')
+    expect(within(first).getByLabelText(/返信/)).toHaveValue('直しました')
   })
 
   it('marks a note read once even when tapped twice', async () => {

@@ -6,15 +6,22 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { saveShowScreenIds } from '../features/admin/screenIds'
 
-const { mounted, loadDraft, fetchIsAdmin, fetchUnreadFeedbackCount } = vi.hoisted(() => ({ mounted: vi.fn(), loadDraft: vi.fn(), fetchIsAdmin: vi.fn(), fetchUnreadFeedbackCount: vi.fn() }))
+const { mounted, loadDraft, fetchIsAdmin, fetchUnreadFeedbackCount, fetchMyFeedback, markRepliesSeen } = vi.hoisted(() => ({ mounted: vi.fn(), loadDraft: vi.fn(), fetchIsAdmin: vi.fn(), fetchUnreadFeedbackCount: vi.fn(), fetchMyFeedback: vi.fn(), markRepliesSeen: vi.fn() }))
 vi.mock('../features/auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1', profile: null, refreshProfile: vi.fn(), signOut: vi.fn() }) }))
 vi.mock('../features/workout-log/persistence', () => ({ loadDraft }))
-vi.mock('../features/feedback/queries', () => ({ fetchIsAdmin, fetchUnreadFeedbackCount }))
+vi.mock('../features/feedback/queries', async (original) => ({ ...await original<typeof import('../features/feedback/queries')>(), fetchIsAdmin, fetchUnreadFeedbackCount, fetchMyFeedback, markRepliesSeen }))
+vi.mock('../lib/supabase', () => ({ supabase: {} }))
 vi.mock('../features/announcements/queries', () => ({ fetchSeenUntil: vi.fn().mockResolvedValue(null), markAnnouncementsSeen: vi.fn() }))
 vi.mock('../features/workout-log/LogPage', () => ({ LogPage: () => {
   const [text, setText] = useState(() => { mounted(); return '' })
   return <label>入力途中<input value={text} onChange={e => setText(e.target.value)} /></label>
 } }))
+
+// jsdom does not implement the modal top layer.
+Object.defineProperties(HTMLDialogElement.prototype, {
+  showModal: { configurable: true, value() { this.setAttribute('open', '') } },
+  close: { configurable: true, value() { this.removeAttribute('open') } },
+})
 
 function renderShell(path = '/') {
   render(<MemoryRouter initialEntries={[path]}><Routes><Route element={<AppShell />}>
@@ -23,7 +30,7 @@ function renderShell(path = '/') {
     <Route path="/history" element={<Link to="/log">記録に戻る</Link>} />
   </Route></Routes></MemoryRouter>)
 }
-beforeEach(() => { vi.clearAllMocks(); loadDraft.mockReturnValue(null); fetchIsAdmin.mockResolvedValue(false); saveShowScreenIds(false) })
+beforeEach(() => { vi.clearAllMocks(); loadDraft.mockReturnValue(null); fetchIsAdmin.mockResolvedValue(false); fetchMyFeedback.mockResolvedValue([]); markRepliesSeen.mockResolvedValue(undefined); saveShowScreenIds(false) })
 describe('deferred recording screen', () => {
   it('does not mount on home, and keeps input after tab navigation', async () => {
     const user = userEvent.setup()
@@ -126,5 +133,35 @@ describe('screen IDs', () => {
     await act(async () => {})
     expect(screen.queryByRole('switch', { name: /画面IDを表示/ })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^画面ID/)).not.toBeInTheDocument()
+  })
+})
+
+describe('replies to my feedback', () => {
+  const answered = { id: 'f1', body: '1kg刻みにしてほしい', created_at: '2026-10-12T00:00:00Z', read_at: '2026-10-12T01:00:00Z',
+    status: 'done', reply: '1kg刻みに対応しました', replied_at: '2026-10-13T00:00:00Z', reply_seen_at: null }
+  it('rings the icon, marks the menu, and shows the reply once in a sheet', async () => {
+    fetchMyFeedback.mockResolvedValue([answered])
+    const user = userEvent.setup()
+    renderShell()
+    const sheet = await screen.findByRole('dialog', { name: 'ご意見への返信' })
+    expect(sheet).toHaveTextContent('対応済み')
+    expect(sheet).toHaveTextContent('1kg刻みに対応しました')
+    expect(screen.getByRole('button', { name: 'プロフィールメニュー（ご意見に返信があります）', hidden: true })).toHaveAttribute('data-unread')
+    await user.click(screen.getByRole('button', { name: '閉じる' }))
+    expect(markRepliesSeen).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog', { name: 'ご意見への返信' })).toBeNull()
+  })
+  it('waits while recording', async () => {
+    fetchMyFeedback.mockResolvedValue([answered])
+    renderShell('/log')
+    await act(async () => {})
+    expect(screen.queryByRole('dialog', { name: 'ご意見への返信' })).toBeNull()
+  })
+  it('stays quiet once the reply was seen', async () => {
+    fetchMyFeedback.mockResolvedValue([{ ...answered, reply_seen_at: '2026-10-13T01:00:00Z' }])
+    renderShell()
+    await act(async () => {})
+    expect(screen.queryByRole('dialog', { name: 'ご意見への返信' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'プロフィールメニュー' })).not.toHaveAttribute('data-unread')
   })
 })

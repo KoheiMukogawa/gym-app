@@ -19,7 +19,7 @@ describe('feedback queries', () => {
     const b = builder({ data: rows, error: null }); from.mockReturnValue(b)
     await expect(fetchMyFeedback()).resolves.toEqual(rows)
     expect(from).toHaveBeenCalledWith('feedback')
-    expect(b.select).toHaveBeenCalledWith('id, body, created_at, read_at')
+    expect(b.select).toHaveBeenCalledWith('id, body, created_at, read_at, status, reply, replied_at, reply_seen_at')
     expect(b.order).toHaveBeenCalledWith('created_at', { ascending: false })
     expect(b.limit).toHaveBeenCalledWith(50)
   })
