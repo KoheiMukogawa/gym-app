@@ -7,7 +7,7 @@
 - ブランチ: `master`。push すると Vercel に自動デプロイされる。Codex も `master` に push するので、push 前に必ず `git fetch` する
 - 本番で実際に使われている（本人がiPhoneで日常的に記録。利用者6人）。本番データの書き込み・削除やmigration適用は本人の許可を取ってから
 - 公開済みの機能: 記録（ダイアル入力、セットごとの推定1RM、メモは記録後にセットをタップ）、履歴と編集、BIG3、ランキング（kg・DOTS）、体組成、コミュニティ、Health同期、Markdown出力、パスワード再設定、退会、ご意見の送信（管理者はヘッダーのメニューの「届いた意見」で読み、既読にする。未読があるとアイコンが赤い輪で囲まれる）、管理者向けの利用状況（`/admin/usage`）、新しい機能のお知らせ（起動時のシート）
-- 本番に適用済みのmigration: `zero_rep_sets`（2026-10-05、`apply_migration` で適用）、`growth_stats`（2026-10-07、`apply_migration` で適用。anonから実行不可を確認済み）。Edge Function `body-metrics` も稼働中
+- 本番に適用済みのmigration: `zero_rep_sets`（2026-10-05、`apply_migration` で適用）、`growth_stats`（2026-10-07、`apply_migration` で適用。anonから実行不可を確認済み）、`feedback_replies`（2026-10-13、`apply_migration` で適用。anonから実行不可・利用者が返信の列を書けないことを確認済み）。Edge Function `body-metrics` も稼働中
 - `account_deletion` はClaude Codeの自動許可モードが `apply_migration` を止めたため、本人がSQL Editorで適用した。Supabaseのmigration履歴（`list_migrations`）には載らない。関数2つ・権限・中身は読み取りで確認済み。設計は `docs/superpowers/specs/2026-10-04-account-deletion-design.md`
 - 退会は `delete_my_account('退会する')` で本人の記録・自作種目・`auth.users` を消し、残りは外部キーの連鎖で消える。自分が作ったコミュニティはメンバーごと消える。2026-10-04に本番のテスト用アカウントで退会し、`auth` の内部テーブルを含め、そのユーザーを参照する行が残らないことを読み取りで確認済み
 - `rls_initplan` はRLSの `auth.uid()` を `(select auth.uid())` に変え、`communities.owner_id` のインデックスとDOTS参加時の係数必須チェックを追加した。適用後、advisorsの `auth_rls_initplan`・`unindexed_foreign_keys` は解消、本人として本人の記録だけが見えることを確認済み
@@ -66,11 +66,11 @@
    次の一歩は本人から履歴画面のスクリーンショット1〜2枚と移行期間を受け取り、試し読みすること。本番への書き込み前に必ず本人の許可を取る
 4. 実SupabaseのE2E（`npm run test:e2e`）は2026-08-20以降未実行。実行すると `e2e@example.com` の記録がフィードに残る
 5. Health同期: 本人のHealth測定を送る操作は明示許可後に本人の少数日で行う。トークンや本文を共有ログへ残さない。署名済みShortcutファイルの配布はない
-6. Supabase advisors の `authenticated_security_definer_function_executable`（13件、うち2件は退会、5件は管理者用の関数（ご意見3・利用状況1・成長の指標1））と `rls_enabled_no_policy`（communities・community_members・health_sync_private.tokens）は設計どおり。どれもanonから実行不可、`search_path` 固定、`auth.uid()` で本人に限定している
+6. Supabase advisors の `authenticated_security_definer_function_executable`（15件、うち2件は退会、6件は管理者用の関数（ご意見4・利用状況1・成長の指標1）、1件はご意見の返信を見たことの記録）と `rls_enabled_no_policy`（communities・community_members・health_sync_private.tokens）は設計どおり。どれもanonから実行不可、`search_path` 固定、`auth.uid()` で本人に限定している
 
 ## 再開時の注意
 
-- 2026-10-13: ご意見への返信（設計 `docs/superpowers/specs/2026-10-13-feedback-replies-design.md`）。管理者は「届いた意見」で状態（検討中／対応中／対応済み／見送り）と返信を保存（`admin_reply_feedback`）。送った人は、アイコンの赤い輪・メニューの「返信あり」・起動時のシート（`FeedbackReplyGate`、記録中とご意見の画面では出さない）で知り、ご意見の画面で読む（`mark_my_feedback_replies_seen` で既読）。プライバシーポリシーを改定（10/13）。**migration `20261013120000_feedback_replies.sql` は本番に適用してからアプリを公開すること**（先に公開すると、ご意見の画面が新しい列を読めずエラーになる）。
+- 2026-10-13: ご意見への返信（設計 `docs/superpowers/specs/2026-10-13-feedback-replies-design.md`）。管理者は「届いた意見」で状態（検討中／対応中／対応済み／見送り）と返信を保存（`admin_reply_feedback`）。送った人は、アイコンの赤い輪・メニューの「返信あり」・起動時のシート（`FeedbackReplyGate`、記録中とご意見の画面では出さない）で知り、ご意見の画面で読む（`mark_my_feedback_replies_seen` で既読）。プライバシーポリシーを改定（10/13）。migration `20261013120000_feedback_replies.sql` は本人の許可を受けて本番に適用済み（アプリより先に適用した。逆順だとご意見の画面が新しい列を読めずエラーになる）。
 - 2026-10-13: ご意見を受け、重量ダイヤルの刻みを種目ごとに自動で切り替える。その種目の最近10セット（記録画面は今日のセット→過去の記録、履歴編集はその日のセット）に2.5で割り切れない整数の重量（81kgなど）があれば1kg刻み、なければ2.5kg刻み（`weightStep`、`WheelNumber` の `step`）。設定はない。
 - 2026-10-12: 本人の希望で、ダイヤル（`WheelNumber`）上部の＋−ボタンを削除（画面が狭いため）。ラベルだけの1行にした。微調整はスクロール・直接入力・矢印キー。E2Eは `tests/e2e/wheel.ts` の `nudgeWheel`（矢印キー）で1段動かす。
 - 2026-10-12: ランディングページを作り直した。切り替えボタン3つをなくし、最初の画面のスマホ（`LandingPhone.tsx`、本物に近い縦長で画面の高さに合わせて縮む）の下のタブでホーム・履歴・BIG3・ランキング・体組成を操作できる。中は本物の部品（`MonthCalendar`・`Big3Column`（HomePageから書き出し）・`WorkoutSetDetails`・`WorkoutCard`・`StrengthScore`・`LiftCard`・`MetricTabs`・`BodyTrendChart`）。スマホ内のリンクはページを移動せず、BIG3や種目のリンクはBIG3タブを開く。記録は本人の弟の実データ（2026年4月〜10/11、メモなし、`landingDemoData.ts`）、ランキングのほかの人・今月の伸び・DOTS・体組成・目標はサンプル。AI相談の見本（`ExportPreview.tsx`）は独立した節に移し、機能カードの「〜の画面を見る」でスマホのタブを切り替える。iPhone実機確認は未実施。
