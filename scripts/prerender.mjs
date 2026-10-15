@@ -28,6 +28,8 @@ const replaced = [
   /\s*<meta property="og:title"[^>]*>/,
   /\s*<meta property="og:description"[^>]*>/,
   /\s*<meta name="twitter:title"[^>]*>/,
+  // The app's own structured data; public pages bring theirs.
+  /\s*<script type="application\/ld\+json">[^<]*<\/script>/,
 ]
 const shell = replaced.reduce((html, pattern) => {
   if (!pattern.test(html)) throw new Error(`index.html no longer has ${pattern}`)

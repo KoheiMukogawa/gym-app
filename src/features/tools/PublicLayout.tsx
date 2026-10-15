@@ -9,7 +9,7 @@ export function PublicLayout({ page, source, children }: { page: PublicPage; sou
   useEffect(() => {
     document.title = page.title
     rememberFirstTouch(source)
-    return () => { document.title = 'Glog' }
+    return () => { document.title = 'Glog（グログ）｜筋トレ・ジム記録アプリ' }
   }, [page.title, source])
 
   return <div className="min-h-dvh">
