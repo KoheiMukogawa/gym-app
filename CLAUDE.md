@@ -7,7 +7,7 @@
 - ブランチ: `master`。push すると Vercel に自動デプロイされる。Codex も `master` に push するので、push 前に必ず `git fetch` する
 - 本番で実際に使われている（本人がiPhoneで日常的に記録。利用者6人）。本番データの書き込み・削除やmigration適用は本人の許可を取ってから
 - 公開済みの機能: 記録（ダイアル入力、セットごとの推定1RM、メモは記録後にセットをタップ）、履歴と編集、BIG3、ランキング（kg・DOTS）、体組成、コミュニティ、Health同期、Markdown出力、パスワード再設定、退会、ご意見の送信（管理者はヘッダーのメニューの「届いた意見」で読み、既読にする。未読があるとアイコンが赤い輪で囲まれる）、管理者向けの利用状況（`/admin/usage`）、新しい機能のお知らせ（起動時のシート）
-- 本番に適用済みのmigration: `zero_rep_sets`（2026-10-05、`apply_migration` で適用）、`growth_stats`（2026-10-07、`apply_migration` で適用。anonから実行不可を確認済み）、`feedback_replies`（2026-10-13、`apply_migration` で適用。anonから実行不可・利用者が返信の列を書けないことを確認済み）。Edge Function `body-metrics` も稼働中
+- 本番に適用済みのmigration: `zero_rep_sets`（2026-10-05、`apply_migration` で適用）、`growth_stats`（2026-10-07、`apply_migration` で適用。anonから実行不可を確認済み）、`feedback_replies`（2026-10-13、`apply_migration` で適用。anonから実行不可・利用者が返信の列を書けないことを確認済み）、`core_exercises`（2026-10-15、本人の依頼で `apply_migration` で適用。プリセットのアブドミナルを読み取りで確認済み）。Edge Function `body-metrics` も稼働中
 - `account_deletion` はClaude Codeの自動許可モードが `apply_migration` を止めたため、本人がSQL Editorで適用した。Supabaseのmigration履歴（`list_migrations`）には載らない。関数2つ・権限・中身は読み取りで確認済み。設計は `docs/superpowers/specs/2026-10-04-account-deletion-design.md`
 - 退会は `delete_my_account('退会する')` で本人の記録・自作種目・`auth.users` を消し、残りは外部キーの連鎖で消える。自分が作ったコミュニティはメンバーごと消える。2026-10-04に本番のテスト用アカウントで退会し、`auth` の内部テーブルを含め、そのユーザーを参照する行が残らないことを読み取りで確認済み
 - `rls_initplan` はRLSの `auth.uid()` を `(select auth.uid())` に変え、`communities.owner_id` のインデックスとDOTS参加時の係数必須チェックを追加した。適用後、advisorsの `auth_rls_initplan`・`unindexed_foreign_keys` は解消、本人として本人の記録だけが見えることを確認済み
