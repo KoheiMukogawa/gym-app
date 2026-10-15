@@ -41,7 +41,7 @@ export function FloatingRecordAction(props: Props) {
     </svg>
     {props.label}
   </>
-  return <div className="pointer-events-none fixed inset-x-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-[calc(32rem-2rem)] justify-end">
+  return <div className="pointer-events-none fixed inset-x-4 bottom-[max(4.75rem,calc(3.75rem+env(safe-area-inset-bottom)))] z-40 mx-auto flex max-w-[calc(32rem-2rem)] justify-end">
     {props.to !== undefined
       ? <Link to={props.to} aria-label={props.ariaLabel} className={className}>{content}</Link>
       : <button ref={props.buttonRef} type="button" onClick={props.onClick} disabled={props.disabled} aria-label={props.ariaLabel} className={className}>{content}</button>}

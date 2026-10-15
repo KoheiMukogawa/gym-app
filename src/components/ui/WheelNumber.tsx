@@ -11,9 +11,11 @@ type Props = {
   format?: (value: number) => string
   /** Rows between kg values. Defaults to 2.5 kg plates. */
   step?: number
+  /** Omit the visible label when the unit already says what the wheel is. */
+  hideLabel?: boolean
 }
 
-export function WheelNumber({ label, value, unit, onEnter, min, format, step = 2.5 }: Props) {
+export function WheelNumber({ label, value, unit, onEnter, min, format, step = 2.5, hideLabel = false }: Props) {
   const start = unit === 'kg' ? Math.ceil((min ?? 0) / step) * step : Math.max(0, min ?? 1)
   const maximum = unit === 'kg' ? 9999.9 : 9999
   const regularValues = useMemo(() => unit === 'kg'
@@ -92,7 +94,7 @@ export function WheelNumber({ label, value, unit, onEnter, min, format, step = 2
 
   const first = Math.max(0, index - 4)
   return <div>
-    <p className="mb-1 text-center text-xs text-muted">{label}</p>
+    {!hideLabel && <p className="mb-1 text-center text-xs text-muted">{label}</p>}
     <div className="relative" role={editing ? undefined : 'spinbutton'} tabIndex={editing ? undefined : 0}
       aria-label={editing ? undefined : label} aria-valuenow={editing ? undefined : value}
       aria-valuemin={editing ? undefined : min ?? (unit === 'kg' ? 0 : 1)}

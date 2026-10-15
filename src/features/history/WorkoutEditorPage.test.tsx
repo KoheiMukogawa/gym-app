@@ -142,7 +142,7 @@ describe('WorkoutEditorPage', () => {
   it('starts a new set from the last lifted reps, not from a failed set', async () => {
     api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET, { ...SET, id: 's2', set_index: 2, weight_kg: 100, reps: 0 }] })
     const user = setup()
-    await user.click(await screen.findByRole('button', { name: '＋ セットを追加' }))
+    await user.click(await screen.findByRole('button', { name: 'セットを追加' }))
     await user.click(await screen.findByRole('button', { name: 'ベンチプレス' }))
     expect(screen.getByRole('spinbutton', { name: '重量（kg）' })).toHaveValue(100)
     expect(screen.getByLabelText('回数')).toHaveValue(8)

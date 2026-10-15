@@ -64,7 +64,7 @@ const { useSession } = vi.hoisted(() => ({ useSession: vi.fn() }))
 vi.mock('../auth/SessionProvider', () => ({ useSession }))
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }))
-vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }))
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigate, Link: ({ to, children, state: _state, ...props }: { to: string, children: React.ReactNode, state?: unknown }) => <a href={to} {...props}>{children}</a> }))
 
 const BENCH: Exercise = {
   id: 'bench',

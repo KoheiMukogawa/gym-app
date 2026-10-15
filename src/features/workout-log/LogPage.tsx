@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { findPrefill, weightStep } from '../../lib/calc'
 import { validateSet } from '../../lib/dates'
 import { isOffline, toMessage } from '../../lib/errors'
@@ -541,10 +541,15 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
     <div className="flex min-h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] flex-col">
       {offline && <OfflineBanner />}
       <header ref={recordingHeader} className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2">
-        <button type="button" disabled={!!editingSet} onClick={() => setPicking(true)} className="min-h-14 min-w-0 flex-1 text-left">
-          <span className="block break-words text-lg font-semibold">{currentName}</span>
-          <span className="block text-xs text-muted">種目を変える</span>
-        </button>
+        <p className="min-w-0 flex-1 break-words text-lg font-semibold">{currentName}</p>
+        {/* 記録の途中でも、この種目の推移を見に行ける。記録画面は裏で保持されるので入力は消えない */}
+        {state.currentExerciseId && <Link to={`/exercises/${state.currentExerciseId}`} state={{ from: '/log' }} aria-label={`${currentName}のグラフ`}
+          className="flex min-h-14 shrink-0 items-center gap-1 px-2 text-sm text-muted active:text-fg">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 19h16M5 15l4-5 4 3 6-7" />
+          </svg>
+          グラフ
+        </Link>}
         <button
           type="button"
           onClick={() => void handleFinish()}
@@ -585,12 +590,14 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
         />
       </section>
 
-      {editingSet ? <MemoInputSpace /> : <BottomInputDock>
-        <button type="button" className="min-h-14 shrink-0 px-4 text-sm text-muted" aria-expanded={dialVisible} aria-controls="recording-dials" onClick={() => setDialVisible(visible => !visible)}>
+      {editingSet ? <MemoInputSpace /> : <BottomInputDock navigation={false}>
+        <button type="button" className="flex min-h-10 shrink-0 flex-col items-center justify-center gap-1 text-xs text-muted" aria-expanded={dialVisible} aria-controls="recording-dials" onClick={() => setDialVisible(visible => !visible)}>
+          <span aria-hidden="true" className="h-1 w-9 rounded-full bg-border" />
           {dialVisible ? 'ダイヤルを隠す' : 'ダイヤルを表示'}
         </button>
         {dialVisible && <div id="recording-dials" className="flex min-h-0 flex-col overflow-hidden">
-        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pt-4">
+        {/* 体重の入力欄が出るときだけスクロールさせる。ダイヤルの外をなぞってもページは動かさない */}
+        <div className={`min-h-0 overflow-y-auto overscroll-contain px-4 ${isBodyweight && (bodyweight === null || editingBodyweight) ? 'pt-2' : 'touch-none'}`}>
           {isBodyweight && (bodyweight === null || editingBodyweight) ? (
             <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
               <p className="text-sm">この種目は「体重＋加重」で負荷を計算します。今日の体重を入力してください。</p>
@@ -606,6 +613,7 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
           <div className="mb-1 grid grid-cols-2 gap-4">
             <WheelNumber
               label={isBodyweight ? '加重' : '重量'}
+              hideLabel
               value={state.weight_kg}
               unit="kg"
               min={minWeight}
@@ -615,6 +623,7 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
             />
             <WheelNumber
               label="回数"
+              hideLabel
               value={state.reps}
               unit="回"
               min={0}
@@ -628,12 +637,13 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
           </p>}
           </>}
         </div>
-        <div className="shrink-0 px-4 pb-3 pt-2">
-          <Button size="lg" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
+        </div>}
+        <div className="flex shrink-0 gap-2 px-4 pb-3 pt-2">
+          <button type="button" onClick={() => setPicking(true)} className="min-h-14 shrink-0 self-center rounded-xl border border-border px-4 text-sm font-semibold text-fg active:bg-border">種目を変える</button>
+          <Button size="lg" className="min-w-0" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
             {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
           </Button>
         </div>
-        </div>}
       </BottomInputDock>}
     </div>
   )

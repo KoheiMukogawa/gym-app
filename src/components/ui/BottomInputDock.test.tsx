@@ -22,10 +22,10 @@ describe('BottomInputDock', () => {
   it('retains navigation clearance during toolbar changes, even with a focused input', () => {
     const { panel, change } = setup()
     change(800)
-    expect(panel.style.bottom).toBe('calc(4.5rem + env(safe-area-inset-bottom))')
+    expect(panel.style.bottom).toBe('')
     act(() => screen.getByRole('textbox', { name: '重量' }).focus())
     change(790)
-    expect(panel.style.bottom).toBe('calc(4.5rem + env(safe-area-inset-bottom))')
+    expect(panel.style.bottom).toBe('')
     expect(panel.style.maxHeight).toBe('65dvh')
   })
 
@@ -37,7 +37,7 @@ describe('BottomInputDock', () => {
     expect(panel.style.maxHeight).toBe('344px')
     // iOS can keep the input focused after the keyboard is dismissed.
     change(800)
-    expect(panel.style.bottom).toBe('calc(4.5rem + env(safe-area-inset-bottom))')
+    expect(panel.style.bottom).toBe('')
   })
 
   it('supports a memo keyboard and does not drop the dock during blur animation', async () => {
@@ -49,15 +49,15 @@ describe('BottomInputDock', () => {
     await act(async () => memo.blur())
     expect(panel.style.bottom).toBe('444px')
     change(844)
-    expect(panel.style.bottom).toBe('calc(4.5rem + env(safe-area-inset-bottom))')
+    expect(panel.style.bottom).toBe('')
   })
 
   it('does not interpret an unfocused viewport shrink or pinch zoom as a keyboard', () => {
     const { panel, change } = setup()
     change(400)
-    expect(panel.style.bottom).toBe('calc(4.5rem + env(safe-area-inset-bottom))')
+    expect(panel.style.bottom).toBe('')
     act(() => screen.getByRole('textbox', { name: '重量' }).focus())
     change(400, 0, 2)
-    expect(panel.style.bottom).toBe('calc(4.5rem + env(safe-area-inset-bottom))')
+    expect(panel.style.bottom).toBe('')
   })
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { e1rmByDate, personalBest, totalVolume } from '../../lib/calc'
 import { toMessage } from '../../lib/errors'
 import { MUSCLE_GROUP_LABELS, type Exercise, type SetWithDate } from '../../lib/types'
@@ -37,6 +37,8 @@ export function withTotalLoad(sets: SetWithDate[], logs: BodyweightLog[]): SetWi
 
 export function ExerciseDetailPage() {
   const { exerciseId } = useParams<{ exerciseId: string }>()
+  // 記録画面のグラフボタンから来たときは、記録へ戻る
+  const fromLog = (useLocation().state as { from?: string } | null)?.from === '/log'
   const { userId } = useSession()
   const { show } = useToast()
   const [exercise, setExercise] = useState<Exercise | null>(null)
@@ -93,8 +95,8 @@ export function ExerciseDetailPage() {
   return (
     <div className="flex flex-col gap-6 p-4">
       <header>
-        <Link to="/" className="flex min-h-14 w-fit items-center text-xs text-muted">
-          ← ホーム
+        <Link to={fromLog ? '/log' : '/'} className="flex min-h-14 w-fit items-center text-xs text-muted">
+          {fromLog ? '← 記録に戻る' : '← ホーム'}
         </Link>
         <h1 className="mt-2 text-2xl font-bold">{exercise.name}</h1>
         <p className="text-xs text-muted">{MUSCLE_GROUP_LABELS[exercise.muscle_group]}{exercise.is_bodyweight && ' · 体重＋加重の総重量で表示'}</p>
