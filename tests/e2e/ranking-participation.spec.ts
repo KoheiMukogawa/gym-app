@@ -48,6 +48,17 @@ test('join global and DOTS rankings on mobile without visiting profile', async (
   expect(writes).toEqual([])
   await page.getByRole('button', { name: '公開に同意して参加する' }).click()
   await expect(page.getByRole('listitem').filter({ hasText: 'テスト利用者' })).toBeVisible()
+  // Under the kg total, one lift's best can be ranked on its own.
+  await page.getByRole('button', { name: 'ベンチ', exact: true }).click()
+  await expect(page.getByRole('listitem').filter({ hasText: 'テスト利用者' })).toContainText('100 kg')
+  await page.setViewportSize({ width: 320, height: 844 })
+  for (const button of await page.getByRole('group', { name: '種目' }).getByRole('button').all()) {
+    expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(56)
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/ranking-by-lift-320.png' })
+  await page.getByRole('button', { name: '合計', exact: true }).click()
+  await expect(page.getByRole('listitem').filter({ hasText: 'テスト利用者' })).toContainText('500 kg')
   await page.getByRole('button', { name: 'DOTS', exact: true }).click()
   await expect(page.getByText(/DOTSは、体重の違いを補正して筋力を比較するスコア/)).toBeVisible()
   const guide = page.getByRole('table', { name: 'DOTSスコアの目安' })

@@ -12,6 +12,13 @@ export type Announcement = {
 }
 
 export const ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: 'ranking-by-lift',
+    publishedAt: '2026-10-15T11:10:05+09:00',
+    title: 'ランキングを種目別でも見られます',
+    body: '「BIG3合計」の下でスクワット・ベンチ・デッドを選ぶと、その種目の推定1RMで順位が出ます。1種目だけ記録している人も順位に入ります。',
+    link: { to: '/ranking', label: 'ランキングを見る' },
+  },
   // 2026-10-13: 10/5以降の変更のうち、利用者が知っておくとよいものをまとめて知らせる（上ほど先に出る）
   {
     id: 'weight-dial-1kg',

@@ -38,15 +38,23 @@ export async function saveDotsSettings(optIn: boolean, formula: DotsFormula | nu
   const { error } = await supabase.rpc('save_dots_settings', { p_opt_in: optIn, p_formula: formula })
   if (error) throw error
 }
-export function rankMembers(members: Member[], metric: RankMetric) {
+export type RankLift = keyof Member['lifts']
+
+/** The value a row is ranked by: a single lift's best when `lift` is given under the kg total. */
+export function rankValue(member: Member, metric: RankMetric, lift: RankLift | null = null): number | null {
+  return metric === 'total' && lift ? member.lifts[lift] : member[metric]
+}
+
+export function rankMembers(members: Member[], metric: RankMetric, lift: RankLift | null = null) {
   // DOTS shows only members who agreed to expose a bodyweight-derived score.
   const pool = metric === 'dots' ? members.filter((m) => m.dots_opt_in) : members
-  const sorted = [...pool].sort((a, b) => (b[metric] ?? -Infinity) - (a[metric] ?? -Infinity) || a.user_id.localeCompare(b.user_id))
+  const value = (m: Member) => rankValue(m, metric, lift)
+  const sorted = [...pool].sort((a, b) => (value(b) ?? -Infinity) - (value(a) ?? -Infinity) || a.user_id.localeCompare(b.user_id))
   let rank: number | null = null
   return sorted.map((member, index) => {
-    if (member[metric] === null) rank = null
-    else if (index === 0 || member[metric] !== sorted[index - 1][metric]) rank = index + 1
-    return { ...member, rank }
+    if (value(member) === null) rank = null
+    else if (index === 0 || value(member) !== value(sorted[index - 1])) rank = index + 1
+    return { ...member, rank, value: value(member) }
   })
 }
 

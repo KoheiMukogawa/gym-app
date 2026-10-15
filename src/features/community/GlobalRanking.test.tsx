@@ -77,3 +77,19 @@ it('keeps a load failure on screen with retry and never claims the user is not p
   await userEvent.click(screen.getByRole('button', { name: '再試行' }))
   expect(await screen.findByText('375.5')).toBeInTheDocument()
 })
+
+it('ranks a single lift under the kg total, including members without all three lifts', async () => {
+  show([
+    member('a', '三種目', { total: 500, lifts: { squat: 180, bench: 120, deadlift: 200 } }),
+    member('b', 'ベンチだけ', { total: null, lifts: { squat: null, bench: 140, deadlift: null } }),
+  ])
+  await screen.findByRole('list')
+  await userEvent.click(screen.getByRole('button', { name: 'ベンチ' }))
+  expect(screen.getByRole('button', { name: 'ベンチ' })).toHaveAttribute('aria-pressed', 'true')
+  expect(within(screen.getByRole('list')).getAllByRole('listitem').map((r) => r.textContent)).toEqual(['1ベンチだけ140 kg', '2三種目120 kg'])
+  await userEvent.click(screen.getByRole('button', { name: 'スクワット' }))
+  expect(within(screen.getByRole('list')).getAllByRole('listitem').map((r) => r.textContent)).toEqual(['1三種目180 kg', '—ベンチだけ—'])
+  // The lift choice belongs to the kg total; DOTS and growth rank as before.
+  await userEvent.click(screen.getByRole('button', { name: 'DOTS' }))
+  expect(screen.queryByRole('group', { name: '種目' })).not.toBeInTheDocument()
+})

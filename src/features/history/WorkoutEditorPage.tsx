@@ -313,7 +313,7 @@ export function WorkoutEditorPage() {
 {entryForm}
       </BottomInputDock>}
       {picking ? <button className="mx-4 min-h-14 text-sm text-muted" disabled={busy} onClick={cancelEntry}>キャンセル</button>
-        : !entry && <FloatingRecordAction label="セットを追加" onClick={() => setPicking(true)} />}
+        : !entry && <FloatingRecordAction label="種目を追加" onClick={() => setPicking(true)} />}
       {savedId && <button disabled={busy || !!entry || Object.keys(drafts.current).length > 0} className="mx-4 mt-4 min-h-14 text-sm text-accent"
         onClick={() => { if (window.confirm('この日のトレーニング記録を削除しますか？')) void action(async () => {
           await removeWorkout(userId!, savedId)

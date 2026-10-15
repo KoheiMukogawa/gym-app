@@ -3,9 +3,10 @@ import { expect, test, type Page } from '@playwright/test'
 const USER='11111111-1111-4111-8111-111111111111'
 type Row={recorded_on:string;bodyweight_kg:number;body_fat_pct:number|null}
 type HealthRecord={date:string;weight_kg:number;body_fat_pct?:number|null}
-async function setup(page:Page) {
+// Setup is shown only to people who connected before; everyone else sees "coming soon".
+async function setup(page:Page, {connectedBefore=true}={}) {
   const rows:Row[]=[]
-  const state={enabled:false,issued_at:null as string|null,last_synced_at:null as string|null,last_synced_count:null as number|null}
+  const state={enabled:false,issued_at:null as string|null,last_synced_at:(connectedBefore?'2026-01-01T00:00:00.000Z':null) as string|null,last_synced_count:null as number|null}
   const controls={statusErrors:0,issueErrors:0}
   let token:string|null=null, generations=0
   const offsets:number[]=[]
@@ -146,6 +147,8 @@ test('Health errors retry and manual copy preserve one-time credentials across r
   const errors:string[]=[];page.on('pageerror',(error)=>errors.push(error.message))
   await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw new Error('denied')}}}))
   const data=await setup(page)
+  // Let the entry finish its own status check before failing the settings' check.
+  await expect(page.getByRole('button',{name:'ヘルスケア連携',exact:true})).toBeVisible()
   data.controls.statusErrors=1
   await page.getByRole('button',{name:'ヘルスケア連携',exact:true}).click()
   await expect(page.getByRole('alert')).toBeVisible()
@@ -203,7 +206,7 @@ test('Health history reads more than 1000 rows and charts the earliest year',asy
 
 test('Body overview prioritizes measurements and trend on a narrow phone', async ({page}) => {
   await page.setViewportSize({width:375,height:812})
-  const data = await setup(page)
+  const data = await setup(page, {connectedBefore:false})
   const today = new Date().toLocaleDateString('sv-SE')
   const yesterday = new Date(today + 'T12:00:00'); yesterday.setDate(yesterday.getDate()-1)
   data.rows.push(
@@ -222,7 +225,7 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
   const overviewBox = (await overview.boundingBox())!
   const trendBox = (await trend.boundingBox())!
   await expect(page.getByLabel('体重（kg）')).toHaveCount(0)
-  const connectionBox = (await page.getByRole('region',{name:'ヘルスケア連携設定'}).boundingBox())!
+  const connectionBox = (await page.getByRole('region',{name:'ヘルスケア連携',exact:true}).boundingBox())!
   // The latest values are the chart's legend: inside the trend section, above the plot.
   const plotBox = (await trend.locator('svg.recharts-surface').boundingBox())!
   expect(overviewBox.y).toBeGreaterThanOrEqual(trendBox.y)
@@ -230,7 +233,9 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
   expect(trendBox.y).toBeLessThan(450)
   expect(trendBox.y).toBeLessThan(connectionBox.y)
   await expect(page.getByRole('region',{name:'最近の記録'})).toHaveCount(0)
-  await expect(page.getByRole('button',{name:'ヘルスケア連携'})).toHaveAttribute('aria-expanded','false')
+  // Setup is too involved for most people, so it is not offered yet.
+  await expect(page.getByRole('region',{name:'ヘルスケア連携',exact:true})).toContainText('近日公開')
+  await expect(page.getByRole('button',{name:'ヘルスケア連携'})).toHaveCount(0)
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   // Every bottom tab label stays on one line on a 375px phone.
   const navLines = await page.getByRole('navigation',{name:'メイン'}).getByRole('link').evaluateAll((links) => links.map((link) => {
@@ -258,6 +263,4 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
     await page.screenshot({path:`test-results/body-simple-${width}.png`,fullPage:true})
   }
-  await page.getByRole('button',{name:'ヘルスケア連携',exact:true}).click()
-  await expect(page.getByText('未接続',{exact:true})).toBeVisible()
 })

@@ -5,8 +5,8 @@ import { useSession } from '../auth/SessionProvider'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
 import { GlobalRanking } from './GlobalRanking'
-import { communityMessage, formatMetric, listCommunities, manage, profile, ranking, rankMembers, saveProfile, type Community, type CommunityProfile, type Member, type RankMetric } from './queries'
-import { DotsNotice, MetricTabs } from './RankingParts'
+import { communityMessage, formatMetric, listCommunities, manage, profile, ranking, rankMembers, saveProfile, type Community, type CommunityProfile, type Member, type RankLift, type RankMetric } from './queries'
+import { DotsNotice, LiftFilter, MetricTabs } from './RankingParts'
 import { RankingParticipation } from './RankingParticipation'
 
 const field = 'min-h-14 w-full rounded-xl border border-border bg-bg px-3 text-fg'
@@ -23,6 +23,7 @@ export function CommunityPanel() {
   const [mine, setMine] = useState<CommunityProfile | null>(null)
   const [draft, setDraft] = useState<CommunityProfile | null>(null)
   const [mode, setMode] = useState<RankMetric>('total')
+  const [lift, setLift] = useState<RankLift | null>(null)
   const [form, setForm] = useState<'create' | 'join' | null>(null)
   const [value, setValue] = useState('')
   const requestId = useRef(crypto.randomUUID())
@@ -64,7 +65,7 @@ export function CommunityPanel() {
   }
   const group = groups.find((g) => g.id === selected)
   const detail = members.find((m) => m.user_id === person)
-  const rows = rankMembers(members, mode)
+  const rows = rankMembers(members, mode, lift)
   if (loading) return <Spinner />
   if (loadError) return <div className="space-y-3"><p role="alert">コミュニティを読み込めませんでした。{loadError}</p><Button onClick={() => setAttempt((n) => n + 1)}>再試行</Button></div>
   return <section className="space-y-5" aria-label="ランキング">
@@ -98,9 +99,10 @@ export function CommunityPanel() {
     {!managing && selected === GLOBAL && <GlobalRanking />}
     {!managing && group && <>
       <MetricTabs value={mode} onChange={metric => { setMode(metric); setPerson(null) }} />
+      {mode === 'total' && <LiftFilter value={lift} onChange={setLift} />}
       {rankLoading ? <Spinner /> : rankError ? <div><p role="alert">{rankError}</p><Button variant="ghost" onClick={() => setRankAttempt((n) => n + 1)}>再試行</Button></div> : <RankingParticipation key={selected} mode={mode} onJoined={() => { setRankAttempt(n => n + 1); setAttempt(n => n + 1) }}>{!rows.length ? <p className="min-h-64 py-6 text-center text-sm text-muted">{mode === 'dots' ? 'DOTSの参加者はまだいません' : '参加者はまだいません'}</p> : <div className="divide-y divide-border">{rows.map((m) => <button key={m.user_id} onClick={() => setPerson(m.user_id)} className={`flex min-h-20 w-full items-center gap-3 px-2 text-left ${m.user_id === userId ? 'bg-surface' : ''}`}>
         <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span><Avatar icon={m.icon} name={m.display_name}/><span className="min-w-0 flex-1 break-words text-sm">{m.display_name}{m.user_id === userId && <span className="ml-2 text-xs text-muted">自分</span>}</span>
-        <span className="shrink-0 text-lg font-semibold tabular-nums">{formatMetric(m[mode], mode)}</span>
+        <span className="shrink-0 text-lg font-semibold tabular-nums">{formatMetric(m.value, mode)}</span>
       </button>)}</div>}</RankingParticipation>}
       {detail && <section className="space-y-4 rounded-2xl border border-border bg-surface p-4" aria-label="メンバーの記録">
         <div className="flex items-center justify-between gap-2"><h2 className="break-words font-semibold"><Avatar icon={detail.icon} name={detail.display_name}/> {detail.display_name}</h2><button className="min-h-14 shrink-0 px-2 text-sm text-muted" onClick={() => setPerson(null)}>閉じる</button></div>
@@ -110,7 +112,7 @@ export function CommunityPanel() {
         </div>)}
       </section>}
       <div className="space-y-1 border-t border-border pt-3">
-        {mode === 'total' && <p className="text-xs text-muted">各種目の最高推定1RMの合計 · 自己申告の記録</p>}
+        {mode === 'total' && <p className="text-xs text-muted">{lift ? 'その種目の最高推定1RM' : '各種目の最高推定1RMの合計'} · 自己申告の記録</p>}
         {mode === 'growth' && <p className="text-xs text-muted">月初からの自己ベスト合計の増加（日本時間）。月初以前に3種目の記録が必要です。</p>}
         {mode === 'dots' && !rankLoading && !rankError && <DotsNotice me={members.find((m) => m.user_id === userId)} />}
         <p className="text-xs text-muted">— は比較できる記録がまだそろっていない状態です。同じ記録は同順位です。</p>

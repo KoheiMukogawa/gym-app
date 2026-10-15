@@ -198,3 +198,29 @@ function SetupStep({ number, title, done = false, children }: { number: number; 
     {children}
   </li>
 }
+
+/**
+ * The shortcut setup is too involved to ask of most people, so the entry reads
+ * "coming soon". Anyone who already connected keeps the settings, so they can
+ * still check, reissue or revoke their key.
+ */
+export function HealthSyncEntry(props: Props) {
+  const [connected, setConnected] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!props.userId) return
+    let active = true
+    setConnected(null)
+    fetchHealthSyncStatus()
+      .then((value) => { if (active) setConnected(value.enabled || value.last_synced_at !== null) })
+      // A failed check falls back to the settings, which show the error and a retry.
+      .catch(() => { if (active) setConnected(true) })
+    return () => { active = false }
+  }, [props.userId])
+  if (!props.userId || connected === null) return null
+  if (connected) return <HealthSyncPanel {...props} />
+  return <section className="border-t border-border" aria-label="ヘルスケア連携">
+    <p className="flex min-h-14 items-center justify-between gap-2 text-sm font-medium text-muted">
+      ヘルスケア連携<span className="rounded-full border border-border px-2 py-0.5 text-xs">近日公開</span>
+    </p>
+  </section>
+}

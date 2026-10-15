@@ -113,7 +113,7 @@ function DemoBody() {
           <p className="mt-1 text-3xl font-semibold tabular-nums">{v.value}<span className="ml-1 text-sm font-normal text-muted">{v.unit}</span></p></div>)}
     </div>
     <BodyTrendChart points={points} showYear={false} onSelectDay={() => undefined} />
-    <p className="text-xs leading-relaxed text-muted">iPhoneのヘルスケアから体重・体脂肪率を取り込むこともできます。</p>
+    <p className="text-xs leading-relaxed text-muted">iPhoneのヘルスケアとの連携は準備中です。</p>
   </div>
 }
 

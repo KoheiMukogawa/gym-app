@@ -27,6 +27,14 @@ it('keeps every member in the kg rankings', () => {
   expect(rows.map((r) => [r.user_id, r.rank])).toEqual([['e', 1], ['a', 2]])
 })
 
+it('ranks one lift only under the kg total, leaving members without that lift unranked', () => {
+  const lifts = (squat: number | null, bench: number | null) => ({ squat, bench, deadlift: null })
+  const members = [member('a', { total: 500, lifts: lifts(200, 100) }), member('b', { lifts: lifts(null, 120) }), member('c', { total: 400, lifts: lifts(150, 120) })]
+  expect(rankMembers(members, 'total', 'bench').map((r) => [r.user_id, r.rank, r.value])).toEqual([['b', 1, 120], ['c', 1, 120], ['a', 3, 100]])
+  expect(rankMembers(members, 'total', 'squat').map((r) => [r.user_id, r.rank])).toEqual([['a', 1], ['c', 2], ['b', null]])
+  expect(rankMembers(members, 'growth', 'squat').map((r) => r.value)).toEqual([null, null, null])
+})
+
 it('formats DOTS without a unit and kg metrics with one', () => {
   expect(formatMetric(375.5, 'dots')).toBe('375.5')
   expect(formatMetric(400, 'dots')).toBe('400.0')

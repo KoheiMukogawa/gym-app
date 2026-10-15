@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { HealthSyncPanel } from './HealthSyncPanel'
+import { HealthSyncEntry, HealthSyncPanel } from './HealthSyncPanel'
 const { issue, status, revoke } = vi.hoisted(() => ({ issue:vi.fn(), status:vi.fn(), revoke:vi.fn() }))
 const shortcut = vi.hoisted(() => ({ release: null as { importUrl: string; verifiedOn: string } | null }))
 vi.mock('./healthSyncShortcut', () => ({ get healthSyncShortcut() { return shortcut.release } }))
@@ -197,4 +197,17 @@ it('discards late status and revoke results after the owner changes', async () =
   view.rerender(<HealthSyncPanel userId="u3" refreshVersion={0}/>)
   await act(async () => finishRevoke())
   expect(screen.queryByText('未接続')).not.toBeInTheDocument()
+})
+
+it('shows "coming soon" instead of the setup to people who never connected', async () => {
+  render(<HealthSyncEntry userId="u1" refreshVersion={0}/>)
+  expect(await screen.findByText('近日公開')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /ヘルスケア連携/ })).not.toBeInTheDocument()
+})
+
+it('keeps the settings for people who already connected, so they can still manage the key', async () => {
+  status.mockResolvedValue({ enabled:true, issued_at:time, last_synced_at:time, last_synced_count:2 })
+  render(<HealthSyncEntry userId="u1" refreshVersion={0}/>)
+  expect(await screen.findByRole('button', { name: /ヘルスケア連携/ })).toBeInTheDocument()
+  expect(screen.queryByText('近日公開')).not.toBeInTheDocument()
 })

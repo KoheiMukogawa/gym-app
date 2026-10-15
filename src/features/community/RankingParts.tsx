@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import type { Member, RankMetric } from './queries'
+import type { Member, RankLift, RankMetric } from './queries'
 import { DOTS_LEVELS } from '../../lib/dots'
 
 const LABELS: Record<RankMetric, string> = { total: 'BIG3合計', growth: '今月の伸び', dots: 'DOTS' }
@@ -7,6 +7,17 @@ const LABELS: Record<RankMetric, string> = { total: 'BIG3合計', growth: '今�
 export function MetricTabs({ value, onChange }: { value: RankMetric; onChange: (metric: RankMetric) => void }) {
   return <div className="flex border-b border-border">{(Object.keys(LABELS) as RankMetric[]).map((m) =>
     <button key={m} type="button" aria-pressed={value === m} className={`min-h-14 flex-1 text-sm ${value === m ? 'border-b-2 border-accent text-fg' : 'text-muted'}`} onClick={() => onChange(m)}>{LABELS[m]}</button>)}</div>
+}
+
+const LIFTS: { key: RankLift | null; label: string }[] = [
+  { key: null, label: '合計' }, { key: 'squat', label: 'スクワット' }, { key: 'bench', label: 'ベンチ' }, { key: 'deadlift', label: 'デッド' },
+]
+
+/** Under the kg total, narrows the ranking to one lift's best estimated 1RM. */
+export function LiftFilter({ value, onChange }: { value: RankLift | null; onChange: (lift: RankLift | null) => void }) {
+  return <div role="group" aria-label="種目" className="grid grid-cols-4 gap-1">{LIFTS.map(({ key, label }) =>
+    <button key={label} type="button" aria-pressed={value === key} onClick={() => onChange(key)}
+      className={`min-h-14 min-w-0 whitespace-nowrap rounded-full border px-0 text-xs min-[360px]:text-[13px] ${value === key ? 'border-accent bg-surface text-fg' : 'border-border text-muted'}`}>{label}</button>)}</div>
 }
 
 /** Render only after the ranking loaded: a failed load must not read as "not participating". */
