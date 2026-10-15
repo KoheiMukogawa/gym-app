@@ -8,10 +8,10 @@ export const BASIC_EXERCISES: Record<MuscleGroup, string[]> = {
   legs: ['スクワット', 'レッグプレス', 'レッグエクステンション', 'レッグカール'],
   shoulders: ['サイドレイズ', 'ミリタリープレス', 'ショルダープレス'],
   arms: ['EZカール', 'ライングエクステンション'],
-  core: [],
+  core: ['アブドミナル', 'アブローラー'],
 }
 
-export const PICKER_GROUPS: MuscleGroup[] = ['chest', 'back', 'legs', 'shoulders', 'arms']
+export const PICKER_GROUPS: MuscleGroup[] = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core']
 
 export function exerciseLabel(exercise: Pick<Exercise, 'name' | 'is_preset' | 'name_normalized'>): string {
   return exercise.is_preset && exercise.name_normalized === 'ダンベルベンチプレス' ? 'ダンベルプレス' : exercise.name

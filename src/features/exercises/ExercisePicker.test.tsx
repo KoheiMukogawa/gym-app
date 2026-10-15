@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ExercisePicker } from './ExercisePicker'
 import type { Exercise } from '../../lib/types'
@@ -20,6 +20,9 @@ const EXERCISES = [
   exercise('decline', 'デクラインベンチプレス', 'chest'),
   exercise('own', '自分のプレス', 'chest', 'u1'),
   exercise('other', '他の人のプレス', 'chest', 'u2'),
+  exercise('roller', 'アブローラー', 'core'),
+  exercise('abdominal', 'アブドミナル', 'core'),
+  exercise('plank', 'プランク', 'core'),
 ]
 function setup(onCreate = vi.fn(), recentIds: string[] = []) {
   const onSelect = vi.fn()
@@ -55,11 +58,17 @@ describe('ExercisePicker', () => {
     expect(screen.getByRole('button', { name: 'スクワット' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'ベンチプレス' })).not.toBeInTheDocument()
   })
-  it('omits recent exercises and core', async () => {
+  it('offers the abdominal machine and ab roller under abs', async () => {
+    const { user } = setup()
+    await user.click(screen.getByRole('button', { name: '腹筋' }))
+    const names = within(screen.getByRole('region', { name: '腹筋の種目' })).getAllByRole('button', { name: /^アブ(ドミナル|ローラー)$/ }).map((b) => b.textContent)
+    expect(names).toEqual(['アブドミナル', 'アブローラー'])
+    expect(screen.queryByRole('button', { name: 'プランク' })).not.toBeInTheDocument()
+  })
+  it('omits recent exercises', async () => {
     setup(vi.fn(), ['decline'])
     await waitFor(() => expect(screen.getByRole('button', { name: 'ベンチプレスを長押しして並び替え' })).toBeEnabled())
     expect(screen.queryByRole('region', { name: '最近使った種目' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '体幹' })).not.toBeInTheDocument()
   })
   it('adds a personal exercise within the selected group', async () => {
     const { user, onCreate } = setup(vi.fn().mockResolvedValue(undefined))

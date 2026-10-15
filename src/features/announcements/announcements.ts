@@ -13,6 +13,12 @@ export type Announcement = {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: 'abs-exercises',
+    publishedAt: '2026-10-15T11:36:38+09:00',
+    title: '腹筋の種目を選べるようになりました',
+    body: '種目を選ぶ画面に「腹筋」を追加し、アブドミナル（マシン）とアブローラーを選べます。',
+  },
+  {
     id: 'ranking-by-lift',
     publishedAt: '2026-10-15T11:10:05+09:00',
     title: 'ランキングを種目別でも見られます',

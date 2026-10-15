@@ -700,7 +700,6 @@ test('routines and catalog order persist; history switches edit targets without 
   test.setTimeout(90_000)
   const data = await mockApi(page)
   await expect(page.getByText('最近使った種目')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '体幹', exact: true })).toHaveCount(0)
   await holdDrag(page, page.getByRole('button', { name: 'チェストプレスを長押しして並び替え', exact: true }), page.getByRole('button', { name: 'ベンチプレスを長押しして並び替え', exact: true }), true)
   await expect(page.getByRole('region', { name: '胸の種目', exact: true }).getByRole('button').first()).toHaveText('ベンチプレス')
   await holdDrag(page, page.getByRole('button', { name: 'チェストプレスを長押しして並び替え', exact: true }), page.getByRole('button', { name: 'ベンチプレスを長押しして並び替え', exact: true }))

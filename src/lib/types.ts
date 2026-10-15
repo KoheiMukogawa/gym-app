@@ -6,7 +6,7 @@ export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
   legs: '脚',
   shoulders: '肩',
   arms: '腕',
-  core: '体幹',
+  core: '腹筋',
 }
 
 export type Profile = {
