@@ -30,10 +30,38 @@ export async function fetchExerciseOrder(userId: string): Promise<string[]> {
   return data?.exercise_order ?? []
 }
 export async function saveExerciseOrder(userId: string, order: string[]): Promise<void> {
-  const { error } = await supabase.from('exercise_preferences').upsert({
-    user_id: userId, exercise_order: [...new Set(order)],
-  }, { onConflict: 'user_id' }).select('user_id').single()
+  await savePreference(userId, { exercise_order: [...new Set(order)] })
+}
+
+export type ExerciseVisibility = { addedIds: string[]; hiddenIds: string[] }
+
+export async function fetchExerciseVisibility(userId: string): Promise<ExerciseVisibility> {
+  const { data, error } = await supabase.from('exercise_preferences')
+    .select('added_exercise_ids, hidden_exercise_ids').eq('user_id', userId).maybeSingle()
   if (error) throw error
+  return { addedIds: data?.added_exercise_ids ?? [], hiddenIds: data?.hidden_exercise_ids ?? [] }
+}
+
+export async function saveExerciseVisibility(userId: string, visibility: ExerciseVisibility): Promise<void> {
+  await savePreference(userId, {
+    added_exercise_ids: [...new Set(visibility.addedIds)],
+    hidden_exercise_ids: [...new Set(visibility.hiddenIds)],
+  })
+}
+
+// Update only the changed fields so reordering cannot reset visibility (or vice versa).
+async function savePreference(userId: string, fields: Record<string, string[]>): Promise<void> {
+  const update = () => supabase.from('exercise_preferences').update(fields)
+    .eq('user_id', userId).select('user_id').maybeSingle()
+  const first = await update()
+  if (first.error) throw first.error
+  if (first.data) return
+  const inserted = await supabase.from('exercise_preferences').insert({ user_id: userId, ...fields })
+  if (!inserted.error) return
+  if (inserted.error.code !== '23505') throw inserted.error
+  const retry = await update()
+  if (retry.error) throw retry.error
+  if (!retry.data) throw inserted.error
 }
 
 export function moveItem<T>(items: T[], index: number, direction: -1 | 1): T[] {

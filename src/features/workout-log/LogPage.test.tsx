@@ -8,6 +8,7 @@ import type { Exercise } from '../../lib/types'
 vi.mock('../routines/queries', async (original) => ({
   ...await original<typeof import('../routines/queries')>(),
   fetchRoutines: async () => [], fetchExerciseOrder: async () => [],
+  fetchExerciseVisibility: async () => ({ addedIds: [], hiddenIds: [] }),
 }))
 
 const USER = 'user-1'

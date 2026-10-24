@@ -6,6 +6,7 @@ import type { Exercise } from '../../lib/types'
 const api = vi.hoisted(() => ({ fetchRoutines: vi.fn(), saveRoutine: vi.fn(), deleteRoutine: vi.fn() }))
 vi.mock('./queries', async (original) => ({
   ...await original<typeof import('./queries')>(), ...api, fetchExerciseOrder: async () => [],
+  fetchExerciseVisibility: async () => ({ addedIds: [], hiddenIds: [] }),
 }))
 const exercise: Exercise = { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', muscle_group: 'chest', is_preset: true, created_by: null, created_at: '' }
 const routine = { id: 'r1', user_id: 'u1', name: '胸の日', exercise_ids: ['bench'] }

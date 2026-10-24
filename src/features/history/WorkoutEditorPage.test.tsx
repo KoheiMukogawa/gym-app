@@ -26,7 +26,10 @@ const api = vi.hoisted(() => ({
 vi.mock('./editorQueries', () => api)
 vi.mock('../exercises/queries', () => api)
 vi.mock('../workout-log/queries', () => api)
-vi.mock('../routines/queries', () => ({ fetchExerciseOrder: async () => [], saveExerciseOrder: vi.fn() }))
+vi.mock('../routines/queries', () => ({
+  fetchExerciseOrder: async () => [], saveExerciseOrder: vi.fn(),
+  fetchExerciseVisibility: async () => ({ addedIds: [], hiddenIds: [] }), saveExerciseVisibility: vi.fn(),
+}))
 vi.mock('../profile/bodyweightQueries', () => ({ fetchBodyweightLogs: async () => [{ recorded_on: '2019-01-01', bodyweight_kg: 70 }] }))
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1' }) }))
 const EXERCISE = { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', muscle_group: 'chest', is_preset: true, created_by: null }
