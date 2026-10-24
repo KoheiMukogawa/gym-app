@@ -3,11 +3,16 @@ import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ExercisePicker } from './ExercisePicker'
 import type { Exercise } from '../../lib/types'
-const { saveOrder } = vi.hoisted(() => ({ saveOrder: vi.fn() }))
-beforeEach(() => { saveOrder.mockReset(); saveOrder.mockResolvedValue(undefined) })
+const { saveOrder, saveVisibility, fetchVisibility } = vi.hoisted(() => ({ saveOrder: vi.fn(), saveVisibility: vi.fn(), fetchVisibility: vi.fn() }))
+beforeEach(() => {
+  saveOrder.mockReset(); saveOrder.mockResolvedValue(undefined)
+  saveVisibility.mockReset(); saveVisibility.mockResolvedValue(undefined)
+  fetchVisibility.mockReset(); fetchVisibility.mockResolvedValue({ addedIds: [], hiddenIds: [] })
+})
 vi.mock('../routines/queries', async (original) => ({
   ...await original<typeof import('../routines/queries')>(),
   fetchExerciseOrder: async () => [], saveExerciseOrder: saveOrder,
+  fetchExerciseVisibility: fetchVisibility, saveExerciseVisibility: saveVisibility,
 }))
 
 const exercise = (id: string, name: string, muscle_group: Exercise['muscle_group'], owner: string | null = null): Exercise => ({
@@ -33,7 +38,7 @@ describe('ExercisePicker', () => {
   it('saves a keyboard reorder directly, retains failed order and retries', async () => {
     saveOrder.mockRejectedValueOnce(new Error('network'))
     const { user, onSelect } = setup()
-    const handle = screen.getByRole('button', { name: '自分のプレスを長押しして並び替え' })
+    const handle = await screen.findByRole('button', { name: '自分のプレスを長押しして並び替え' })
     await waitFor(() => expect(handle).toBeEnabled())
     await user.click(handle)
     expect(onSelect).not.toHaveBeenCalled()
@@ -49,7 +54,7 @@ describe('ExercisePicker', () => {
   it('shows only basic and personal exercises for the selected body part, without search', async () => {
     const { user } = setup()
     expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'ベンチプレス' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'ベンチプレス' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^自分のプレス\s*自分の種目$/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /他の人/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /デクライン/ })).not.toBeInTheDocument()
@@ -61,7 +66,7 @@ describe('ExercisePicker', () => {
   it('offers the abdominal machine and ab roller under abs', async () => {
     const { user } = setup()
     await user.click(screen.getByRole('button', { name: '腹筋' }))
-    const names = within(screen.getByRole('region', { name: '腹筋の種目' })).getAllByRole('button', { name: /^アブ(ドミナル|ローラー)$/ }).map((b) => b.textContent)
+    const names = (await within(screen.getByRole('region', { name: '腹筋の種目' })).findAllByRole('button', { name: /^アブ(ドミナル|ローラー)$/ })).map((b) => b.textContent)
     expect(names).toEqual(['アブドミナル', 'アブローラー'])
     expect(screen.queryByRole('button', { name: 'プランク' })).not.toBeInTheDocument()
   })
@@ -73,7 +78,8 @@ describe('ExercisePicker', () => {
   it('adds a personal exercise within the selected group', async () => {
     const { user, onCreate } = setup(vi.fn().mockResolvedValue(undefined))
     await user.click(screen.getByRole('button', { name: '脚' }))
-    await user.click(screen.getByRole('button', { name: /脚の種目を追加/ }))
+    await user.click(await screen.findByRole('button', { name: /脚の種目を追加/ }))
+    await user.click(screen.getByRole('button', { name: /リストにない種目を入力/ }))
     await user.type(screen.getByRole('textbox', { name: '種目名' }), '  ヒップアブダクション  ')
     await user.click(screen.getByRole('button', { name: '追加して記録' }))
     expect(onCreate).toHaveBeenCalledWith('ヒップアブダクション', 'legs')
@@ -81,7 +87,8 @@ describe('ExercisePicker', () => {
   it('keeps input and group after failure and retries', async () => {
     const create = vi.fn().mockRejectedValueOnce({ code: '23505' }).mockResolvedValueOnce(undefined)
     const { user } = setup(create)
-    await user.click(screen.getByRole('button', { name: /胸の種目を追加/ }))
+    await user.click(await screen.findByRole('button', { name: /胸の種目を追加/ }))
+    await user.click(screen.getByRole('button', { name: /リストにない種目を入力/ }))
     await user.type(screen.getByRole('textbox', { name: '種目名' }), '新しいプレス')
     await user.click(screen.getByRole('button', { name: '追加して記録' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('同じ名前')
@@ -92,17 +99,48 @@ describe('ExercisePicker', () => {
   })
   it('reuses an existing basic exercise instead of creating a duplicate', async () => {
     const { user, onCreate, onSelect } = setup()
-    await user.click(screen.getByRole('button', { name: /胸の種目を追加/ }))
+    await user.click(await screen.findByRole('button', { name: /胸の種目を追加/ }))
+    await user.click(screen.getByRole('button', { name: /リストにない種目を入力/ }))
     await user.type(screen.getByRole('textbox'), 'ベンチ プレス')
     await user.click(screen.getByRole('button', { name: '追加して記録' }))
     expect(onCreate).not.toHaveBeenCalled()
     expect(onSelect).toHaveBeenCalledWith(EXERCISES[0])
   })
-  it('allows a hidden preset to become a personal addition', async () => {
-    const { user, onCreate } = setup(vi.fn().mockResolvedValue(undefined))
+  it('adds a preset from the catalog and keeps it visible', async () => {
+    const { user, onCreate } = setup()
+    await user.click(await screen.findByRole('button', { name: /胸の種目を追加/ }))
+    await user.click(await screen.findByRole('button', { name: /デクラインベンチプレス.*追加する/ }))
+    expect(saveVisibility).toHaveBeenCalledWith('u1', { addedIds: ['decline'], hiddenIds: [] })
+    await waitFor(() => expect(screen.getByRole('button', { name: '完了' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '完了' }))
+    expect(screen.getByRole('button', { name: 'デクラインベンチプレス' })).toBeInTheDocument()
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+  it('hides a basic exercise without deleting records and restores it', async () => {
+    const { user } = setup()
+    await user.click(await screen.findByRole('button', { name: /胸の種目を追加/ }))
+    await user.click(await screen.findByRole('button', { name: /^ベンチプレス\s*表示中$/ }))
+    expect(saveVisibility).toHaveBeenCalledWith('u1', { addedIds: [], hiddenIds: ['bench'] })
+    await waitFor(() => expect(screen.getByRole('button', { name: '完了' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: '完了' }))
+    expect(screen.queryByRole('button', { name: 'ベンチプレス' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /胸の種目を追加/ }))
-    await user.type(screen.getByRole('textbox'), 'デクラインベンチプレス')
-    await user.click(screen.getByRole('button', { name: '追加して記録' }))
-    expect(onCreate).toHaveBeenCalledWith('デクラインベンチプレス', 'chest')
+    await user.click(screen.getByRole('button', { name: /^ベンチプレス\s*追加する$/ }))
+    expect(saveVisibility).toHaveBeenLastCalledWith('u1', { addedIds: [], hiddenIds: [] })
+  })
+  it('loads saved additions and hidden exercises', async () => {
+    fetchVisibility.mockResolvedValue({ addedIds: ['decline'], hiddenIds: ['bench'] })
+    setup()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'デクラインベンチプレス' })).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'ベンチプレス' })).not.toBeInTheDocument()
+  })
+  it('keeps a candidate unselected when saving fails and allows retry', async () => {
+    saveVisibility.mockRejectedValueOnce(new Error('network'))
+    const { user } = setup()
+    await user.click(await screen.findByRole('button', { name: /胸の種目を追加/ }))
+    await user.click(await screen.findByRole('button', { name: /デクラインベンチプレス.*追加する/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('エラーが発生しました')
+    await user.click(screen.getByRole('button', { name: /デクラインベンチプレス.*追加する/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /デクラインベンチプレス.*表示中/ })).toBeInTheDocument())
   })
 })

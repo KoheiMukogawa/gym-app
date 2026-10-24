@@ -13,6 +13,12 @@ export type Announcement = {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: 'exercise-catalog',
+    publishedAt: '2026-10-24T13:55:00+09:00',
+    title: '使う種目をリストから追加できます',
+    body: '種目を選ぶ画面で「種目を追加・表示を管理」を開くと、候補から追加したり、使わない種目を非表示にしたりできます。記録済みのセットは消えません。',
+  },
+  {
     id: 'abs-exercises',
     publishedAt: '2026-10-15T11:36:38+09:00',
     title: '腹筋の種目を選べるようになりました',
