@@ -684,6 +684,7 @@ test('personal exercise creation stays in the chosen body group', async ({ page 
   const data = await mockApi(page)
   await page.getByRole('button', { name: '肩', exact: true }).click()
   await page.getByRole('button', { name: /肩の種目を追加/ }).click()
+  await page.getByRole('button', { name: /リストにない種目を入力/ }).click()
   await page.getByRole('textbox', { name: '種目名' }).fill('ケーブルサイドレイズ')
   await page.getByRole('button', { name: '追加して記録' }).click()
   await expect(page.getByRole('link', { name: 'ケーブルサイドレイズのグラフ', exact: true })).toBeVisible()
