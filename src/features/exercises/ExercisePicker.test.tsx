@@ -9,8 +9,7 @@ beforeEach(() => {
   saveVisibility.mockReset(); saveVisibility.mockResolvedValue(undefined)
   fetchVisibility.mockReset(); fetchVisibility.mockResolvedValue({ addedIds: [], hiddenIds: [] })
 })
-vi.mock('../routines/queries', async (original) => ({
-  ...await original<typeof import('../routines/queries')>(),
+vi.mock('../routines/queries', () => ({
   fetchExerciseOrder: async () => [], saveExerciseOrder: saveOrder,
   fetchExerciseVisibility: fetchVisibility, saveExerciseVisibility: saveVisibility,
 }))
@@ -127,6 +126,26 @@ describe('ExercisePicker', () => {
     await user.click(screen.getByRole('button', { name: /胸の種目を追加/ }))
     await user.click(screen.getByRole('button', { name: /^ベンチプレス\s*追加する$/ }))
     expect(saveVisibility).toHaveBeenLastCalledWith('u1', { addedIds: [], hiddenIds: [] })
+  })
+  it('hides an exercise directly from the list and restores it from management', async () => {
+    const { user } = setup()
+    await user.click(await screen.findByRole('button', { name: '自分のプレスを非表示にする' }))
+    expect(saveVisibility).toHaveBeenCalledWith('u1', { addedIds: [], hiddenIds: ['own'] })
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^自分のプレス\s*自分の種目$/ })).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /胸の種目を追加/ }))
+    await user.click(screen.getByRole('button', { name: /^自分のプレス\s*追加する$/ }))
+    expect(saveVisibility).toHaveBeenLastCalledWith('u1', { addedIds: [], hiddenIds: [] })
+  })
+  it('keeps the list item when hiding fails so the action can be retried', async () => {
+    saveVisibility.mockRejectedValueOnce(new Error('network'))
+    const { user } = setup()
+    const hide = await screen.findByRole('button', { name: 'ベンチプレスを非表示にする' })
+    await user.click(hide)
+    expect(await screen.findByRole('alert')).toHaveTextContent('エラーが発生しました')
+    expect(hide).toBeInTheDocument()
+    await user.click(hide)
+    await waitFor(() => expect(hide).not.toBeInTheDocument())
+    expect(saveVisibility).toHaveBeenCalledTimes(2)
   })
   it('loads saved additions and hidden exercises', async () => {
     fetchVisibility.mockResolvedValue({ addedIds: ['decline'], hiddenIds: ['bench'] })

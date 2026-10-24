@@ -30,6 +30,7 @@ export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLa
   const [orderLoading, setOrderLoading] = useState(true)
   const [visibility, setVisibility] = useState<ExerciseVisibility>({ addedIds: [], hiddenIds: [] })
   const [visibilityLoading, setVisibilityLoading] = useState(true)
+  const [visibilityUnavailable, setVisibilityUnavailable] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const orderLock = useRef(false)
   useEffect(() => {
@@ -45,8 +46,8 @@ export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLa
     let active = true
     setVisibilityLoading(true)
     if (!userId) { setVisibilityLoading(false); return }
-    fetchExerciseVisibility(userId).then((value) => { if (active) { setVisibility(value); setError(null) } })
-      .catch((e) => { if (active) setError(toMessage(e)) })
+    fetchExerciseVisibility(userId).then((value) => { if (active) { setVisibility(value); setVisibilityUnavailable(false); setError(null) } })
+      .catch((e) => { if (active) { setVisibilityUnavailable(true); setError(toMessage(e)) } })
       .finally(() => { if (active) setVisibilityLoading(false) })
     return () => { active = false }
   }, [userId, attempt])
@@ -167,7 +168,7 @@ export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLa
           </div>
           {orderError && <div className="mb-3 text-sm"><p role="alert">並び順を読み込み・保存できませんでした。</p><button disabled={saving} className="min-h-14 text-accent" onClick={() => { if (pendingOrder) void saveOrder(pendingOrder); else setAttempt((n) => n + 1) }}>再試行</button></div>}
           {error && <div className="mb-3 text-sm"><p role="alert">{error}</p><button className="min-h-14 text-accent" onClick={() => setAttempt((n) => n + 1)}>再試行</button></div>}
-          {visibilityLoading ? <p role="status" className="p-4 text-sm text-muted">種目を読み込み中…</p> : !error && <SortableList items={visible.map((e) => ({ id: e.id, label: exerciseLabel(e) }))}
+          {visibilityLoading ? <p role="status" className="p-4 text-sm text-muted">種目を読み込み中…</p> : !visibilityUnavailable && <SortableList items={visible.map((e) => ({ id: e.id, label: exerciseLabel(e) }))}
             disabled={!userId || saving || orderLoading || !!orderError}
             onReorder={(ids) => void saveOrder([...ids, ...order.filter((id) => !ids.includes(id))])}
             className="overflow-hidden rounded-2xl border border-border bg-surface"
@@ -178,12 +179,18 @@ export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLa
                   className="flex min-h-16 min-w-0 flex-1 items-center px-4 py-3 text-left active:bg-border">
                   <span>{exerciseLabel(e)}{armLabel(e) && <span className="mt-1 block text-xs text-accent">{armLabel(e)}</span>}
                     {!e.is_preset && <span className="mt-1 block text-xs text-muted">自分の種目</span>}</span>
-                </button>{handle}
+                </button>
+                <button type="button" disabled={saving} onClick={() => void setExerciseVisible(e, false)}
+                  aria-label={`${exerciseLabel(e)}を非表示にする`}
+                  className="flex min-h-14 min-w-14 items-center justify-center text-xs text-muted active:text-accent">
+                  非表示
+                </button>
+                {handle}
               </div>
             }} />}
-          {!visibilityLoading && !error && visible.length === 0 && <p className="p-4 text-sm text-muted">この部位の種目を追加しましょう</p>}
+          {!visibilityLoading && !visibilityUnavailable && visible.length === 0 && <p className="p-4 text-sm text-muted">この部位の種目を追加しましょう</p>}
           {saving && <p role="status" className="mt-2 text-xs text-muted">保存中…</p>}
-          <button type="button" disabled={saving || !!error} onClick={() => setManaging(true)} className="mt-2 min-h-14 w-full text-sm text-muted">
+          <button type="button" disabled={saving || visibilityUnavailable} onClick={() => setManaging(true)} className="mt-2 min-h-14 w-full text-sm text-muted">
             ＋ {MUSCLE_GROUP_LABELS[group]}の種目を追加・表示を管理
           </button>
         </section>
