@@ -163,11 +163,13 @@ export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLa
         </section>
       ) : (
         <section aria-label={MUSCLE_GROUP_LABELS[group] + 'の種目'}>
-          <div className="flex min-h-14 items-center justify-between text-sm">
-            <span className="text-muted">{MUSCLE_GROUP_LABELS[group]}の種目</span>
-            <span className="text-xs text-muted">⠿ 長押しで並び替え</span>
+          <div className="mb-3 pt-1">
+            <h2 className="mb-1.5 text-sm font-semibold">{MUSCLE_GROUP_LABELS[group]}の種目</h2>
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+              <span>← スワイプで非表示</span>
+              <span>⠿ 長押しで並び替え</span>
+            </p>
           </div>
-          <p className="mb-2 text-xs text-muted">左にスワイプで非表示</p>
           {orderError && <div className="mb-3 text-sm"><p role="alert">並び順を読み込み・保存できませんでした。</p><button disabled={saving} className="min-h-14 text-accent" onClick={() => { if (pendingOrder) void saveOrder(pendingOrder); else setAttempt((n) => n + 1) }}>再試行</button></div>}
           {error && <div className="mb-3 text-sm"><p role="alert">{error}</p><button className="min-h-14 text-accent" onClick={() => setAttempt((n) => n + 1)}>再試行</button></div>}
           {visibilityLoading ? <p role="status" className="p-4 text-sm text-muted">種目を読み込み中…</p> : !visibilityUnavailable && <SortableList items={visible.map((e) => ({ id: e.id, label: exerciseLabel(e) }))}
