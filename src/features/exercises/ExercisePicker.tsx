@@ -4,6 +4,7 @@ import { InputError, toMessage } from '../../lib/errors'
 import { MUSCLE_GROUP_LABELS, type Exercise, type MuscleGroup } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { SortableList } from '../../components/SortableList'
+import { ExerciseSwipeRow } from './ExerciseSwipeRow'
 import { armLabel, exerciseLabel, isBasicExercise, PICKER_GROUPS, sortExercises } from './catalog'
 import { fetchExerciseOrder, fetchExerciseVisibility, saveExerciseOrder, saveExerciseVisibility, type ExerciseVisibility } from '../routines/queries'
 
@@ -166,6 +167,7 @@ export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLa
             <span className="text-muted">{MUSCLE_GROUP_LABELS[group]}の種目</span>
             <span className="text-xs text-muted">⠿ 長押しで並び替え</span>
           </div>
+          <p className="mb-2 text-xs text-muted">左にスワイプで非表示</p>
           {orderError && <div className="mb-3 text-sm"><p role="alert">並び順を読み込み・保存できませんでした。</p><button disabled={saving} className="min-h-14 text-accent" onClick={() => { if (pendingOrder) void saveOrder(pendingOrder); else setAttempt((n) => n + 1) }}>再試行</button></div>}
           {error && <div className="mb-3 text-sm"><p role="alert">{error}</p><button className="min-h-14 text-accent" onClick={() => setAttempt((n) => n + 1)}>再試行</button></div>}
           {visibilityLoading ? <p role="status" className="p-4 text-sm text-muted">種目を読み込み中…</p> : !visibilityUnavailable && <SortableList items={visible.map((e) => ({ id: e.id, label: exerciseLabel(e) }))}
@@ -174,19 +176,15 @@ export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLa
             className="overflow-hidden rounded-2xl border border-border bg-surface"
             renderItem={(item, handle) => {
               const e = visible.find((exercise) => exercise.id === item.id)!
-              return <div className="flex items-center border-b border-border">
+              return <ExerciseSwipeRow label={exerciseLabel(e)} disabled={saving}
+                onHide={() => setExerciseVisible(e, false)}>
                 <button type="button" onClick={() => onSelect(e)}
                   className="flex min-h-16 min-w-0 flex-1 items-center px-4 py-3 text-left active:bg-border">
                   <span>{exerciseLabel(e)}{armLabel(e) && <span className="mt-1 block text-xs text-accent">{armLabel(e)}</span>}
                     {!e.is_preset && <span className="mt-1 block text-xs text-muted">自分の種目</span>}</span>
                 </button>
-                <button type="button" disabled={saving} onClick={() => void setExerciseVisible(e, false)}
-                  aria-label={`${exerciseLabel(e)}を非表示にする`}
-                  className="flex min-h-14 min-w-14 items-center justify-center text-xs text-muted active:text-accent">
-                  非表示
-                </button>
-                {handle}
-              </div>
+                <span data-swipe-ignore>{handle}</span>
+              </ExerciseSwipeRow>
             }} />}
           {!visibilityLoading && !visibilityUnavailable && visible.length === 0 && <p className="p-4 text-sm text-muted">この部位の種目を追加しましょう</p>}
           {saving && <p role="status" className="mt-2 text-xs text-muted">保存中…</p>}

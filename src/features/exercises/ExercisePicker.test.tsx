@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ExercisePicker } from './ExercisePicker'
 import type { Exercise } from '../../lib/types'
@@ -127,14 +127,39 @@ describe('ExercisePicker', () => {
     await user.click(screen.getByRole('button', { name: /^ベンチプレス\s*追加する$/ }))
     expect(saveVisibility).toHaveBeenLastCalledWith('u1', { addedIds: [], hiddenIds: [] })
   })
-  it('hides an exercise directly from the list and restores it from management', async () => {
-    const { user } = setup()
-    await user.click(await screen.findByRole('button', { name: '自分のプレスを非表示にする' }))
+  it('hides an exercise with a long left swipe and restores it from management', async () => {
+    const { user, onSelect } = setup()
+    const item = await screen.findByRole('button', { name: /^自分のプレス\s*自分の種目$/ })
+    await waitFor(() => expect(screen.getByRole('button', { name: '自分のプレスを長押しして並び替え' })).toBeEnabled())
+    const content = item.parentElement!
+    fireEvent.pointerDown(content, { clientX: 300, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(content, { clientX: 240, clientY: 12, pointerId: 1 })
+    fireEvent.pointerMove(content, { clientX: 20, clientY: 12, pointerId: 1 })
+    fireEvent.pointerUp(content, { clientX: 20, clientY: 12, pointerId: 1 })
     expect(saveVisibility).toHaveBeenCalledWith('u1', { addedIds: [], hiddenIds: ['own'] })
+    expect(onSelect).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.queryByRole('button', { name: /^自分のプレス\s*自分の種目$/ })).not.toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: /胸の種目を追加/ }))
     await user.click(screen.getByRole('button', { name: /^自分のプレス\s*追加する$/ }))
     expect(saveVisibility).toHaveBeenLastCalledWith('u1', { addedIds: [], hiddenIds: [] })
+  })
+  it('does not hide on a short swipe, a vertical scroll, or a drag from the reorder handle', async () => {
+    const { onSelect } = setup()
+    const item = await screen.findByRole('button', { name: 'ベンチプレス' })
+    const content = item.parentElement!
+    fireEvent.pointerDown(content, { clientX: 300, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(content, { clientX: 240, clientY: 12, pointerId: 1 })
+    fireEvent.pointerUp(content, { clientX: 240, clientY: 12, pointerId: 1 })
+    fireEvent.pointerDown(content, { clientX: 300, clientY: 10, pointerId: 2 })
+    fireEvent.pointerMove(content, { clientX: 280, clientY: 150, pointerId: 2 })
+    fireEvent.pointerMove(content, { clientX: 0, clientY: 160, pointerId: 2 })
+    fireEvent.pointerUp(content, { clientX: 0, clientY: 160, pointerId: 2 })
+    const handle = screen.getByRole('button', { name: 'ベンチプレスを長押しして並び替え' })
+    fireEvent.pointerDown(handle, { clientX: 300, clientY: 10, pointerId: 3 })
+    fireEvent.pointerMove(handle, { clientX: 0, clientY: 12, pointerId: 3 })
+    fireEvent.pointerUp(handle, { clientX: 0, clientY: 12, pointerId: 3 })
+    expect(saveVisibility).not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
   })
   it('keeps the list item when hiding fails so the action can be retried', async () => {
     saveVisibility.mockRejectedValueOnce(new Error('network'))
