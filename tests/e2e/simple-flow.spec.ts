@@ -22,6 +22,7 @@ async function slideDial(page: Page, direction: 'up' | 'down', dialId = 'recordi
   }
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
   await cdp.detach()
+  if (direction === 'down') await expect(page.locator(`#${dialId}`)).toHaveCSS('height', '0px')
 }
 
 test('dial steps, scroll and direct entry save the displayed values', async ({ page }) => {
