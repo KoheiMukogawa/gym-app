@@ -211,7 +211,8 @@ describe('LogPage', () => {
 
     renderLogPage()
     expect(await screen.findByRole('heading', { name: '次はどの種目？' })).toBeInTheDocument()
-    await userEvent.click(screen.getAllByRole('button', { name: /ベンチプレス/ })[0])
+    // The exercise list appears after its order and visibility load.
+    await userEvent.click((await screen.findAllByRole('button', { name: /ベンチプレス/ }))[0])
     await userEvent.click(await screen.findByRole('button', { name: /セット完了/ }))
 
     await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
@@ -228,7 +229,7 @@ describe('LogPage', () => {
     renderLogPage()
     expect(await screen.findByRole('heading', { name: '次はどの種目？' })).toBeInTheDocument()
     expect(loadDraft(USER)).toBeNull()
-    await userEvent.click(screen.getAllByRole('button', { name: /ベンチプレス/ })[0])
+    await userEvent.click((await screen.findAllByRole('button', { name: /ベンチプレス/ }))[0])
     await waitFor(() => expect(loadDraft(USER)?.workoutId).toBe('today'))
   })
 
