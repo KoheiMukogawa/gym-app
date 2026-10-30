@@ -3,6 +3,10 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { Member } from './queries'
+Object.defineProperties(HTMLDialogElement.prototype, {
+  showModal: { configurable: true, value() { this.setAttribute('open', '') } },
+  close: { configurable: true, value() { this.removeAttribute('open') } },
+})
 const { rpc, profile } = vi.hoisted(() => ({ rpc: vi.fn(), profile: vi.fn() }))
 vi.mock('./queries', async original => ({ ...await original<typeof import('./queries')>(), profile }))
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
@@ -43,7 +47,7 @@ it('lets a DOTS non-participant select a formula on the ranking page', async () 
   await openDots()
   await userEvent.click(await screen.findByRole('button', { name: '係数を選んで参加する' }))
   expect(screen.getByRole('radio', { name: '男性用' })).toBeInTheDocument()
-  expect(screen.getByText(/体重の公開に同意した人だけ表示しています/)).toBeInTheDocument()
+  expect(screen.getByText(/公開を選んだ人だけ表示します/)).toBeInTheDocument()
 })
 
 it('invites a global non-participant without navigating to profile', async () => {
@@ -92,4 +96,15 @@ it('ranks a single lift under the kg total, including members without all three 
   // The lift choice belongs to the kg total; DOTS and growth rank as before.
   await userEvent.click(screen.getByRole('button', { name: 'DOTS' }))
   expect(screen.queryByRole('group', { name: '種目' })).not.toBeInTheDocument()
+})
+
+it('opens a member detail with the three published lift values', async () => {
+  show([member('a', '参加者', { lifts: { squat: 180, bench: 120, deadlift: 200 } })])
+  await userEvent.click(await screen.findByRole('button', { name: /参加者/ }))
+  const detail = screen.getByRole('region', { name: '参加者の記録' })
+  expect(within(detail).getByText('180 kg')).toBeInTheDocument()
+  expect(within(detail).getByText('120 kg')).toBeInTheDocument()
+  expect(within(detail).getByText('200 kg')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+  expect(screen.queryByRole('region', { name: '参加者の記録' })).not.toBeInTheDocument()
 })

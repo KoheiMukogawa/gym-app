@@ -5,6 +5,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { supabase } from '../../lib/supabase'
 import { useSession } from '../auth/SessionProvider'
+import { removeAllPhotos } from '../profile/photo'
 import { clearDraft } from '../workout-log/persistence'
 import { CONFIRM_TEXT, accountMessage, deleteMyAccount, fetchDeletionSummary, type DeletionSummary } from './queries'
 
@@ -41,6 +42,8 @@ export function DeleteAccountPage() {
     if (!userId || confirm !== CONFIRM_TEXT || lock.current) return
     lock.current = true; setDeleting(true); setError(null)
     try {
+      // プロフィールの写真はStorageにあり、DBの削除では消えないので先に消す。消せなくても退会は進める
+      await removeAllPhotos(userId).catch((e: unknown) => console.error('プロフィール画像の削除に失敗しました', e))
       await deleteMyAccount(confirm)
     } catch (e) {
       setError(accountMessage(e)); setDeleting(false); lock.current = false

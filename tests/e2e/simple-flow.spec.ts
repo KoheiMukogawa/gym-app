@@ -1176,8 +1176,12 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
     { recorded_on: past, bodyweight_kg: 70, body_fat_pct: 16 },
   )
   await page.goto('/profile')
+  await expect(page.getByRole('heading', { name: '基本情報' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '公開とランキング' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'アカウント' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await expect(page.getByLabel('体重（kg）')).toHaveCount(0)
-  await page.getByRole('link', { name: '体組成を記録する →' }).click()
+  await page.getByRole('navigation', { name: 'メイン' }).getByRole('link', { name: '体組成' }).click()
   await expect(page.getByLabel('体重（kg）')).toHaveCount(0)
   await page.getByRole('button', { name: '体重を記録', exact: true }).click()
   await expect(page.getByLabel('体重（kg）')).toHaveValue('70')
@@ -1188,6 +1192,14 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   await page.getByRole('button', { name: 'カレンダーで日付を選ぶ' }).click()
   await expect(page.getByRole('region', { name: '日付を選ぶ' })).toBeVisible()
   await page.waitForTimeout(400)
+  // Months with five or six weeks keep the same height, so the month buttons stay where the finger is.
+  const previousMonth = page.getByRole('button', { name: '前の月' })
+  const buttonTops: number[] = []
+  for (let i = 0; i < 6; i++) {
+    buttonTops.push(Math.round((await previousMonth.boundingBox())!.y))
+    await previousMonth.click()
+  }
+  expect(new Set(buttonTops).size).toBe(1)
   await page.screenshot({ path: 'test-results/body-entry-date.png' })
   await page.getByRole('button', { name: 'カレンダーを閉じる' }).click()
   const trend = page.getByRole('region', { name: '推移' })
@@ -1325,8 +1337,10 @@ test('a new user starts from BIG3 bests entered on home and sees them in BIG3', 
 test('list input saves typed rows when the exercise is changed', async ({ page }) => {
   const data = await mockApi(page, true)
   await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
-  await page.getByRole('button', { name: /記録の入れ方/ }).click()
-  await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
+  await page.getByRole('link', { name: 'プロフィールを編集' }).click()
+  await page.getByRole('radio', { name: /一覧/ }).check()
+  await page.getByRole('link', { name: 'Glog トップへ' }).click()
+  await page.getByRole('link', { name: /記録する/ }).click()
   await expect(page.getByRole('region', { name: '胸の種目' })).toBeVisible()
   await page.getByRole('region', { name: '胸の種目' }).getByRole('button', { name: 'ベンチプレス', exact: true }).click()
   await expect(page.getByRole('region', { name: '前回の記録' })).toContainText('80.0 kg × 8 回')
@@ -1365,8 +1379,10 @@ test('list input screens have their own screen IDs', async ({ page }) => {
   await mockApi(page, false, true)
   await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
   await page.getByRole('switch', { name: /画面IDを表示/ }).click()
-  await page.getByRole('button', { name: /記録の入れ方/ }).click()
-  await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
+  await page.getByRole('link', { name: 'プロフィールを編集' }).click()
+  await page.getByRole('radio', { name: /一覧/ }).check()
+  await page.getByRole('link', { name: 'Glog トップへ' }).click()
+  await page.getByRole('link', { name: /記録する/ }).click()
   await expect(page.getByLabel('画面ID REC-04をコピー')).toBeVisible()
   await page.getByRole('region', { name: '胸の種目' }).getByRole('button', { name: 'ベンチプレス', exact: true }).click()
   await expect(page.getByLabel('画面ID REC-05をコピー')).toBeVisible()
@@ -1374,4 +1390,73 @@ test('list input screens have their own screen IDs', async ({ page }) => {
   await page.getByLabel('1セット目の回数', { exact: true }).fill('5')
   await page.getByRole('button', { name: '今日の記録に戻る' }).click()
   await expect(page.getByLabel('画面ID REC-03をコピー')).toBeVisible()
+})
+
+test('a profile photo is cropped to a small square, uploaded for a long cache and shown as the icon', async ({ page }) => {
+  await mockApi(page)
+  let upload: { path: string; body: Buffer; contentType: string } | null = null
+  let savedIcon = 'initials'
+  await page.route('https://example.supabase.co/rest/v1/community_profiles**', (route) => route.fulfill({
+    json: { user_id: USER, display_name: 'テストユーザー', icon: savedIcon, bio: '', global_ranking: false, dots_opt_in: false, dots_formula: null },
+  }))
+  await page.route('https://example.supabase.co/rest/v1/rpc/save_glog_profile', async (route) => {
+    savedIcon = route.request().postDataJSON().p_icon
+    await route.fulfill({ status: 204, body: '' })
+  })
+  await page.route(/https:\/\/example\.supabase\.co\/storage\/v1\/object\/avatars\//, async (route) => {
+    const request = route.request()
+    upload = { path: new URL(request.url()).pathname, body: request.postDataBuffer()!, contentType: request.headers()['content-type'] ?? '' }
+    await route.fulfill({ json: { Key: 'avatars/x', Id: 'x' } })
+  })
+  await page.route(/https:\/\/example\.supabase\.co\/storage\/v1\/object\/public\/avatars\//, (route) => {
+    // The upload is multipart: serve the image part back as the stored file.
+    const boundary = upload!.contentType.split('boundary=')[1]
+    const raw = upload!.body.toString('latin1')
+    const part = raw.split(`--${boundary}`).find((p) => /content-type: image\//i.test(p))!
+    const image = Buffer.from(part.slice(part.indexOf('\r\n\r\n') + 4).replace(/\r\n$/, ''), 'latin1')
+    const type = /content-type: (image\/\w+)/i.exec(part)![1]
+    return route.fulfill({ body: image, contentType: type, headers: { 'cache-control': 'max-age=31536000' } })
+  })
+  await page.goto('/profile')
+  // A wide 800×400 picture: the saved icon must be a 256px square.
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = 800; canvas.height = 400
+    const context = canvas.getContext('2d')!
+    context.fillStyle = '#3B82F6'; context.fillRect(0, 0, 800, 400)
+    context.fillStyle = '#E8412F'; context.fillRect(200, 0, 400, 400)
+    return canvas.toDataURL('image/png').split(',')[1]
+  })
+  await page.locator('input[type="file"]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') })
+  // The cropper starts on the centered square; dragging the picture right moves the circle to its left edge.
+  const frame = page.getByRole('application', { name: /写真の範囲/ })
+  const picture = frame.locator('img')
+  await expect(picture).toBeVisible()
+  const inset = (await frame.boundingBox())!.width * (1 - 0.78) / 2
+  expect(await picture.evaluate((img: HTMLImageElement) => parseFloat(img.style.left))).toBeLessThan(0)
+  await page.waitForTimeout(400)
+  await page.screenshot({ path: 'test-results/profile-photo-crop.png' })
+  const box = (await frame.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 200, box.y + box.height / 2, { steps: 8 })
+  await page.mouse.up()
+  await expect.poll(() => picture.evaluate((img: HTMLImageElement) => parseFloat(img.style.left))).toBeCloseTo(inset, 1)
+  await page.getByRole('slider', { name: '大きさ' }).fill('2')
+  await page.getByRole('button', { name: 'この範囲にする' }).click()
+  await expect(page.getByRole('button', { name: '写真を選び直す' })).toBeVisible()
+  await page.getByRole('button', { name: 'プロフィールを保存' }).click()
+  await expect(page.getByRole('status')).toHaveText('保存しました')
+  expect(upload!.path).toMatch(new RegExp(`/avatars/${USER}/[0-9a-f-]{36}\\.(webp|jpg)$`))
+  expect(upload!.body.toString('latin1')).toContain('31536000')
+  expect(savedIcon).toBe(`photo:${upload!.path.split('/avatars/')[1]}`)
+  // The picker shows the stored square photo, decoded at 256px.
+  const size = await page.getByRole('button', { name: '写真を選び直す' }).locator('img').evaluate(async (img: HTMLImageElement) => {
+    if (!img.complete) await new Promise((resolve) => { img.onload = resolve })
+    return [img.naturalWidth, img.naturalHeight]
+  })
+  expect(size).toEqual([256, 256])
+  await page.getByRole('group', { name: 'アイコン' }).screenshot({ path: 'test-results/profile-photo.png' })
+  // The preset choices start with the muscle silhouette; the target and bolt icons are gone.
+  await expect(page.getByRole('group', { name: 'アイコン' }).getByRole('button').first()).toHaveAccessibleName('筋肉')
+  await expect(page.getByRole('button', { name: '稲妻' })).toHaveCount(0)
 })

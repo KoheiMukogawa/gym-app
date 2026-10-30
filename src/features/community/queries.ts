@@ -1,5 +1,6 @@
 import { toMessage } from '../../lib/errors'
 import { supabase } from '../../lib/supabase'
+import { isPhoto } from '../profile/photo'
 import type { DotsFormula } from '../../lib/dots'
 export type { DotsFormula }
 export type Community = { id: string; name: string; owner_id: string; invite_code: string | null }
@@ -31,7 +32,9 @@ export async function profile(userId: string): Promise<CommunityProfile | null> 
   return data
 }
 export async function saveProfile(value: CommunityProfile) {
-  const { error } = await supabase.rpc('save_glog_profile', { p_name: value.display_name.trim(), p_icon: ['initials','barbell','target','bolt'].includes(value.icon) ? value.icon : 'initials', p_bio: value.bio.trim(), p_global: value.global_ranking ?? false })
+  // 写真のアイコンはそのまま残す（ランキングへの参加やコミュニティでの保存で消さない）
+  const icon = ['muscle','initials','barbell','target','bolt'].includes(value.icon) || isPhoto(value.icon) ? value.icon : 'muscle'
+  const { error } = await supabase.rpc('save_glog_profile', { p_name: value.display_name.trim(), p_icon: icon, p_bio: value.bio.trim(), p_global: value.global_ranking ?? false })
   if (error) throw error
 }
 export async function saveDotsSettings(optIn: boolean, formula: DotsFormula | null) {

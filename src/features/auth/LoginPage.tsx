@@ -11,7 +11,7 @@ import { markSignedUp } from '../install/installGuide'
 import { track } from '../../lib/analytics'
 export function LoginPage({ signup = false }: { signup?: boolean }) {
   const { userId, loading } = useSession()
-  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[name,setName]=useState(''),[icon,setIcon]=useState('initials'),[publicRank,setPublicRank]=useState(false)
+  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[name,setName]=useState(''),[icon,setIcon]=useState('muscle'),[publicRank,setPublicRank]=useState(false)
   const [error,setError]=useState<string|null>(null),[submitting,setSubmitting]=useState(false),[sent,setSent]=useState(false)
   const captcha=useCaptcha()
   if(!loading&&userId)return <Navigate to="/" replace/>

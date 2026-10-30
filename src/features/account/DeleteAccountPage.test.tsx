@@ -8,6 +8,8 @@ const { rpc, signOut, clearDraft } = vi.hoisted(() => ({ rpc: vi.fn(), signOut: 
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc, auth: { signOut } } }))
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'me' }) }))
 vi.mock('../workout-log/persistence', () => ({ clearDraft }))
+const { removeAllPhotos } = vi.hoisted(() => ({ removeAllPhotos: vi.fn() }))
+vi.mock('../profile/photo', () => ({ removeAllPhotos }))
 import { DeleteAccountPage } from './DeleteAccountPage'
 
 const summary = { workout_days: 42, set_count: 380, body_log_count: 15, custom_exercise_count: 2, health_sync_connected: false, owned_communities: [] as { name: string; other_member_count: number }[] }
@@ -26,6 +28,7 @@ const deletionCalls = () => rpc.mock.calls.filter(([name]) => name === 'delete_m
 beforeEach(() => {
   vi.clearAllMocks()
   signOut.mockResolvedValue({ error: null })
+  removeAllPhotos.mockResolvedValue(undefined)
   mockRpc()
 })
 
@@ -82,6 +85,19 @@ describe('DeleteAccountPage', () => {
     expect(deletionCalls()).toEqual([['delete_my_account', { p_confirm: '退会する' }]])
     expect(clearDraft).toHaveBeenCalledWith('me')
     expect(signOut).toHaveBeenCalledWith({ scope: 'local' })
+  })
+
+  it('removes the profile photos before deleting the account, and still leaves when that fails', async () => {
+    removeAllPhotos.mockRejectedValueOnce(new Error('storage down'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderPage()
+    await userEvent.type(await screen.findByLabelText('確認のため「退会する」と入力してください'), '退会する')
+    await userEvent.click(screen.getByRole('button', { name: '退会する' }))
+    expect(await screen.findByText('退会しました')).toBeInTheDocument()
+    expect(removeAllPhotos).toHaveBeenCalledWith('me')
+    expect(removeAllPhotos.mock.invocationCallOrder[0]).toBeLessThan(rpc.mock.invocationCallOrder.at(-1)!)
+    expect(deletionCalls()).toEqual([['delete_my_account', { p_confirm: '退会する' }]])
+    error.mockRestore()
   })
 
   it('still signs this device out when the page is left while the deletion is running', async () => {

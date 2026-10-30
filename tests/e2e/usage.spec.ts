@@ -17,7 +17,10 @@ test('an admin opens the usage dashboard from the profile menu', async ({ page }
     if (path.endsWith('/rest/v1/admins')) return reply([{ user_id: uid }])
     if (path.endsWith('/admin_unread_feedback_count')) return reply(0)
     if (path.endsWith('/admin_usage_stats')) return reply({ total_users: 6, active_7d: 2, active_30d: 4, weeks })
-    if (path.endsWith('/admin_growth_stats')) return reply({ weekly_active_lifters: 2, lifters_2plus_days_7d: 1, workouts_7d: 3, sets_7d: 30,
+    if (path.endsWith('/admin_growth_stats')) return reply({ weekly_active_lifters: 2, previous_weekly_active_lifters: 1,
+      lifters_2plus_days_7d: 1, previous_lifters_2plus_days_7d: 0, workouts_7d: 3, previous_workouts_7d: 1,
+      sets_7d: 30, previous_sets_7d: 12, signups_7d: 1, previous_signups_7d: 0,
+      activation: { registered: 6, first_workout: 4, second_workout_day: 3 },
       retention: { d1: { eligible: 4, retained: 2 }, d7: { eligible: 3, retained: 1 }, d30: { eligible: 0, retained: 0 } },
       signups_by_source_90d: [{ source: 'calc-1rm', signups: 2 }] })
     if (path.endsWith('/profiles')) return reply({ id: uid, display_name: '運営' })
@@ -25,12 +28,18 @@ test('an admin opens the usage dashboard from the profile menu', async ({ page }
   })
   await page.goto('/')
   await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
+  await expect(page.getByRole('heading', { name: 'データとアプリ' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'サポート' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '管理' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.getByRole('link', { name: '利用状況' }).click()
   await expect(page.getByRole('heading', { name: '利用状況' })).toBeVisible()
-  await expect(page.getByText('直近30日に記録した人')).toBeVisible()
-  await expect(page.locator('.recharts-bar-rectangle')).toHaveCount(9)
-  await expect(page.getByRole('table', { name: '週ごとの利用状況' }).getByRole('row')).toHaveCount(13)
-  await expect(page.getByText('D1リテンション').locator('+ dd')).toHaveText('2/4人（50%）')
-  await expect(page.getByRole('row', { name: /calc-1rm/ })).toBeVisible()
+  await expect(page.getByText('直近7日間')).toBeVisible()
+  await expect(page.getByTestId('activation-chart').getByText('初回記録')).toBeVisible()
+  await expect(page.getByTestId('weekly-active-chart').locator('.recharts-bar-rectangle')).toHaveCount(9)
+  await expect(page.getByTestId('activation-chart').locator('.recharts-bar-rectangle')).toHaveCount(3)
+  await expect(page.getByRole('article')).toHaveCount(12)
+  await expect(page.getByText('翌日').locator('+ dd')).toHaveText('2/4人（50%）')
+  await expect(page.getByRole('row', { name: /1RM計算/ })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

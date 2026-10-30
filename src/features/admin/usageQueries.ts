@@ -19,9 +19,16 @@ export function formatWeek(date: string): string {
 export type Retention = { eligible: number; retained: number }
 export type GrowthStats = {
   weekly_active_lifters: number
+  previous_weekly_active_lifters: number
   lifters_2plus_days_7d: number
+  previous_lifters_2plus_days_7d: number
   workouts_7d: number
+  previous_workouts_7d: number
   sets_7d: number
+  previous_sets_7d: number
+  signups_7d: number
+  previous_signups_7d: number
+  activation: { registered: number; first_workout: number; second_workout_day: number }
   retention: { d1: Retention; d7: Retention; d30: Retention }
   signups_by_source_90d: { source: string; signups: number }[]
 }
@@ -42,4 +49,22 @@ export function formatRate({ eligible, retained }: Retention): string {
 /** 1人あたり（小数1桁）。分母が0なら「—」。 */
 export function perPerson(total: number, people: number): string {
   return people === 0 ? '—' : (total / people).toFixed(1)
+}
+
+/** 直前の同じ長さの期間との差。「変化なし」も明示する。 */
+export function formatDelta(current: number, previous: number): string {
+  const difference = current - previous
+  if (difference === 0) return '前の7日間と同じ'
+  return `前の7日間より${difference > 0 ? '+' : ''}${difference}`
+}
+
+export function formatSource(source: string): string {
+  const labels: Record<string, string> = {
+    'calc-1rm': '1RM計算',
+    'calc-dots': 'DOTS計算',
+    calculators: '計算ツール一覧',
+    landing: '紹介ページ',
+    unknown: '不明（記録前の登録など）',
+  }
+  return labels[source] ?? source
 }

@@ -11,9 +11,11 @@ type Props = {
   compact?: boolean
   /** 塗った日の読み上げ（体組成では「記録あり」） */
   activeLabel?: string
+  /** 月をめくっても高さが変わらないよう、いつも6週分のマスを描く（下に付いたシートの中で使うとき） */
+  sixWeeks?: boolean
 }
 
-export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect, maxDate, compact = false, activeLabel = 'トレーニングあり' }: Props) {
+export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect, maxDate, compact = false, activeLabel = 'トレーニングあり', sixWeeks = false }: Props) {
   // ホームでは小さな丸いマスにする（トレーニングした日は塗りつぶし）
   const cell = compact ? 'aspect-square text-[11px] rounded-full' : 'aspect-square text-sm rounded-lg'
   const selectedRing = compact ? 'ring-1 ring-fg' : 'ring-2 ring-accent ring-offset-2 ring-offset-bg'
@@ -26,6 +28,7 @@ export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect
     ...Array<null>(leading).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
+  if (sixWeeks) cells.push(...Array<null>(42 - cells.length).fill(null))
 
   return (
     <div>
@@ -36,7 +39,8 @@ export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect
       </div>
       <div className={`grid grid-cols-7 ${compact ? 'gap-0.5' : 'gap-1'}`}>
         {cells.map((day, i) => {
-          if (day === null) return <span key={`pad-${i}`} />
+          // 空きのマスも日付と同じ正方形にして、まるごと空の週も高さを保つ
+          if (day === null) return <span key={`pad-${i}`} aria-hidden="true" className="aspect-square" />
           const key = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
           const isActive = active.has(key)
           if (onSelect) return <button key={key} type="button"

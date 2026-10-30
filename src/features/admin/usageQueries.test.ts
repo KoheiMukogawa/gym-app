@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
-import { fetchGrowthStats, fetchUsageStats, formatRate, formatWeek, perPerson } from './usageQueries'
+import { fetchGrowthStats, fetchUsageStats, formatDelta, formatRate, formatSource, formatWeek, perPerson } from './usageQueries'
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -27,4 +27,8 @@ it('reads the growth stats and formats rates', async () => {
   expect(formatRate({ eligible: 0, retained: 0 })).toBe('—')
   expect(perPerson(7, 2)).toBe('3.5')
   expect(perPerson(7, 0)).toBe('—')
+  expect(formatDelta(3, 1)).toBe('前の7日間より+2')
+  expect(formatDelta(1, 3)).toBe('前の7日間より-2')
+  expect(formatDelta(2, 2)).toBe('前の7日間と同じ')
+  expect(formatSource('calc-1rm')).toBe('1RM計算')
 })

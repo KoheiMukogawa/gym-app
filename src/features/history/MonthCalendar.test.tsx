@@ -20,3 +20,17 @@ describe('MonthCalendar', () => {
     expect(screen.queryByLabelText('8月13日 トレーニングあり')).not.toBeInTheDocument()
   })
 })
+
+describe('six weeks', () => {
+  it('always draws 42 cells so turning the month never changes the height', () => {
+    // February 2026 starts on a Sunday and fills exactly four weeks.
+    const { container, rerender } = render(<MonthCalendar year={2026} month={2} activeDates={[]} onSelect={() => {}} sixWeeks />)
+    const cells = () => container.querySelectorAll('.grid.grid-cols-7:last-child > *').length
+    expect(cells()).toBe(42)
+    // August 2026 starts on a Saturday and needs six weeks.
+    rerender(<MonthCalendar year={2026} month={8} activeDates={[]} onSelect={() => {}} sixWeeks />)
+    expect(cells()).toBe(42)
+    rerender(<MonthCalendar year={2026} month={2} activeDates={[]} onSelect={() => {}} />)
+    expect(cells()).toBe(28)
+  })
+})

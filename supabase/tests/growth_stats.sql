@@ -64,6 +64,13 @@ begin
   if (s->>'weekly_active_lifters')::int <> 2 then raise exception 'weekly_active_lifters %', s; end if;
   if (s->>'lifters_2plus_days_7d')::int <> 1 then raise exception 'lifters_2plus_days_7d %', s; end if;
   if (s->>'workouts_7d')::int <> 3 or (s->>'sets_7d')::int <> 6 then raise exception 'volume %', s; end if;
+  -- B lifted once in the preceding seven days. D and E signed up in the latest seven days.
+  if (s->>'previous_weekly_active_lifters')::int <> 1 then raise exception 'previous active %', s; end if;
+  if (s->>'previous_lifters_2plus_days_7d')::int <> 0 then raise exception 'previous frequent %', s; end if;
+  if (s->>'previous_workouts_7d')::int <> 1 or (s->>'previous_sets_7d')::int <> 0 then raise exception 'previous volume %', s; end if;
+  if (s->>'signups_7d')::int <> 2 or (s->>'previous_signups_7d')::int <> 0 then raise exception 'signups comparison %', s; end if;
+  -- Five real accounts; B, C and D recorded, and B/C recorded on at least two days.
+  if s->'activation' <> '{"registered":5,"first_workout":3,"second_workout_day":2}'::jsonb then raise exception 'activation %', s->'activation'; end if;
   -- D1 eligible: A, B, C, D (E signed up today). Retained: B and D.
   if s->'retention'->'d1' <> '{"eligible":4,"retained":2}'::jsonb then raise exception 'd1 %', s->'retention'; end if;
   -- D7 eligible: A, B, C. Retained: B.  D30 eligible: A, B, C. Retained: B.

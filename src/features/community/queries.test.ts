@@ -1,7 +1,7 @@
-import { beforeEach, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
-import { communityMessage, formatMetric, rankMembers, saveDotsSettings, type Member } from './queries'
+import { communityMessage, formatMetric, rankMembers, saveDotsSettings, saveProfile, type Member } from './queries'
 
 const member = (user_id: string, over: Partial<Member> = {}): Member => ({
   user_id, display_name: user_id, icon: 'initials', bio: '', total: null, growth: null, dots: null, dots_opt_in: false,
@@ -50,4 +50,15 @@ it('saves DOTS settings through the RPC and surfaces its validation message', as
   rpc.mockResolvedValueOnce({ error: { message: 'DOTSの係数を選んでください' } })
   const failure = await saveDotsSettings(true, null).catch((e) => e)
   expect(communityMessage(failure)).toBe('DOTSの係数を選んでください')
+})
+
+describe('saveProfile', () => {
+  it('keeps a photo icon instead of resetting it to the default', async () => {
+    rpc.mockResolvedValue({ error: null })
+    const photo = 'photo:u1/00000000-0000-4000-8000-000000000001.webp'
+    await saveProfile({ user_id: 'u1', display_name: ' 名前 ', icon: photo, bio: '', global_ranking: true })
+    expect(rpc).toHaveBeenLastCalledWith('save_glog_profile', { p_name: '名前', p_icon: photo, p_bio: '', p_global: true })
+    await saveProfile({ user_id: 'u1', display_name: '名前', icon: '💪', bio: '', global_ranking: false })
+    expect(rpc).toHaveBeenLastCalledWith('save_glog_profile', expect.objectContaining({ p_icon: 'muscle' }))
+  })
 })

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
 import { adminMessage } from '../../lib/errors'
-import { fetchGrowthStats, fetchUsageStats, formatRate, formatWeek, perPerson, type GrowthStats, type UsageStats, type UsageWeek } from './usageQueries'
+import { fetchGrowthStats, fetchUsageStats, formatDelta, formatRate, formatSource, formatWeek, perPerson, type GrowthStats, type UsageStats, type UsageWeek } from './usageQueries'
 
 // The accent is already validated on the dark surface (see BodyTrendChart).
 const BAR = '#E8412F'
@@ -23,48 +23,22 @@ export function UsagePage() {
     <Button variant="ghost" onClick={load}>再試行</Button>
   </section>
   if (!stats) return <Spinner />
-  const tiles: [string, number, string][] = [
-    ['登録者数', stats.total_users, '人'],
-    ['直近7日に記録した人', stats.active_7d, '人'],
-    ['直近30日に記録した人', stats.active_30d, '人'],
-    ['今週のセット数', stats.weeks.at(-1)?.sets ?? 0, 'セット'],
-  ]
   return <section className="space-y-6 p-4">
     <div>
       <h1 className="text-2xl font-semibold">利用状況</h1>
       <p className="mt-1 text-xs leading-relaxed text-muted">ワークアウトを記録した日を、使った日として数えています。テスト用アカウントは含みません。</p>
     </div>
-    <dl className="grid grid-cols-2 gap-3">{tiles.map(([label, value, unit]) => <div key={label} className="rounded-xl border border-border bg-surface p-4">
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className="mt-1 text-2xl font-semibold tabular-nums">{value}<span className="ml-1 text-sm font-normal text-muted">{unit}</span></dd>
-    </div>)}</dl>
+    <GrowthSection monthlyActive={stats.active_30d} totalUsers={stats.total_users} />
     <figure className="space-y-2">
       <figcaption className="text-sm font-semibold">記録した人数（週ごと）</figcaption>
       <ActiveUsersChart weeks={stats.weeks} />
     </figure>
-    <GrowthSection monthlyActive={stats.active_30d} />
-    <table className="w-full text-sm">
-      <caption className="sr-only">週ごとの利用状況</caption>
-      <thead><tr className="text-xs text-muted">
-        <th scope="col" className="py-2 text-left font-normal">週</th>
-        <th scope="col" className="text-right font-normal">記録した人</th>
-        <th scope="col" className="text-right font-normal">ワークアウト</th>
-        <th scope="col" className="text-right font-normal">セット</th>
-        <th scope="col" className="text-right font-normal">新規登録</th>
-      </tr></thead>
-      <tbody>{[...stats.weeks].reverse().map((w) => <tr key={w.week_start} className="border-t border-border">
-        <th scope="row" className="py-2 text-left font-normal">{formatWeek(w.week_start)}〜</th>
-        <td className="text-right tabular-nums">{w.active_users}</td>
-        <td className="text-right tabular-nums">{w.workouts}</td>
-        <td className="text-right tabular-nums">{w.sets}</td>
-        <td className="text-right tabular-nums">{w.signups}</td>
-      </tr>)}</tbody>
-    </table>
+    <WeeklyDetails weeks={stats.weeks} />
   </section>
 }
 
 // Loaded separately: its failure (or a database without the function yet) must not hide the rest.
-function GrowthSection({ monthlyActive }: { monthlyActive: number }) {
+function GrowthSection({ monthlyActive, totalUsers }: { monthlyActive: number; totalUsers: number }) {
   const [growth, setGrowth] = useState<GrowthStats | null>(null)
   const [error, setError] = useState<string | null>(null)
   const load = useCallback(() => {
@@ -73,31 +47,43 @@ function GrowthSection({ monthlyActive }: { monthlyActive: number }) {
   }, [])
   useEffect(() => { load() }, [load])
 
-  return <section aria-labelledby="growth-title" className="space-y-3">
-    <h2 id="growth-title" className="text-sm font-semibold">成長の指標</h2>
+  return <section aria-labelledby="growth-title" className="space-y-5">
+    <h2 id="growth-title" className="sr-only">直近の指標</h2>
     {error ? <div className="space-y-3">
       <p role="alert" className="text-sm text-muted">{error}</p>
       <Button variant="ghost" onClick={load}>再試行</Button>
     </div> : !growth ? <Spinner /> : <>
-      <dl className="grid grid-cols-2 gap-3 text-sm">{([
-        ['Weekly Active Lifters', `${growth.weekly_active_lifters}人`],
-        ['週2日以上記録した人', `${growth.lifters_2plus_days_7d}人`],
-        ['WAU/MAU', monthlyActive === 0 ? '—' : `${Math.round((growth.weekly_active_lifters / monthlyActive) * 100)}%`],
-        ['1人あたり（直近7日）', `${perPerson(growth.workouts_7d, growth.weekly_active_lifters)}回・${perPerson(growth.sets_7d, growth.weekly_active_lifters)}セット`],
-        ['D1リテンション', formatRate(growth.retention.d1)],
-        ['D7リテンション', formatRate(growth.retention.d7)],
-        ['D30リテンション', formatRate(growth.retention.d30)],
-      ] as const).map(([label, value]) => <div key={label} className="rounded-xl border border-border bg-surface p-3">
-        <dt className="text-xs text-muted">{label}</dt>
-        <dd className="mt-1 font-semibold tabular-nums">{value}</dd>
-      </div>)}</dl>
-      <p className="text-xs leading-relaxed text-muted">Weekly Active Liftersは直近7日に1回以上記録した人。D1は登録の翌日、D7は7〜13日目、D30は30〜36日目に記録した人の割合（期間を過ぎた人だけが対象）。</p>
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold">直近7日間</h3>
+        <dl className="grid grid-cols-2 gap-3">{([
+          ['記録した人', growth.weekly_active_lifters, '人', growth.previous_weekly_active_lifters],
+          ['2日以上記録', growth.lifters_2plus_days_7d, '人', growth.previous_lifters_2plus_days_7d],
+          ['セット数', growth.sets_7d, 'セット', growth.previous_sets_7d],
+          ['新規登録', growth.signups_7d, '人', growth.previous_signups_7d],
+        ] as const).map(([label, value, unit, previous]) => <div key={label} className="rounded-xl border border-border bg-surface p-3">
+          <dt className="text-xs text-muted">{label}</dt>
+          <dd className="mt-1 text-xl font-semibold tabular-nums">{value}<span className="ml-1 text-xs font-normal text-muted">{unit}</span></dd>
+          <Delta current={value} previous={previous} />
+          <ComparisonBars current={value} previous={previous} />
+        </div>)}</dl>
+        <p className="text-xs leading-relaxed text-muted">利用者1人あたり {perPerson(growth.workouts_7d, growth.weekly_active_lifters)}回・{perPerson(growth.sets_7d, growth.weekly_active_lifters)}セット。直近30日の利用者{monthlyActive}人のうち、今週も記録したのは{monthlyActive === 0 ? '—' : `${Math.round((growth.weekly_active_lifters / monthlyActive) * 100)}%`}です。</p>
+      </div>
+      <ActivationFunnel growth={growth} totalUsers={totalUsers} />
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold">登録後も記録した人</h3>
+        <dl className="grid grid-cols-3 gap-2">{([
+          ['翌日', growth.retention.d1], ['7〜13日目', growth.retention.d7], ['30〜36日目', growth.retention.d30],
+        ] as const).map(([label, rate]) => <div key={label} className="rounded-xl border border-border bg-surface p-3">
+          <dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-sm font-semibold tabular-nums">{formatRate(rate)}</dd>
+          {rate.eligible > 0 && rate.eligible < 10 && <p className="mt-1 text-[10px] text-muted">少人数の参考値</p>}
+        </div>)}</dl>
+      </div>
       <table className="w-full text-sm">
         <caption className="pb-2 text-left text-xs text-muted">登録のきっかけ（直近90日、最初に開いた公開ページ）</caption>
         <tbody>{growth.signups_by_source_90d.length === 0
           ? <tr><td className="py-2 text-muted">まだありません</td></tr>
           : growth.signups_by_source_90d.map((row) => <tr key={row.source} className="border-t border-border">
-            <th scope="row" className="py-2 text-left font-normal">{row.source === 'unknown' ? '不明（記録前の登録など）' : row.source}</th>
+            <th scope="row" className="py-2 text-left font-normal">{formatSource(row.source)}</th>
             <td className="text-right tabular-nums">{row.signups}人</td>
           </tr>)}</tbody>
       </table>
@@ -105,9 +91,63 @@ function GrowthSection({ monthlyActive }: { monthlyActive: number }) {
   </section>
 }
 
+function Delta({ current, previous }: { current: number; previous: number }) {
+  const improved = current > previous
+  return <p className={`mt-1 text-[10px] tabular-nums ${improved ? 'text-accent' : 'text-muted'}`}>{formatDelta(current, previous)}</p>
+}
+
+function ComparisonBars({ current, previous }: { current: number; previous: number }) {
+  const max = Math.max(current, previous, 1)
+  return <div className="mt-3 space-y-1.5" aria-hidden="true">
+    <div className="flex items-center gap-2"><span className="w-8 text-[10px] text-muted">今回</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-border"><div className="h-full rounded-full bg-accent" style={{ width: `${(current / max) * 100}%` }} /></div></div>
+    <div className="flex items-center gap-2"><span className="w-8 text-[10px] text-muted">前回</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-border"><div className="h-full rounded-full bg-muted" style={{ width: `${(previous / max) * 100}%` }} /></div></div>
+  </div>
+}
+
+function ActivationFunnel({ growth, totalUsers }: { growth: GrowthStats; totalUsers: number }) {
+  const stages = [
+    ['登録', growth.activation.registered],
+    ['初回記録', growth.activation.first_workout],
+    ['別日に2回目', growth.activation.second_workout_day],
+  ] as const
+  return <div className="space-y-3">
+    <div><h3 className="text-sm font-semibold">記録を始め、続けた人</h3><p className="mt-1 text-xs text-muted">登録者全体の到達状況</p></div>
+    <div className="h-44 w-full" aria-hidden="true" data-testid="activation-chart">
+      <ResponsiveContainer>
+        <BarChart data={stages.map(([label, value]) => ({ label, value }))} layout="vertical" margin={{ top: 0, right: 36, bottom: 0, left: 4 }}>
+          <XAxis type="number" domain={[0, Math.max(totalUsers, 1)]} hide />
+          <YAxis type="category" dataKey="label" width={84} tick={tick} tickLine={false} axisLine={false} />
+          <Bar dataKey="value" fill={BAR} radius={[0, 5, 5, 0]} maxBarSize={24}>
+            <LabelList dataKey="value" position="right" fill="#F5F5F5" fontSize={12} formatter={(value) => `${Number(value)}人`} />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+    <ol className="grid grid-cols-3 gap-2 text-center">{stages.map(([label, value], index) => {
+      const denominator = index === 0 ? totalUsers : stages[index - 1][1]
+      const rate = denominator === 0 ? 0 : Math.round((value / denominator) * 100)
+      return <li key={label}><span className="block text-[10px] text-muted">{label}</span><strong className="mt-0.5 block text-sm tabular-nums">{value}人</strong>{index > 0 && <span className="block text-[10px] text-muted">前段階の{rate}%</span>}</li>
+    })}</ol>
+  </div>
+}
+
+function WeeklyDetails({ weeks }: { weeks: UsageWeek[] }) {
+  return <section aria-labelledby="weekly-title" className="space-y-3">
+    <h2 id="weekly-title" className="text-sm font-semibold">週ごとの詳細</h2>
+    <div className="space-y-2">{[...weeks].reverse().map((week) => <article key={week.week_start} className="rounded-xl border border-border bg-surface p-3">
+      <h3 className="text-sm font-semibold">{formatWeek(week.week_start)}〜</h3>
+      <dl className="mt-2 grid grid-cols-4 gap-1 text-center">
+        {([['利用者', week.active_users, '人'], ['記録', week.workouts, '回'], ['セット', week.sets, ''], ['登録', week.signups, '人']] as const).map(([label, value, unit]) => <div key={label}>
+          <dt className="text-[10px] text-muted">{label}</dt><dd className="mt-0.5 text-sm font-semibold tabular-nums">{value}{unit}</dd>
+        </div>)}
+      </dl>
+    </article>)}</div>
+  </section>
+}
+
 function ActiveUsersChart({ weeks }: { weeks: UsageWeek[] }) {
   const data = weeks.map((w) => ({ label: formatWeek(w.week_start), active_users: w.active_users }))
-  return <div className="h-48 w-full" aria-hidden="true">
+  return <div className="h-48 w-full" aria-hidden="true" data-testid="weekly-active-chart">
     <ResponsiveContainer>
       <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: -24 }}>
         <XAxis dataKey="label" tick={tick} tickLine={false} axisLine={false} interval="preserveEnd" minTickGap={12} />

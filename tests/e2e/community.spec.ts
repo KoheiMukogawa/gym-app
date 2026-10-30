@@ -72,7 +72,7 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await expect(page.getByRole('button',{name:/1.*コウヘイ.*450 kg/})).toBeVisible()
   await expect(page.getByRole('button',{name:/1.*ジム仲間.*450 kg/})).toBeVisible()
   await page.getByRole('button',{name:/ジム仲間.*450 kg/}).click()
-  await expect(page.getByRole('region',{name:'メンバーの記録'})).toContainText('一緒に頑張ろう')
+  await expect(page.getByRole('region',{name:'ジム仲間の記録'})).toContainText('一緒に頑張ろう')
   await page.getByRole('button',{name:'閉じる',exact:true}).click()
   await page.getByRole('button',{name:'今月の伸び',exact:true}).click()
   await expect(page.getByRole('button',{name:/コウヘイ.*\+20 kg/})).toBeVisible()
@@ -97,11 +97,11 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   await page.getByRole('button',{name:'プロフィールメニュー'}).click()
   await page.getByRole('link',{name:'プロフィールを編集'}).click()
   await page.getByLabel('名前',{exact:true}).fill('コウヘイ2')
-  await page.getByRole('button',{name:'ターゲット',exact:true}).click()
+  await page.getByRole('button',{name:'バーベル',exact:true}).click()
   await page.getByLabel('全体ランキングに参加する').check()
   await page.getByRole('button',{name:'プロフィールを保存'}).click()
   await expect(page.getByRole('status')).toContainText('保存しました')
-  expect(mine).toMatchObject({display_name:'コウヘイ2',icon:'target',global_ranking:true})
+  expect(mine).toMatchObject({display_name:'コウヘイ2',icon:'barbell',global_ranking:true})
   // The ranking has its own bottom tab now.
   await page.getByRole('navigation',{name:'メイン'}).getByRole('link',{name:'ランキング',exact:true}).click()
   await expect(page).toHaveURL(/\/ranking$/)
@@ -110,7 +110,7 @@ test('community profile, create, ranking retry, ties, member detail, join and le
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   // 説明はランキングの下。まず順位が見えること。
   const list = await page.getByRole('listitem').first().boundingBox()
-  const note = await page.getByText('公開を選んだ利用者のランキングです',{exact:false}).boundingBox()
+  const note = await page.getByText('公開を選んだ人の自己申告記録です',{exact:false}).boundingBox()
   expect(note!.y).toBeGreaterThan(list!.y)
   // ＋を押すと作成・参加だけになり、チップを押せば押し直さずにランキングへ戻る
   await page.getByRole('button',{name:'コミュニティに参加・作成'}).click()

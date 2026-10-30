@@ -1,6 +1,5 @@
 import { Avatar, AvatarPicker } from '../profile/Avatar'
 import { useEffect, useRef, useState } from 'react'
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useSession } from '../auth/SessionProvider'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
@@ -8,11 +7,10 @@ import { GlobalRanking } from './GlobalRanking'
 import { communityMessage, formatMetric, listCommunities, manage, profile, ranking, rankMembers, saveProfile, type Community, type CommunityProfile, type Member, type RankLift, type RankMetric } from './queries'
 import { DotsNotice, LiftFilter, MetricTabs } from './RankingParts'
 import { RankingParticipation } from './RankingParticipation'
+import { MemberDetail } from './MemberDetail'
 
 const field = 'min-h-14 w-full rounded-xl border border-border bg-bg px-3 text-fg'
-const lifts = [{ key: 'squat', name: 'スクワット' }, { key: 'bench', name: 'ベンチプレス' }, { key: 'deadlift', name: 'デッドリフト' }] as const
 const GLOBAL = 'global'
-const kg = (n: number | null) => n === null ? '—' : `${n} kg`
 
 export function CommunityPanel() {
   const { userId } = useSession()
@@ -68,12 +66,12 @@ export function CommunityPanel() {
   const rows = rankMembers(members, mode, lift)
   if (loading) return <Spinner />
   if (loadError) return <div className="space-y-3"><p role="alert">コミュニティを読み込めませんでした。{loadError}</p><Button onClick={() => setAttempt((n) => n + 1)}>再試行</Button></div>
-  return <section className="space-y-5" aria-label="ランキング">
+  return <section className="space-y-3" aria-label="ランキング">
     <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4" role="group" aria-label="ランキングの範囲">{[{ id: GLOBAL, name: '全体' }, ...groups].map((g) => <button key={g.id} disabled={busy} aria-pressed={!managing && selected === g.id}
-      className={`min-h-14 shrink-0 rounded-full border px-5 text-sm ${!managing && selected === g.id ? 'border-accent bg-surface text-fg' : 'border-border text-muted'}`}
+      className={`min-h-11 shrink-0 rounded-full border px-4 text-sm ${!managing && selected === g.id ? 'border-accent bg-surface text-fg' : 'border-border text-muted'}`}
       onClick={() => { setSelected(g.id); setManaging(false); setConfirm(null); setError(null) }}>{g.name}</button>)}
       <button type="button" aria-label="コミュニティに参加・作成" aria-expanded={managing} disabled={busy}
-        className={`flex min-h-14 w-14 shrink-0 items-center justify-center rounded-full border text-xl ${managing ? 'border-accent text-fg' : 'border-border text-muted'}`}
+        className={`flex min-h-11 w-11 shrink-0 items-center justify-center rounded-full border text-xl ${managing ? 'border-accent text-fg' : 'border-border text-muted'}`}
         onClick={() => { setManaging((v) => !v); setError(null) }}>＋</button></div>
     {error && <p role="alert" className="text-sm text-accent">{error}</p>}
     {managing && <div className="space-y-4 rounded-xl border border-border p-3">
@@ -101,16 +99,10 @@ export function CommunityPanel() {
       <MetricTabs value={mode} onChange={metric => { setMode(metric); setPerson(null) }} />
       {mode === 'total' && <LiftFilter value={lift} onChange={setLift} />}
       {rankLoading ? <Spinner /> : rankError ? <div><p role="alert">{rankError}</p><Button variant="ghost" onClick={() => setRankAttempt((n) => n + 1)}>再試行</Button></div> : <RankingParticipation key={selected} mode={mode} onJoined={() => { setRankAttempt(n => n + 1); setAttempt(n => n + 1) }}>{!rows.length ? <p className="min-h-64 py-6 text-center text-sm text-muted">{mode === 'dots' ? 'DOTSの参加者はまだいません' : '参加者はまだいません'}</p> : <div className="divide-y divide-border">{rows.map((m) => <button key={m.user_id} onClick={() => setPerson(m.user_id)} className={`flex min-h-20 w-full items-center gap-3 px-2 text-left ${m.user_id === userId ? 'bg-surface' : ''}`}>
-        <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span><Avatar icon={m.icon} name={m.display_name}/><span className="min-w-0 flex-1 break-words text-sm">{m.display_name}{m.user_id === userId && <span className="ml-2 text-xs text-muted">自分</span>}</span>
+        <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span><Avatar icon={m.icon} name={m.display_name} size="h-12 w-12"/><span className="min-w-0 flex-1 break-words text-base">{m.display_name}{m.user_id === userId && <span className="ml-2 text-xs text-muted">自分</span>}</span>
         <span className="shrink-0 text-lg font-semibold tabular-nums">{formatMetric(m.value, mode)}</span>
       </button>)}</div>}</RankingParticipation>}
-      {detail && <section className="space-y-4 rounded-2xl border border-border bg-surface p-4" aria-label="メンバーの記録">
-        <div className="flex items-center justify-between gap-2"><h2 className="break-words font-semibold"><Avatar icon={detail.icon} name={detail.display_name}/> {detail.display_name}</h2><button className="min-h-14 shrink-0 px-2 text-sm text-muted" onClick={() => setPerson(null)}>閉じる</button></div>
-        {detail.bio && <p className="break-words text-sm text-muted">{detail.bio}</p>}
-        {lifts.map((l) => <div key={l.key}><div className="flex justify-between text-sm"><span>{l.name}</span><strong>{kg(detail.lifts[l.key])}</strong></div>
-          {detail.points.filter((p) => p.lift === l.key).length >= 2 && <div className="mt-3 h-56"><ResponsiveContainer width="100%" height="100%"><LineChart data={detail.points.filter((p) => p.lift === l.key)}><XAxis dataKey="date" tick={{ fill: '#8A8A93', fontSize: 10 }} tickFormatter={(d: string) => d.slice(5)} /><YAxis hide domain={['dataMin - 5', 'dataMax + 5']} /><Tooltip contentStyle={{ background: '#17171A', border: '1px solid #2A2A2F' }} formatter={(v) => [`${v} kg`, '推定1RM']} /><Line dataKey="value" stroke="var(--color-accent)" dot={false} /></LineChart></ResponsiveContainer></div>}
-        </div>)}
-      </section>}
+      {detail && <MemberDetail member={detail} onClose={() => setPerson(null)} showHistory />}
       <div className="space-y-1 border-t border-border pt-3">
         {mode === 'total' && <p className="text-xs text-muted">{lift ? 'その種目の最高推定1RM' : '各種目の最高推定1RMの合計'} · 自己申告の記録</p>}
         {mode === 'growth' && <p className="text-xs text-muted">月初からの自己ベスト合計の増加（日本時間）。月初以前に3種目の記録が必要です。</p>}

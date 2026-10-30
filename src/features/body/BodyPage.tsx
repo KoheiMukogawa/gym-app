@@ -270,7 +270,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
               </button>
             </div>
             <MonthCalendar year={Number(calendarMonth.slice(0, 4))} month={Number(calendarMonth.slice(5))}
-              activeDates={logs.map((l) => l.recorded_on)} activeLabel="記録あり" selectedDate={target} maxDate={today}
+              activeDates={logs.map((l) => l.recorded_on)} activeLabel="記録あり" sixWeeks selectedDate={target} maxDate={today}
               onSelect={(date) => { if (!locked) changeDate(date) }} />
           </section>}
           <div className="grid grid-cols-2 gap-3">

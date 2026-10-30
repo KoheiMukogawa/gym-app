@@ -42,6 +42,7 @@ test('a user sends feedback from the profile and an admin marks it read', async 
   expect(await fitsWidth()).toBe(true)
 
   await page.goto('/profile')
+  await page.getByRole('button', { name: 'プロフィールメニュー（新着の意見があります）' }).click()
   await expect(page.getByText('新着 1')).toBeVisible()
   await page.getByRole('link', { name: /届いた意見/ }).click()
   await expect(page.getByRole('heading', { name: '届いた意見' })).toBeVisible()

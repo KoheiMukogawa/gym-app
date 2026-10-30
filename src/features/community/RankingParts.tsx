@@ -6,24 +6,24 @@ const LABELS: Record<RankMetric, string> = { total: 'BIG3合計', growth: '今�
 
 export function MetricTabs({ value, onChange }: { value: RankMetric; onChange: (metric: RankMetric) => void }) {
   return <div className="flex border-b border-border">{(Object.keys(LABELS) as RankMetric[]).map((m) =>
-    <button key={m} type="button" aria-pressed={value === m} className={`min-h-14 flex-1 text-sm ${value === m ? 'border-b-2 border-accent text-fg' : 'text-muted'}`} onClick={() => onChange(m)}>{LABELS[m]}</button>)}</div>
+    <button key={m} type="button" aria-pressed={value === m} className={`min-h-11 flex-1 text-sm ${value === m ? 'border-b-2 border-accent text-fg' : 'text-muted'}`} onClick={() => onChange(m)}>{LABELS[m]}</button>)}</div>
 }
 
 const LIFTS: { key: RankLift | null; label: string }[] = [
-  { key: null, label: '合計' }, { key: 'squat', label: 'スクワット' }, { key: 'bench', label: 'ベンチ' }, { key: 'deadlift', label: 'デッド' },
+  { key: null, label: 'TOTAL' }, { key: 'squat', label: 'スクワット' }, { key: 'bench', label: 'ベンチ' }, { key: 'deadlift', label: 'デッド' },
 ]
 
 /** Under the kg total, narrows the ranking to one lift's best estimated 1RM. */
 export function LiftFilter({ value, onChange }: { value: RankLift | null; onChange: (lift: RankLift | null) => void }) {
-  return <div role="group" aria-label="種目" className="grid grid-cols-4 gap-1">{LIFTS.map(({ key, label }) =>
+  return <div role="group" aria-label="種目" className="grid grid-cols-4 gap-1 rounded-xl border border-border bg-surface p-1">{LIFTS.map(({ key, label }) =>
     <button key={label} type="button" aria-pressed={value === key} onClick={() => onChange(key)}
-      className={`min-h-14 min-w-0 whitespace-nowrap rounded-full border px-0 text-xs min-[360px]:text-[13px] ${value === key ? 'border-accent bg-surface text-fg' : 'border-border text-muted'}`}>{label}</button>)}</div>
+      className={`min-h-11 min-w-0 whitespace-nowrap rounded-lg px-1 text-xs transition-colors min-[360px]:text-[13px] ${value === key ? 'bg-accent font-semibold text-white shadow-sm' : 'text-muted hover:bg-white/5'}`}>{label}</button>)}</div>
 }
 
 /** Render only after the ranking loaded: a failed load must not read as "not participating". */
 export function DotsNotice({ me }: { me: Member | undefined }) {
   return <div className="space-y-3">
-    <p className="text-sm leading-relaxed text-muted">DOTSは、体重の違いを補正して筋力を比較するスコアです。高いほど、体重に対して高い筋力があることを示します。</p>
+    <p className="text-xs leading-relaxed text-muted">DOTSは体重差を補正した筋力スコア。記録日の前後14日以内の体重を使い、公開を選んだ人だけ表示します。</p>
     <details className="group rounded-xl border border-border bg-surface">
       <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
         スコアの目安
@@ -38,7 +38,6 @@ export function DotsNotice({ me }: { me: Member | undefined }) {
         <p className="text-xs leading-relaxed text-muted">DOTSに公式のレベル区分はありません。現在地や成長を知るための参考としてご覧ください。Glogでは推定1RMを使ってスコアを計算しています。</p>
       </div>
     </details>
-    <p className="text-xs leading-relaxed text-muted">記録日の前後14日以内の体重でDOTSを計算します。体重の公開に同意した人だけ表示しています。</p>
     {me?.dots_opt_in && me.dots === null
         ? <Link to="/body" className="flex min-h-14 items-center text-sm text-accent">3種目それぞれ、記録日の前後14日以内の体重が必要です</Link>
         : null}

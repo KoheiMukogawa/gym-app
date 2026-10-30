@@ -60,6 +60,17 @@ describe('deferred recording screen', () => {
 })
 
 describe('profile menu', () => {
+  it('groups settings, support and admin tools', async () => {
+    fetchIsAdmin.mockResolvedValue(true); fetchUnreadFeedbackCount.mockResolvedValue(0)
+    renderShell(); await act(async () => {})
+    await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    expect(screen.getByRole('heading', { name: 'データとアプリ' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'サポート' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '管理' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'このアプリについて' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /プロフィールを編集/ })).toHaveAttribute('href', '/profile')
+    expect(screen.queryByText('記録の入れ方')).not.toBeInTheDocument()
+  })
   it('links to the terms and the privacy policy', async () => {
     renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))

@@ -13,6 +13,13 @@ export type Announcement = {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: 'profile-photo',
+    publishedAt: '2026-10-31T08:00:00+09:00',
+    title: 'アイコンに写真を使えます',
+    body: 'プロフィールの「アイコン」で写真を選ぶと、正方形に切り抜いて小さくし、撮影場所などの情報を消してから保存します。ランキングやコミュニティで表示されます。',
+    link: { to: '/profile', label: 'プロフィールを開く' },
+  },
+  {
     id: 'lift-goals',
     publishedAt: '2026-10-31T00:10:00+09:00',
     title: 'BIG3の目標を種目ごとにも決められます',
