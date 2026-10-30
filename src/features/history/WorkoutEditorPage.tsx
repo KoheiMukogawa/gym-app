@@ -1,8 +1,7 @@
 import { weightStep } from '../../lib/calc'
 import { WheelNumber } from '../../components/ui/WheelNumber'
 import { SetRmLabel } from '../workout-log/SetRmLabel'
-import { DateField } from '../../components/ui/DateField'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
@@ -19,10 +18,12 @@ import { deleteWorkoutIfEmpty } from '../workout-log/queries'
 import { SwipeRow } from '../../components/SwipeRow'
 import { AutoGrowTextarea } from '../../components/ui/AutoGrowTextarea'
 import { BottomInputDock } from '../../components/ui/BottomInputDock'
+import { BottomDockContext } from '../../components/ui/BottomDockContext'
+import { SlidingDial } from '../../components/ui/SlidingDial'
 import { FloatingRecordAction } from '../../components/ui/FloatingRecordAction'
 import { bodyweightOn, formatAddedLoad, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
-import { createDatedWorkout, fetchEditableWorkout, findWorkoutOnDate, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutDate, updateWorkoutSet } from './editorQueries'
+import { createDatedWorkout, fetchEditableWorkout, findWorkoutOnDate, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutSet } from './editorQueries'
 
 type Entry = { id: string; exercise_id: string; weight: string; reps: string; note: string; existing: boolean }
 
@@ -32,6 +33,7 @@ export function WorkoutEditorPage() {
   const { userId } = useSession()
   const navigate = useNavigate()
   const { show } = useToast()
+  const setBottomDockOpen = useContext(BottomDockContext)
   const newId = useRef(crypto.randomUUID())
   const [savedId, setSavedId] = useState<string | null>(workoutId ?? null)
   const [date, setDate] = useState(() => {
@@ -39,7 +41,6 @@ export function WorkoutEditorPage() {
     try { if (value) { workoutDateISO(value); return value } } catch { /* Use today for invalid links. */ }
     return localDate()
   })
-  const [savedDate, setSavedDate] = useState<string | null>(null)
   const [sets, setSets] = useState<WorkoutSet[]>([])
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>([])
@@ -49,9 +50,30 @@ export function WorkoutEditorPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [entry, setEntry] = useState<Entry | null>(null)
+  const [savedSetId, setSavedSetId] = useState<string | null>(null)
   const drafts = useRef<Record<string, Entry>>({})
   const [picking, setPicking] = useState(!workoutId)
+  const pickerRef = useRef<HTMLDivElement>(null)
   const lock = useRef(false)
+  const dockOpen = !!entry && !picking
+
+  useEffect(() => {
+    setBottomDockOpen?.(dockOpen)
+    return () => setBottomDockOpen?.(false)
+  }, [dockOpen, setBottomDockOpen])
+
+  useEffect(() => {
+    if (!loading && picking) pickerRef.current?.scrollIntoView?.({ block: 'start' })
+  }, [loading, picking])
+
+  useEffect(() => {
+    if (!savedSetId || entry || loading) return
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`history-set-${savedSetId}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    })
+    const timeout = window.setTimeout(() => setSavedSetId(null), 4000)
+    return () => { cancelAnimationFrame(frame); window.clearTimeout(timeout) }
+  }, [savedSetId, entry, loading, sets])
 
   const load = useCallback(async () => {
     if (!userId) return
@@ -66,7 +88,6 @@ export function WorkoutEditorPage() {
       setNotFound(!!workoutId && !workout)
       if (workout) {
         setSavedId(workout.id)
-        setSavedDate(workout.performed_at)
         setDate(localDate(workout.performed_at))
         setSets(workout.workout_sets.sort((a, b) => a.created_at.localeCompare(b.created_at)))
       }
@@ -78,11 +99,11 @@ export function WorkoutEditorPage() {
   // Warn before a reload while a form or request is still in progress.
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (entry || Object.keys(drafts.current).length || busy || (savedDate && date !== localDate(savedDate))) e.preventDefault()
+      if (entry || Object.keys(drafts.current).length || busy) e.preventDefault()
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [entry, busy, savedDate, date])
+  }, [entry, busy])
 
   function invalidateDraft() {
     if (userId && savedId && loadDraft(userId)?.workoutId === savedId) clearDraft(userId)
@@ -154,9 +175,6 @@ export function WorkoutEditorPage() {
           await createDatedWorkout(userId, id, date)
         }
         setSavedId(id)
-        setSavedDate(workoutDateISO(date))
-      } else if (savedDate && date !== localDate(savedDate)) {
-        throw new InputError('先に日付の変更を保存してください')
       }
       const old = sets.find((s) => s.id === entry.id)
       const set_index = old?.exercise_id === entry.exercise_id ? old.set_index
@@ -171,7 +189,7 @@ export function WorkoutEditorPage() {
       else await saveEditableSet(id, next, minWeight)
       setSets((items) => entry.existing ? items.map((s) => s.id === next.id ? next : s) : [...items, next])
       invalidateDraft()
-      show(entry.existing ? '記録を修正しました' : 'セットを追加しました')
+      setSavedSetId(next.id)
       delete drafts.current[entry.id]
       setEntry(null)
       if (!workoutId) navigate('/history/' + id, { replace: true })
@@ -217,31 +235,33 @@ export function WorkoutEditorPage() {
   const entryIsBodyweight = !!entry && isBodyweightExercise(entry.exercise_id)
   // この日のその種目のセットに1kg単位の重量があれば、ダイヤルも1kg刻みにする
   const entryStep = weightStep(entry ? [...sets].filter((s) => s.exercise_id === entry.exercise_id).sort((a, b) => b.set_index - a.set_index).map((s) => s.weight_kg) : [])
+  const [year, month, day] = date.split('-').map(Number)
 
-  const inlineEntry = !!entry && !entry.existing && groups.some(group => group.id === entry.exercise_id)
   const entryForm = entry && !picking ? (
-        <form className={`min-h-0 space-y-4 overflow-y-auto overscroll-contain py-4 ${inlineEntry ? '' : 'px-4'}`}
+        <form className="flex min-h-0 flex-col"
           onSubmit={(e) => { e.preventDefault(); void saveEntry() }}>
-          {error && <p role="alert" className="text-sm text-accent">{error}</p>}
-          <button type="button" disabled={busy} onClick={() => setPicking(true)} className="min-h-14 w-full text-left font-semibold">
-            {names[entry.exercise_id]} <span className="text-xs font-normal text-muted">種目を変更</span>
-          </button>
-          <fieldset disabled={busy} className="min-w-0 grid grid-cols-2 gap-4">
-            <WheelNumber key={entry.id + '-weight'} label={entryIsBodyweight ? '加重' : '重量'} unit="kg"
-              min={minWeightFor(entry.exercise_id)} step={entryStep} value={Number(entry.weight)} format={entryIsBodyweight ? formatAddedLoad : undefined}
-              onEnter={value => setEntry(old => old ? { ...old, weight: String(value) } : old)} />
-            <WheelNumber key={entry.id + '-reps'} label="回数" unit="回" min={0} value={Number(entry.reps)}
-              onEnter={value => setEntry(old => old ? { ...old, reps: String(value) } : old)} />
-          </fieldset>
-          <SetRmLabel load={entryIsBodyweight ? totalLoad(Number(entry.weight), bodyweightOn(bodyweightLogs, date)) : Number(entry.weight)} reps={Number(entry.reps)} />
-          <label className="flex flex-col gap-2 text-sm text-muted">メモ（任意）
-            <AutoGrowTextarea maxLength={200} disabled={busy} value={entry.note} placeholder="例: 最後の1回は補助あり"
-              onChange={(e) => setEntry({ ...entry, note: e.target.value })} className="min-h-14 w-full rounded-xl border border-border bg-bg px-3 py-4 text-fg" />
-          </label>
-          {entryIsBodyweight && <p className="text-xs text-muted">{minWeightFor(entry.exercise_id) < 0 ? '自重のみは0、加重はプラス、アシストはマイナスで入力します。' : '自重のみは0、加重はプラスで入力します。体重を記録するとアシスト（マイナス）も入力できます。'}</p>}
-          <div className="flex gap-3">
-            <button type="button" className="min-h-14 shrink-0 px-4 text-sm text-muted" disabled={busy} onClick={cancelEntry}>キャンセル</button>
-            <Button type="submit" disabled={busy}>{busy ? '保存中…' : entry.existing ? '変更を保存' : 'セットを追加'}</Button>
+          {error && <p role="alert" className="px-4 pt-2 text-sm text-accent">{error}</p>}
+          <SlidingDial id="history-dials" contentClassName="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-4 pb-2 touch-pan-y">
+            <button type="button" data-button-key="change-exercise" disabled={busy} onClick={() => setPicking(true)} className="min-h-14 w-full text-left font-semibold">
+              {names[entry.exercise_id]} <span className="text-xs font-normal text-muted">種目を変更</span>
+            </button>
+            <fieldset disabled={busy} className="min-w-0 grid grid-cols-2 gap-4">
+              <WheelNumber key={entry.id + '-weight'} label={entryIsBodyweight ? '加重' : '重量'} hideLabel unit="kg"
+                min={minWeightFor(entry.exercise_id)} step={entryStep} value={Number(entry.weight)} format={entryIsBodyweight ? formatAddedLoad : undefined}
+                onEnter={value => setEntry(old => old ? { ...old, weight: String(value) } : old)} />
+              <WheelNumber key={entry.id + '-reps'} label="回数" hideLabel unit="回" min={0} value={Number(entry.reps)}
+                onEnter={value => setEntry(old => old ? { ...old, reps: String(value) } : old)} />
+            </fieldset>
+            <SetRmLabel load={entryIsBodyweight ? totalLoad(Number(entry.weight), bodyweightOn(bodyweightLogs, date)) : Number(entry.weight)} reps={Number(entry.reps)} />
+            <label className="flex flex-col gap-2 text-sm text-muted">メモ（任意）
+              <AutoGrowTextarea maxLength={200} disabled={busy} value={entry.note} placeholder="例: 最後の1回は補助あり"
+                onChange={(e) => setEntry({ ...entry, note: e.target.value })} className="min-h-14 w-full rounded-xl border border-border bg-bg px-3 py-4 text-fg" />
+            </label>
+            {entryIsBodyweight && <p className="text-xs text-muted">{minWeightFor(entry.exercise_id) < 0 ? '自重のみは0、加重はプラス、アシストはマイナスで入力します。' : '自重のみは0、加重はプラスで入力します。体重を記録するとアシスト（マイナス）も入力できます。'}</p>}
+          </SlidingDial>
+          <div className="flex shrink-0 gap-2 px-4 pb-3 pt-2">
+            <button type="button" data-button-key="cancel-set-entry" className="min-h-14 shrink-0 rounded-xl border border-border px-4 text-sm font-semibold" disabled={busy} onClick={cancelEntry}>キャンセル</button>
+            <Button type="submit" data-button-key={entry.existing ? 'save-set-edit' : 'add-set'} size="lg" className="min-w-0" disabled={busy}>{busy ? '保存中…' : entry.existing ? '変更を保存' : 'セットを追加'}</Button>
           </div>
         </form>
   ) : null
@@ -250,26 +270,13 @@ export function WorkoutEditorPage() {
     <div className={`flex flex-col gap-5 pt-4 ${!picking && !entry ? 'pb-24' : 'pb-4'}`}>
       <header className="flex items-center justify-between px-4">
         {/* A new record takes its date from the history link, so it needs no title or date field. */}
-        {workoutId && <h1 className="text-2xl font-semibold">記録を編集</h1>}
+        {workoutId && <h1 className="text-2xl font-semibold">{year}年{month}月{day}日</h1>}
         <button className="ml-auto min-h-14 px-3 text-sm text-muted" disabled={busy}
           onClick={() => {
             if ((entry || Object.keys(drafts.current).length) && !window.confirm('入力中のセットは保存されません。履歴に戻りますか？')) return
-            if (savedDate && date !== localDate(savedDate) && !window.confirm('日付の変更は保存されません。履歴に戻りますか？')) return
             navigate('/history?date=' + date)
           }}>完了</button>
       </header>
-      {workoutId && <section className="mx-4 space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <DateField label="トレーニング日" value={date} max={localDate()} disabled={busy} onChange={setDate} />
-        {savedId && savedDate && date !== localDate(savedDate) && (
-          <Button disabled={busy} onClick={() => void action(async () => {
-            if (await findWorkoutOnDate(userId!, date, savedId)) throw new InputError('この日にはすでに記録があります。その日の記録に追加してください')
-            const value = await updateWorkoutDate(userId!, savedId, date, savedDate)
-            setSavedDate(value)
-            invalidateDraft()
-            show('日付を変更しました')
-          })}>日付の変更を保存</Button>
-        )}
-      </section>}
       {error && !(entry && !picking) && <p role="alert" className="px-4 text-sm text-accent">{error}</p>}
       <section className="flex flex-col gap-3 px-4" aria-label="保存済みのセット">
         {groups.map((group) => (
@@ -277,7 +284,8 @@ export function WorkoutEditorPage() {
             <h2 className="mb-1 text-sm font-semibold">{names[group.id] ?? '種目'}</h2>
             <ul className="divide-y divide-border">
               {[...group.sets].sort((a, b) => a.set_index - b.set_index).map((set, index) => (
-                <SwipeRow key={set.id} label={(names[set.exercise_id] ?? '種目') + ' ' + loadLabel(set).replace(' ', '') + ' ' + set.reps + '回を削除'}
+                <SwipeRow key={set.id} id={`history-set-${set.id}`} className={savedSetId === set.id ? 'rounded-lg outline outline-2 outline-accent' : ''}
+                  label={(names[set.exercise_id] ?? '種目') + ' ' + loadLabel(set).replace(' ', '') + ' ' + set.reps + '回を削除'}
                   disabled={busy || !!entry || !!drafts.current[set.id]} onDelete={() => deleteSet(set)}>
                   <button type="button" disabled={busy} className="grid min-h-14 min-w-0 w-full grid-cols-[2rem_minmax(0,1fr)_5rem] items-center gap-x-2 text-left" aria-pressed={entry?.id === set.id}
                     aria-label={(names[set.exercise_id] ?? '種目') + ' ' + loadLabel(set).replace(' ', '') + ' ' + set.reps + '回を編集'}
@@ -295,7 +303,7 @@ export function WorkoutEditorPage() {
                 </SwipeRow>
               ))}
             </ul>
-            {inlineEntry && entry?.exercise_id === group.id && !picking ? entryForm : <button type="button" disabled={busy} aria-label={(names[group.id] ?? '種目') + 'にセットを追加'} className="mt-2 min-h-14 w-full rounded-xl border border-border text-sm text-muted active:bg-border" onClick={() => addToExercise(group.id)}>＋ セットを追加</button>}
+            <button type="button" disabled={busy} aria-label={(names[group.id] ?? '種目') + 'にセットを追加'} className="mt-2 min-h-14 w-full rounded-xl border border-border text-sm text-muted active:bg-border" onClick={() => addToExercise(group.id)}>＋ セットを追加</button>
           </section>
         ))}
         {sets.some(set => set.reps > 10 && set.reps <= 30) && <p className="text-xs text-muted">11〜30回の推定1RMは参考値です。BIG3・ランキングには使用しません。</p>}
@@ -307,10 +315,10 @@ export function WorkoutEditorPage() {
           if (entry) drafts.current[entry.id] = entry
           setEntry(draft); setPicking(false); setError(null)
         }}>{names[draft.exercise_id]}の追加を続ける（未保存）</button>)}
-      {picking && <ExercisePicker exercises={exercises} recentIds={[...new Set([...sets].reverse().map((s) => s.exercise_id))]} userId={userId} onSelect={choose} onCreate={create} />}
+      {picking && <div ref={pickerRef}><ExercisePicker exercises={exercises} recentIds={[...new Set([...sets].reverse().map((s) => s.exercise_id))]} userId={userId} onSelect={choose} onCreate={create} /></div>}
       {/* 記録画面と同じく、入力欄は画面下部に固定し、セット一覧はその上でスクロールする */}
-      {entry && !picking && !inlineEntry && <BottomInputDock>
-{entryForm}
+      {entry && !picking && <BottomInputDock navigation={false}>
+        {entryForm}
       </BottomInputDock>}
       {picking ? <button className="mx-4 min-h-14 text-sm text-muted" disabled={busy} onClick={cancelEntry}>キャンセル</button>
         : !entry && <FloatingRecordAction label="種目を追加" onClick={() => setPicking(true)} />}

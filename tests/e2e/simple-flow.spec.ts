@@ -1,5 +1,28 @@
 import { expect, test, type Page, type Locator } from '@playwright/test'
 import { enterWheelValue, nudgeWheel } from './wheel'
+import { buttonIdFor } from '../../src/features/admin/buttonIds'
+
+async function slideDial(page: Page, direction: 'up' | 'down', dialId = 'recording-dials') {
+  const handle = page.getByRole('button', { name: direction === 'down' ? 'ダイヤルを隠す' : 'ダイヤルを表示' })
+  const box = await handle.boundingBox()
+  if (!box) throw new Error('Dial handle is not visible')
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+  const distance = direction === 'down' ? 70 : -70
+  const panelTop = () => page.locator(`#${dialId}`).evaluate((dial) => dial.parentElement!.getBoundingClientRect().top)
+  const startTop = await panelTop()
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+  for (const step of [0.25, 0.5, 0.75, 1]) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + distance * step }] })
+    if (step === 0.75) {
+      if (direction === 'down') await expect.poll(panelTop).toBeGreaterThan(startTop + 20)
+      else await expect.poll(panelTop).toBeLessThan(startTop - 20)
+    }
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.detach()
+}
 
 test('dial steps, scroll and direct entry save the displayed values', async ({ page }) => {
   const data = await mockApi(page)
@@ -12,12 +35,12 @@ test('dial steps, scroll and direct entry save the displayed values', async ({ p
   await nudgeWheel(page, '重量', 'down')
   await nudgeWheel(page, '回数', 'up')
   await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveAttribute('aria-valuenow', '6')
-  await page.getByRole('button', { name: 'ダイヤルを隠す', exact: true }).click()
+  await slideDial(page, 'down')
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveCount(0)
   // Hiding the dials keeps the actions, so a set can still be completed or the exercise changed.
   await expect(page.getByRole('button', { name: 'セット完了', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '種目を変える', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'ダイヤルを表示', exact: true }).click()
+  await slideDial(page, 'up')
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '80')
   await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveAttribute('aria-valuenow', '6')
   const wheel = page.getByLabel('重量をスクロールで選択', { exact: true })
@@ -43,6 +66,17 @@ test('dial steps, scroll and direct entry save the displayed values', async ({ p
   expect(data.sets[0]).toMatchObject({ weight_kg: 82.5, reps: 6 })
 })
 
+test('admin screen ID setting also shows button IDs on recording controls', async ({ page }) => {
+  await mockApi(page, false, true)
+  await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
+  await page.getByRole('switch', { name: /画面IDを表示/ }).click()
+  await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await expect(page.getByLabel('画面ID REC-02')).toBeVisible()
+  await expect(page.getByText(buttonIdFor('REC-02', 'toggle-dial'))).toBeVisible()
+  await expect(page.getByText(buttonIdFor('REC-02', 'complete-set'))).toBeVisible()
+})
+
 test('continues a finished workout from the exercise card', async ({ page }) => {
   const data = await mockApi(page)
   await page.goto('/log')
@@ -55,23 +89,58 @@ test('continues a finished workout from the exercise card', async ({ page }) => 
   await page.getByRole('link', { name: '今日の記録を編集' }).click()
   await page.getByRole('button', { name: 'ベンチプレスにセットを追加', exact: true }).click()
   const card = page.locator('section').filter({ has: page.getByRole('heading', { name: 'ベンチプレス', exact: true }) }).last()
-  await expect(card.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '80')
-  await expect(card.getByText('推定1RM 90', { exact: true }).first()).toBeVisible()
-  await expect(card.getByRole('spinbutton', { name: '回数', exact: true })).toHaveAttribute('aria-valuenow', '5')
-  await expect(page.getByRole('region', { name: 'セット入力' })).toHaveCount(0)
+  const dock = page.getByRole('region', { name: 'セット入力' })
+  await expect(dock.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '80')
+  await expect(dock.getByText('推定1RM 90', { exact: true })).toBeVisible()
+  await expect(dock.getByRole('spinbutton', { name: '回数', exact: true })).toHaveAttribute('aria-valuenow', '5')
+  await expect(card.getByRole('spinbutton')).toHaveCount(0)
+  await expect(page.getByRole('navigation', { name: 'メイン' })).toHaveCount(0)
+  await slideDial(page, 'down', 'history-dials')
+  await expect(dock.getByRole('spinbutton', { name: '重量', exact: true })).toHaveCount(0)
+  await expect(dock.getByRole('button', { name: 'セットを追加', exact: true })).toBeVisible()
+  await slideDial(page, 'up', 'history-dials')
+  await expect(dock.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '80')
   for (const width of [320, 375, 390]) {
     await page.setViewportSize({ width, height: 844 })
-    await card.getByRole('spinbutton', { name: '重量', exact: true }).scrollIntoViewIfNeeded()
+    await dock.getByRole('spinbutton', { name: '重量', exact: true }).scrollIntoViewIfNeeded()
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
-    await page.screenshot({ path: `test-results/inline-add-${width}.png` })
+    await page.screenshot({ path: `test-results/history-dock-add-${width}.png` })
   }
-  await nudgeWheel(card, '重量', 'up')
-  await expect(card.getByText('推定1RM 92.8', { exact: true })).toBeVisible()
-  await card.getByRole('button', { name: 'セットを追加', exact: true }).click()
+  await nudgeWheel(dock, '重量', 'up')
+  await expect(dock.getByText('推定1RM 92.8', { exact: true })).toBeVisible()
+  await dock.getByRole('button', { name: 'セットを追加', exact: true }).click()
   await expect.poll(() => data.sets.length).toBe(2)
+  await expect(page.getByRole('navigation', { name: 'メイン' })).toBeVisible()
+  const addedRow = page.locator(`#history-set-${data.sets[1].id}`)
+  await expect(addedRow).toHaveClass(/outline-accent/)
+  await expect(addedRow).toBeInViewport()
+  await expect(page.getByText('追加しました', { exact: true })).toHaveCount(0)
   expect(data.sets[1]).toMatchObject({ exercise_id: 'bench', weight_kg: 82.5, reps: 5, set_index: 2, workout_id: data.sets[0].workout_id })
   await page.reload()
   await expect(page.getByRole('button', { name: /ベンチプレス 82.5kg 5回を編集/ })).toBeVisible()
+  await page.getByRole('button', { name: '種目を追加', exact: true }).click()
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'セット入力' }).getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '82.5')
+  await expect(page.getByRole('navigation', { name: 'メイン' })).toHaveCount(0)
+})
+
+test('scrolls to a set added to an exercise above the current viewport', async ({ page }) => {
+  const data = await mockApi(page)
+  const workoutId = 'scroll-workout'
+  const createdAt = new Date().toISOString()
+  data.workouts.push({ id: workoutId, user_id: USER, performed_at: createdAt, created_at: createdAt })
+  for (const [index, exerciseId] of ['bench', 'chin', 'press', 'machine', 'fly', 'squat', 'deadlift', 'legpress'].entries()) {
+    data.sets.push({ id: `scroll-set-${index}`, workout_id: workoutId, exercise_id: exerciseId, set_index: 1, weight_kg: 40, reps: 8, created_at: new Date(Date.now() + index * 1000).toISOString() })
+  }
+  await page.goto(`/history/${workoutId}`)
+  await page.getByRole('button', { name: 'ベンチプレスにセットを追加' }).click()
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+  await expect(page.getByRole('heading', { name: 'ベンチプレス' })).not.toBeInViewport()
+  await page.getByRole('region', { name: 'セット入力' }).getByRole('button', { name: 'セットを追加' }).click()
+  await expect.poll(() => data.sets.length).toBe(9)
+  const addedRow = page.locator(`#history-set-${data.sets[8].id}`)
+  await expect(addedRow).toBeInViewport({ ratio: 0.8 })
+  await expect(addedRow).toHaveClass(/outline-accent/)
 })
 
 test('set columns stay aligned when RM values differ or are unavailable', async ({ page }) => {
@@ -131,7 +200,7 @@ async function holdDrag(page: Page, source: Locator, target: Locator, cancel = f
 const USER = '11111111-1111-4111-8111-111111111111'
 type SetRow = { id: string; workout_id: string; exercise_id: string; weight_kg: number; reps: number; set_index: number; created_at: string; note?: string | null }
 type WorkoutRow = { id: string; user_id: string; performed_at: string; created_at: string }
-async function mockApi(page: Page, withPreviousWorkout = false) {
+async function mockApi(page: Page, withPreviousWorkout = false, admin = false) {
   const bodyweights: { recorded_on: string; bodyweight_kg: number; body_fat_pct?: number | null }[] = []
   const exercises = [
     { id: 'bench', name: 'ベンチプレス', name_normalized: 'ベンチプレス', muscle_group: 'chest', is_preset: true, created_by: null },
@@ -174,6 +243,8 @@ async function mockApi(page: Page, withPreviousWorkout = false) {
     if (table === 'user') return respond(session.user)
     if (table === 'logout') return respond({})
     if (table === 'profiles') return respond({ id: USER, display_name: 'テストユーザー' })
+    if (table === 'admins') return respond(admin ? [{ user_id: USER }] : [])
+    if (table === 'admin_unread_feedback_count') return respond(0)
     if (table === 'my_big3_data') return respond({
       exercises: exercises.filter(e => e.is_preset && ['スクワット', 'ベンチプレス', 'デッドリフト'].includes(e.name_normalized)),
       mappings: [],
@@ -603,7 +674,7 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await expect(page.getByRole('region', { name: '今日のトレーニング' })).toBeVisible()
   await page.screenshot({ path: 'test-results/home-exercise-links-mobile.png', fullPage: true })
   await page.getByRole('link', { name: '今日の記録を編集' }).click()
-  await expect(page.getByRole('heading', { name: '記録を編集', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /年\d+月\d+日/ })).toBeVisible()
   await page.getByRole('button', { name: '完了', exact: true }).click()
   await page.getByRole('link', { name: '履歴', exact: true }).click()
   await expect(page.getByRole('link', { name: /日付を選んで追加/ })).toHaveCount(0)
@@ -636,20 +707,17 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
     }),
     page.getByRole('button', { name: 'セットを追加', exact: true }).click(),
   ])
-  await expect(page.getByRole('heading', { name: '記録を編集', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '2020年2月3日' })).toBeVisible()
   await expect(page.getByRole('button', { name: /100kg 10回を編集/ })).toBeVisible()
   expect(new Date(data.workouts[1].performed_at).getFullYear()).toBe(2020)
-  await page.getByLabel('トレーニング日').fill('2020-02-04')
-  await page.getByRole('button', { name: '日付の変更を保存' }).click()
+  await expect(page.getByLabel('トレーニング日')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '日付の変更を保存' })).toHaveCount(0)
   await page.screenshot({ path: 'test-results/history-editor-mobile.png', fullPage: true })
   await page.reload()
-  await expect(page.getByLabel('トレーニング日')).toHaveValue('2020-02-04')
+  await expect(page.getByRole('heading', { name: '2020年2月3日' })).toBeVisible()
   for (const width of [320, 375, 390]) {
     await page.setViewportSize({ width, height: 844 })
-    const field = page.getByLabel('トレーニング日')
-    await expect(field.locator('..')).toContainText('2020/2/4')
-    const box = (await field.boundingBox())!
+    const box = (await page.getByRole('heading', { name: '2020年2月3日' }).boundingBox())!
     expect(box.x).toBeGreaterThanOrEqual(0)
     expect(box.x + box.width).toBeLessThanOrEqual(width)
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
@@ -663,9 +731,9 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await page.getByRole('link', { name: 'この日に記録', exact: true }).click()
   await expect(page).toHaveURL(/\/history\/new\?date=2020-02-05$/)
   await page.getByRole('button', { name: '完了', exact: true }).click()
-  await page.getByRole('button', { name: '2月4日 トレーニングあり', exact: true }).click()
+  await page.getByRole('button', { name: '2月3日 トレーニングあり', exact: true }).click()
   await page.getByRole('link', { name: '編集', exact: true }).last().click()
-  await expect(page.getByLabel('トレーニング日')).toHaveValue('2020-02-04')
+  await expect(page.getByRole('heading', { name: '2020年2月3日' })).toBeVisible()
   page.on('dialog', (dialog) => dialog.accept())
   // Sets are deleted by swiping the row left, as on the recording screen.
   const row = (await page.getByRole('button', { name: /100kg 10回を編集/ }).boundingBox())!
@@ -675,7 +743,7 @@ test('mobile: direct logging, body groups, past dates, editing and deletion', as
   await page.mouse.up()
   await expect(page.getByRole('button', { name: /100kg 10回を編集/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'この記録を削除', exact: true }).click()
-  await expect(page).toHaveURL(/\/history\?date=2020-02-04$/)
+  await expect(page).toHaveURL(/\/history\?date=2020-02-03$/)
   expect(data.workouts).toHaveLength(1)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

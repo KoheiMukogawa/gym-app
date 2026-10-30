@@ -15,6 +15,8 @@ import { canGuideInstall, currentInstallEnv } from '../features/install/installE
 import { openInstallGuide } from '../features/install/installGuide'
 import { ScreenErrorBoundary } from './ScreenErrorBoundary'
 import { loadShowScreenIds, saveShowScreenIds, screenIdFor } from '../features/admin/screenIds'
+import { ButtonIdOverlay } from '../features/admin/ButtonIdOverlay'
+import { BottomDockContext } from './ui/BottomDockContext'
 // 記録画面へはホームのボタンから入る。過去分は履歴から追加できるのでタブには出さない。
 const TABS=[{to:'/',label:'ホーム'},{to:'/history',label:'履歴'},{to:'/big3',label:'BIG3'},{to:'/ranking',label:'ランキング'},{to:'/body',label:'体組成'}]
 export function AppShell(){
@@ -35,23 +37,27 @@ export function AppShell(){
   const replies=useFeedbackReplies(),hasReply=replies.length>0,marked=hasUnread||hasReply
   // 管理者だけ、要望を伝えやすいよう画面ID（docs/screens.md）をヘッダーに出せる
   const isAdmin=unreadFeedback!==null,[showScreenIds,setShowScreenIds]=useState(loadShowScreenIds),[pickingExercise,setPickingExercise]=useState(true)
-  const screenId=isAdmin&&showScreenIds?screenIdFor(location.pathname,pickingExercise):null
-  // 記録中（種目を選んだ後）はタブを隠し、入力欄を画面の下端まで使う。ホームへはロゴから戻れる
-  const recording=location.pathname==='/log'&&!pickingExercise
+  const currentScreenId=isAdmin?screenIdFor(location.pathname,pickingExercise):null
+  const screenId=showScreenIds?currentScreenId:null
+  const [root,setRoot]=useState<HTMLDivElement|null>(null)
+  // 下部入力ドックを使う間はタブを隠し、画面の下端まで使う。ホームへはロゴから戻れる
+  const [historyDockOpen,setHistoryDockOpen]=useState(false)
+  const fullHeightDock=(location.pathname==='/log'&&!pickingExercise)||historyDockOpen
   const [installable]=useState(()=>canGuideInstall(currentInstallEnv()))
   const menu=useRef<HTMLDivElement>(null)
   useEffect(()=>setOpen(false),[location.pathname,location.search])
   useEffect(()=>{if(!open)return;const outside=(e:PointerEvent)=>{if(!menu.current?.contains(e.target as Node))setOpen(false)};const escape=(e:KeyboardEvent)=>{if(e.key==='Escape')setOpen(false)};document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape)}},[open])
-  return <div className="mx-auto flex min-h-dvh max-w-lg flex-col">
+  return <div ref={setRoot} className="mx-auto flex min-h-dvh max-w-lg flex-col">
+    <ButtonIdOverlay screenId={screenId} root={root}/>
     <header className="flex items-center justify-between px-4 py-2"><div className="flex items-center gap-2"><Link to="/" aria-label="Glog トップへ" className="flex min-h-14 items-center text-3xl font-bold tracking-tight">Glog</Link>{screenId&&<span aria-label={`画面ID ${screenId}`} className="rounded border border-border px-1.5 py-0.5 font-mono text-xs text-muted">{screenId}</span>}</div>
       <div ref={menu} className="relative"><button className="flex min-h-14 min-w-14 items-center justify-center" aria-label={hasUnread?'プロフィールメニュー（新着の意見があります）':hasReply?'プロフィールメニュー（ご意見に返信があります）':'プロフィールメニュー'} data-unread={marked||undefined} aria-expanded={open} onClick={()=>setOpen(v=>!v)}><span className={`relative inline-flex rounded-full ${marked?'ring-2 ring-accent ring-offset-2 ring-offset-bg':''}`}><Avatar icon={profile?.icon} name={profile?.display_name}/>{marked&&<span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-bg bg-accent"/>}</span></button>
         {open&&<div className="absolute right-0 z-50 w-64 rounded-xl border border-border bg-surface p-3 shadow-xl"><p className="break-words px-3 py-2 font-semibold">{profile?.display_name||'プロフィール'}</p><Link to="/profile" className="flex min-h-14 items-center px-3 text-sm">プロフィールを編集</Link><Link to="/export" className="flex min-h-14 items-center px-3 text-sm">データをエクスポート</Link>{installable&&<button type="button" className="flex min-h-14 w-full items-center px-3 text-left text-sm" onClick={()=>{setOpen(false);openInstallGuide()}}>ホーム画面に追加</button>}<Link to="/feedback" className="flex min-h-14 items-center gap-2 px-3 text-sm">ご意見・不具合を送る{hasReply&&<span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white">返信 {replies.length}</span>}</Link>{unreadFeedback!==null&&<><Link to="/admin/feedback" className="flex min-h-14 items-center gap-2 px-3 text-sm">届いた意見{hasUnread&&<span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white">新着 {unreadFeedback}</span>}</Link><Link to="/admin/usage" className="flex min-h-14 items-center px-3 text-sm">利用状況</Link><button type="button" role="switch" aria-checked={showScreenIds} className="flex min-h-14 w-full items-center justify-between px-3 text-left text-sm" onClick={()=>{const next=!showScreenIds;setShowScreenIds(next);saveShowScreenIds(next)}}>画面IDを表示<span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${showScreenIds?'bg-accent text-white':'border border-border text-muted'}`}>{showScreenIds?'オン':'オフ'}</span></button></>}<Link to="/terms" className="flex min-h-14 items-center px-3 text-sm text-muted">利用規約</Link><Link to="/privacy" className="flex min-h-14 items-center px-3 text-sm text-muted">プライバシーポリシー</Link>{error&&<p role="alert" className="text-sm text-accent">{error}</p>}<button className="min-h-14 w-full px-3 text-left text-sm text-muted" disabled={busy} onClick={async()=>{setBusy(true);setError(null);try{await signOut()}catch(e){setError(toMessage(e))}finally{setBusy(false)}}}>{busy?'ログアウト中…':'ログアウト'}</button></div>}
       </div></header>
-    <main className={`flex-1 ${recording?'':'pb-[max(5rem,calc(4rem+env(safe-area-inset-bottom)))]'}`}>{showLog&&<div hidden={location.pathname!=='/log'}><ScreenErrorBoundary key={logKey}><LogPage onFinished={()=>setLogKey(k=>k+1)} onPickingChange={setPickingExercise}/></ScreenErrorBoundary></div>}<ScreenErrorBoundary key={location.pathname}><Suspense fallback={<Spinner/>}><Outlet/></Suspense></ScreenErrorBoundary></main>
+    <main className={`flex-1 ${fullHeightDock?'':'pb-[max(5rem,calc(4rem+env(safe-area-inset-bottom)))]'}`}>{showLog&&<div hidden={location.pathname!=='/log'}><ScreenErrorBoundary key={logKey}><LogPage onFinished={()=>setLogKey(k=>k+1)} onPickingChange={setPickingExercise}/></ScreenErrorBoundary></div>}<ScreenErrorBoundary key={location.pathname}><Suspense fallback={<Spinner/>}><BottomDockContext.Provider value={setHistoryDockOpen}><Outlet/></BottomDockContext.Provider></Suspense></ScreenErrorBoundary></main>
     <AnnouncementsGate/>
     <InstallGate/>
     <FeedbackReplyGate unseen={replies}/>
     {/* LINEなどと同じく、ホームインジケーターの領域に少し重ねて下端に寄せる */}
-    {!recording&&<nav aria-label="メイン" className="glass-navigation fixed inset-x-5 bottom-[max(0.25rem,calc(env(safe-area-inset-bottom)-0.75rem))] z-40 mx-auto flex max-w-[calc(32rem-2.5rem)] rounded-full">{TABS.map(t=><NavLink key={t.to} to={t.to} end={t.to==='/'} className="flex h-14 min-h-14 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-xs">{({isActive})=><span className={`flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-full transition-colors ${isActive?'bg-white/10 font-semibold text-accent':'text-fg/75 hover:bg-white/5'}`}>{t.label}</span>}</NavLink>)}</nav>}
+    {!fullHeightDock&&<nav aria-label="メイン" className="glass-navigation fixed inset-x-5 bottom-[max(0.25rem,calc(env(safe-area-inset-bottom)-0.75rem))] z-40 mx-auto flex max-w-[calc(32rem-2.5rem)] rounded-full">{TABS.map(t=><NavLink key={t.to} to={t.to} end={t.to==='/'} className="flex h-14 min-h-14 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-xs">{({isActive})=><span className={`flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-full transition-colors ${isActive?'bg-white/10 font-semibold text-accent':'text-fg/75 hover:bg-white/5'}`}>{t.label}</span>}</NavLink>)}</nav>}
   </div>
 }

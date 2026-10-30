@@ -9,6 +9,7 @@ import { SetRmLabel } from './SetRmLabel'
 import { markWorkoutFinished } from '../install/installGuide'
 import { WheelNumber } from '../../components/ui/WheelNumber'
 import { BottomInputDock } from '../../components/ui/BottomInputDock'
+import { SlidingDial } from '../../components/ui/SlidingDial'
 import { MemoInputSpace } from './SetMemoEditor'
 import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
@@ -109,7 +110,6 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
   const [bodyweightDraft, setBodyweightDraft] = useState('')
   const [editingBodyweight, setEditingBodyweight] = useState(false)
   const [savingBodyweight, setSavingBodyweight] = useState(false)
-  const [dialVisible, setDialVisible] = useState(true)
   const [editingSetId, setEditingSetId] = useState<string | null>(null)
   const recordingHeader = useRef<HTMLElement>(null)
 
@@ -543,7 +543,7 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
       <header ref={recordingHeader} className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2">
         <p className="min-w-0 flex-1 break-words text-lg font-semibold">{currentName}</p>
         {/* 記録の途中でも、この種目の推移を見に行ける。記録画面は裏で保持されるので入力は消えない */}
-        {state.currentExerciseId && <Link to={`/exercises/${state.currentExerciseId}`} state={{ from: '/log' }} aria-label={`${currentName}のグラフ`}
+        {state.currentExerciseId && <Link to={`/exercises/${state.currentExerciseId}`} state={{ from: '/log' }} aria-label={`${currentName}のグラフ`} data-button-key="exercise-graph"
           className="flex min-h-14 shrink-0 items-center gap-1 px-2 text-sm text-muted active:text-fg">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 19h16M5 15l4-5 4 3 6-7" />
@@ -552,6 +552,7 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
         </Link>}
         <button
           type="button"
+          data-button-key="finish-workout"
           onClick={() => void handleFinish()}
           disabled={finishing || !!editingSet}
           className="min-h-14 shrink-0 rounded-full border border-accent/50 bg-accent/10 px-4 text-sm font-semibold text-fg active:bg-accent/20 disabled:opacity-40"
@@ -591,13 +592,8 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
       </section>
 
       {editingSet ? <MemoInputSpace /> : <BottomInputDock navigation={false}>
-        <button type="button" className="flex min-h-10 shrink-0 flex-col items-center justify-center gap-1 text-xs text-muted" aria-expanded={dialVisible} aria-controls="recording-dials" onClick={() => setDialVisible(visible => !visible)}>
-          <span aria-hidden="true" className="h-1 w-9 rounded-full bg-border" />
-          {dialVisible ? 'ダイヤルを隠す' : 'ダイヤルを表示'}
-        </button>
-        {dialVisible && <div id="recording-dials" className="flex min-h-0 flex-col overflow-hidden">
         {/* 体重の入力欄が出るときだけスクロールさせる。ダイヤルの外をなぞってもページは動かさない */}
-        <div className={`min-h-0 overflow-y-auto overscroll-contain px-4 ${isBodyweight && (bodyweight === null || editingBodyweight) ? 'pt-2' : 'touch-none'}`}>
+        <SlidingDial id="recording-dials" contentClassName={`min-h-0 overflow-y-auto overscroll-contain px-4 ${isBodyweight && (bodyweight === null || editingBodyweight) ? 'pt-2' : 'touch-none'}`}>
           {isBodyweight && (bodyweight === null || editingBodyweight) ? (
             <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
               <p className="text-sm">この種目は「体重＋加重」で負荷を計算します。今日の体重を入力してください。</p>
@@ -636,11 +632,10 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
             <button type="button" className="ml-2 min-h-14 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
           </p>}
           </>}
-        </div>
-        </div>}
+        </SlidingDial>
         <div className="flex shrink-0 gap-2 px-4 pb-3 pt-2">
-          <button type="button" onClick={() => setPicking(true)} className="min-h-14 shrink-0 self-center rounded-xl border border-border px-4 text-sm font-semibold text-fg active:bg-border">種目を変える</button>
-          <Button size="lg" className="min-w-0" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
+          <button type="button" data-button-key="change-exercise" onClick={() => setPicking(true)} className="min-h-14 shrink-0 self-center rounded-xl border border-border px-4 text-sm font-semibold text-fg active:bg-border">種目を変える</button>
+          <Button size="lg" data-button-key="complete-set" className="min-w-0" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
             {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
           </Button>
         </div>

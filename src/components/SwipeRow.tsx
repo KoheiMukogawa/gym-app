@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode, type PointerEvent } from 'react'
 const REVEAL=88
 
 /** メールアプリのように、左へスワイプすると削除ボタンが現れ、大きくスワイプするとそのまま削除する行。 */
-export function SwipeRow({children,label,onDelete,disabled,deleting=false,className=''}:{children:ReactNode;label:string;onDelete:()=>Promise<void>|void;disabled:boolean;deleting?:boolean;className?:string}){
+export function SwipeRow({children,label,onDelete,disabled,deleting=false,className='',id}:{children:ReactNode;label:string;onDelete:()=>Promise<void>|void;disabled:boolean;deleting?:boolean;className?:string;id?:string}){
   const [offset,setOffset]=useState(0),[dragging,setDragging]=useState(false)
   const row=useRef<HTMLLIElement>(null)
   const start=useRef<{x:number;y:number;base:number}|null>(null)
@@ -32,7 +32,7 @@ export function SwipeRow({children,label,onDelete,disabled,deleting=false,classN
     else setOffset(offset<-REVEAL/2?-REVEAL:0)
   }
   function cancel(){start.current=null;if(moved.current){setDragging(false);setOffset(o=>o<-REVEAL/2?-REVEAL:0)}}
-  return <li ref={row} className={`relative overflow-hidden ${className}`}>
+  return <li id={id} ref={row} className={`relative overflow-hidden ${className}`}>
     <button type="button" aria-label={label} disabled={disabled} onClick={remove} onFocus={()=>setOffset(-REVEAL)} onBlur={close}
       className="absolute inset-y-0 right-0 flex items-center justify-end bg-accent pr-6 text-sm font-semibold text-white disabled:opacity-60" style={{width:Math.max(REVEAL,-offset)}}>{deleting?'削除中…':'削除'}</button>
     <div onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel}

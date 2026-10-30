@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { saveShowScreenIds } from '../features/admin/screenIds'
+import { buttonIdFor } from '../features/admin/buttonIds'
 
 const { mounted, loadDraft, fetchIsAdmin, fetchUnreadFeedbackCount, fetchMyFeedback, markRepliesSeen } = vi.hoisted(() => ({ mounted: vi.fn(), loadDraft: vi.fn(), fetchIsAdmin: vi.fn(), fetchUnreadFeedbackCount: vi.fn(), fetchMyFeedback: vi.fn(), markRepliesSeen: vi.fn() }))
 vi.mock('../features/auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1', profile: null, refreshProfile: vi.fn(), signOut: vi.fn() }) }))
@@ -116,6 +117,8 @@ describe('feedback in the profile menu', () => {
 describe('screen IDs', () => {
   it('lets an admin show the screen ID in the header and remembers it', async () => {
     fetchIsAdmin.mockResolvedValue(true); fetchUnreadFeedbackCount.mockResolvedValue(0)
+    const rect = { x: 0, y: 0, top: 0, left: 0, right: 120, bottom: 56, width: 120, height: 56, toJSON: () => ({}) }
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(rect)
     const user = userEvent.setup()
     renderShell('/history')
     await user.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
@@ -124,7 +127,9 @@ describe('screen IDs', () => {
     expect(screen.queryByLabelText(/^画面ID/)).not.toBeInTheDocument()
     await user.click(toggle)
     expect(screen.getByLabelText('画面ID HIS-01')).toHaveTextContent('HIS-01')
+    expect(await screen.findByText(buttonIdFor('HIS-01', '記録に戻る'))).toBeInTheDocument()
     expect(localStorage.getItem('glog:show-screen-ids')).toBe('1')
+    bounds.mockRestore()
   })
   it('never shows IDs or the switch to other users, even if the device remembers it', async () => {
     saveShowScreenIds(true)

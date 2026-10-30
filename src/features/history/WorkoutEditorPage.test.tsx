@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { WorkoutEditorPage } from './WorkoutEditorPage'
 import { ToastProvider } from '../../components/ui/Toast'
-import { localDate } from '../../lib/dates'
 
 // Page tests isolate draft/save behavior; real wheels are covered by WheelNumber tests and browser flows.
 vi.mock('../../components/ui/WheelNumber', () => ({
@@ -19,7 +18,7 @@ vi.mock('../../components/ui/WheelNumber', () => ({
 }))
 
 const api = vi.hoisted(() => ({
-  fetchEditableWorkout: vi.fn(), findWorkoutOnDate: vi.fn(), createDatedWorkout: vi.fn(), updateWorkoutDate: vi.fn(),
+  fetchEditableWorkout: vi.fn(), findWorkoutOnDate: vi.fn(), createDatedWorkout: vi.fn(),
   updateWorkoutSet: vi.fn(), removeWorkoutSet: vi.fn(), removeWorkout: vi.fn(),
   fetchExercises: vi.fn(), createExercise: vi.fn(), saveEditableSet: vi.fn(), deleteWorkoutIfEmpty: vi.fn(),
 }))
@@ -61,7 +60,7 @@ describe('WorkoutEditorPage', () => {
     expect(screen.getByText('推定1RM 117.3')).toBeVisible()
     expect(screen.getByText('参考値')).toBeVisible()
   })
-  it('adds inside an exercise card, retaining drafts across exercises and failed saves', async () => {
+  it('adds from an exercise card in the bottom dock, retaining drafts and failed saves', async () => {
     api.fetchExercises.mockResolvedValue([EXERCISE, { ...EXERCISE, id: 'row', name: 'シーテッドロウ' }])
     api.fetchEditableWorkout.mockResolvedValue({ ...WORKOUT, workout_sets: [SET,
       { ...SET, id: 's2', set_index: 2, weight_kg: 85, reps: 5 },
@@ -71,9 +70,10 @@ describe('WorkoutEditorPage', () => {
     const user = setup()
     await user.click(await screen.findByRole('button', { name: 'ベンチプレスにセットを追加' }))
     const card = screen.getByRole('heading', { name: 'ベンチプレス' }).closest('section')!
-    expect(within(card).getByLabelText('重量（kg）')).toHaveValue(85)
-    expect(within(card).getByLabelText('回数')).toHaveValue(5)
-    expect(screen.queryByRole('region', { name: 'セット入力' })).not.toBeInTheDocument()
+    const dock = screen.getByRole('region', { name: 'セット入力' })
+    expect(within(card).queryByLabelText('重量（kg）')).not.toBeInTheDocument()
+    expect(within(dock).getByLabelText('重量（kg）')).toHaveValue(85)
+    expect(within(dock).getByLabelText('回数')).toHaveValue(5)
     await user.clear(screen.getByLabelText('重量（kg）'))
     await user.type(screen.getByLabelText('重量（kg）'), '87.5')
     await user.click(screen.getByRole('button', { name: 'シーテッドロウにセットを追加' }))
@@ -85,6 +85,9 @@ describe('WorkoutEditorPage', () => {
     expect(screen.getByLabelText('重量（kg）')).toHaveValue(87.5)
     await user.click(screen.getByRole('button', { name: 'セットを追加' }))
     await waitFor(() => expect(api.saveEditableSet).toHaveBeenLastCalledWith('w1', expect.objectContaining({ exercise_id: 'bench', set_index: 3, weight_kg: 87.5, reps: 5 }), 0))
+    const addedId = api.saveEditableSet.mock.lastCall![1].id
+    expect(document.getElementById(`history-set-${addedId}`)).toHaveClass('outline-accent')
+    expect(screen.queryByText('追加しました')).not.toBeInTheDocument()
     expect(api.updateWorkoutSet).not.toHaveBeenCalled()
     expect(api.createDatedWorkout).not.toHaveBeenCalled()
   })
@@ -198,15 +201,12 @@ describe('WorkoutEditorPage', () => {
     expect(screen.queryByLabelText('トレーニング日')).not.toBeInTheDocument()
     expect(api.fetchEditableWorkout).toHaveBeenCalledWith('u1', 'w1')
   })
-  it('saves date changes independently and preserves a failed deletion', async () => {
-    api.updateWorkoutDate.mockResolvedValue('2020-02-03T12:00:00Z')
+  it('shows the workout date as the heading and preserves a failed deletion', async () => {
     api.removeWorkoutSet.mockRejectedValue(new Error('network'))
     const user = setup()
-    const date = await screen.findByLabelText('トレーニング日')
-    await user.clear(date); await user.type(date, '2020-02-03')
-    await user.click(screen.getByRole('button', { name: '日付の変更を保存' }))
-    await waitFor(() => expect(api.updateWorkoutDate).toHaveBeenCalledWith('u1', 'w1', '2020-02-03', WORKOUT.performed_at))
-    expect(date).toHaveValue(localDate('2020-02-03T12:00:00Z'))
+    expect(await screen.findByRole('heading', { name: '2020年1月2日' })).toBeVisible()
+    expect(screen.queryByLabelText('トレーニング日')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '日付の変更を保存' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /80kg 8回を削除/ }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /80kg 8回を編集/ })).toBeInTheDocument()
