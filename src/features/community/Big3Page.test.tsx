@@ -6,15 +6,16 @@ vi.mock('./CommunityPanel', () => ({ CommunityPanel: () => <p>ランキングの
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1', profile: null, refreshProfile: vi.fn(), signOut: vi.fn() }) }))
 vi.mock('../workout-log/LogPage', () => ({ LogPage: () => null }))
 import { AppShell } from '../../components/AppShell'
+import { ToastProvider } from '../../components/ui/Toast'
 import { Big3Page } from './Big3Page'
 import { RankingPage } from './RankingPage'
 
-const renderAt = (path: string) => render(<MemoryRouter initialEntries={[path]}><Routes>
+const renderAt = (path: string) => render(<ToastProvider><MemoryRouter initialEntries={[path]}><Routes>
   <Route element={<AppShell />}>
     <Route path="/big3" element={<Big3Page />} />
     <Route path="/ranking" element={<RankingPage />} />
   </Route>
-</Routes></MemoryRouter>)
+</Routes></MemoryRouter></ToastProvider>)
 
 it('shows only the own BIG3 records, without a self/ranking switch', () => {
   renderAt('/big3')

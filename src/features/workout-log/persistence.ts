@@ -1,5 +1,6 @@
 import type { LogState } from './logReducer'
 import type { ActiveRoutine } from '../routines/queries'
+import type { ListRows } from './listRows'
 
 const KEY_PREFIX = 'gym-app.draft.'
 // ユーザー単位の名前空間化（Important 5）より前に使っていたキー。
@@ -13,6 +14,8 @@ export type Draft = {
   workoutId: string | null
   status: Record<string, SetStatus>
   routine?: ActiveRoutine | null
+  /** 一覧入力で、まだ保存していない行 */
+  listRows?: ListRows | null
 }
 
 type StoredDraft = Draft & {
@@ -93,7 +96,10 @@ export function loadDraft(userId: string): Draft | null {
     const validRoutine = routine && typeof routine.name === 'string' && Array.isArray(routine.exerciseIds) &&
       routine.exerciseIds.length > 0 && routine.exerciseIds.every((id) => typeof id === 'string') &&
       Number.isInteger(routine.index) && routine.index >= 0 && routine.index < routine.exerciseIds.length
-    return { state: parsed.state, workoutId, status: parsed.status, ...(validRoutine ? { routine } : {}) }
+    const listRows = parsed.listRows as ListRows | null | undefined
+    const validRows = listRows && typeof listRows.exerciseId === 'string' && Array.isArray(listRows.rows) &&
+      listRows.rows.every((r) => typeof r?.id === 'string' && typeof r.weight === 'string' && typeof r.reps === 'string' && typeof r.note === 'string')
+    return { state: parsed.state, workoutId, status: parsed.status, ...(validRoutine ? { routine } : {}), ...(validRows ? { listRows } : {}) }
   } catch {
     return null
   }

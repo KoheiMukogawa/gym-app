@@ -1,12 +1,18 @@
 import { useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { buttonIdFor } from './buttonIds'
+import { copyId } from './copyId'
+import { useToast } from '../../components/ui/Toast'
 
 type Badge = { id: string, top: number, left: number }
 
-/** Admin-only labels outside the controls, so IDs never change tap targets or accessible names. */
+/**
+ * Admin-only labels outside the controls, so IDs never change accessible names.
+ * Tapping a label copies its ID, to paste into a request.
+ */
 export function ButtonIdOverlay({ screenId, root }: { screenId: string | null, root: HTMLElement | null }) {
   const [badges, setBadges] = useState<Badge[]>([])
+  const { show } = useToast()
 
   useLayoutEffect(() => {
     if (!screenId || !root) return
@@ -16,7 +22,7 @@ export function ButtonIdOverlay({ screenId, root }: { screenId: string | null, r
       const counts = new Map<string, number>()
       const next: Badge[] = []
       for (const element of root.querySelectorAll<HTMLElement>('button, a[href]')) {
-        if (element.closest('[hidden], [aria-hidden="true"]')) continue
+        if (element.closest('[hidden], [aria-hidden="true"], [data-id-copy]')) continue
         const rect = element.getBoundingClientRect()
         if (!rect.width || !rect.height || rect.bottom <= 0 || rect.top >= innerHeight || rect.right <= 0 || rect.left >= innerWidth) continue
         const key = element.dataset.buttonKey || element.getAttribute('aria-label') || element.textContent?.trim()
@@ -49,7 +55,9 @@ export function ButtonIdOverlay({ screenId, root }: { screenId: string | null, r
 
   if (!screenId || !root) return null
   return createPortal(<div aria-hidden="true" className="pointer-events-none fixed inset-0 z-[70] font-mono text-[10px] leading-none">
-    {badges.map((badge) => <span key={badge.id} className="absolute whitespace-nowrap rounded border border-accent bg-bg px-1 py-0.5 text-accent shadow-sm"
-      style={{ top: badge.top, left: badge.left, transform: 'translate(-100%, -40%)' }}>{badge.id}</span>)}
+    {badges.map((badge) => <button key={badge.id} type="button" tabIndex={-1} data-id-copy
+      onClick={() => void copyId(badge.id).then((ok) => show(ok ? `${badge.id} をコピーしました` : 'コピーできませんでした'))}
+      className="pointer-events-auto absolute whitespace-nowrap rounded border border-accent bg-bg px-1 py-0.5 text-accent shadow-sm active:bg-accent active:text-white"
+      style={{ top: badge.top, left: badge.left, transform: 'translate(-100%, -40%)' }}>{badge.id}</button>)}
   </div>, document.body)
 }

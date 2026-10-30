@@ -7,8 +7,10 @@ import { communityMessage, profile, saveDotsSettings, type DotsFormula } from '.
 import { AvatarPicker } from './Avatar'
 import { Link } from 'react-router-dom'
 import { FeedbackLinks } from '../feedback/FeedbackLinks'
+import { useLogInputMode } from '../workout-log/inputMode'
 export function ProfilePage() {
   const { userId,profile:account,refreshProfile }=useSession()
+  const inputMode=useLogInputMode(userId)
   const [name,setName]=useState(''),[icon,setIcon]=useState('initials'),[bio,setBio]=useState(''),[publicRank,setPublicRank]=useState(false)
   const [dotsOptIn,setDotsOptIn]=useState(false),[dotsFormula,setDotsFormula]=useState<DotsFormula|null>(null)
   // Last values stored on the server: an unchanged DOTS choice is not resent with every profile save.
@@ -29,6 +31,11 @@ export function ProfilePage() {
       <p className="text-xs leading-relaxed text-muted">記録日の前後14日以内の体重でスコアを計算します。スコアとBIG3合計から体重が推定できるため、参加する場合は体重の公開に同意したことになります。</p>
       <Button type="submit" disabled={busy||!name.trim()||(dotsOptIn&&!dotsFormula)}>{busy?'保存中…':'プロフィールを保存'}</Button>{saved&&<p role="status" className="text-sm">保存しました</p>}
     </form>
+    <div role="radiogroup" aria-labelledby="log-input-mode-heading" className="space-y-2 border-t border-border pt-5">
+      <h2 id="log-input-mode-heading" className="text-sm font-semibold">記録の入れ方</h2>
+      {([['dial','ダイヤル','1セットずつダイヤルで合わせて「セット完了」'],['list','一覧','セットを表に並べて、重量と回数を数字で打つ']] as const).map(([value,label,description])=><label key={value} className="flex min-h-14 items-center gap-3 rounded-xl border border-border px-4 py-2 text-sm"><input type="radio" name="log-input-mode" checked={inputMode.mode===value} onChange={()=>inputMode.setMode(value)} className="h-5 w-5 accent-accent"/><span><span className="block font-semibold">{label}</span><span className="block text-xs text-muted">{description}</span></span></label>)}
+      <p className="text-xs leading-relaxed text-muted">この端末に保存します。ヘッダーのメニューからも切り替えられます。</p>
+    </div>
     <div className="space-y-2 border-t border-border pt-5">
       <h2 className="text-sm font-semibold">体組成</h2>
       <p className="text-xs leading-relaxed text-muted">体重と体脂肪率は体組成タブで記録します。自分だけに表示されます。DOTSランキングに参加した場合だけ、スコアから体重が推定できます。</p>

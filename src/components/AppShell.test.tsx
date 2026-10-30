@@ -4,6 +4,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './AppShell'
+import { ToastProvider } from './ui/Toast'
 import { saveShowScreenIds } from '../features/admin/screenIds'
 import { buttonIdFor } from '../features/admin/buttonIds'
 
@@ -25,11 +26,11 @@ Object.defineProperties(HTMLDialogElement.prototype, {
 })
 
 function renderShell(path = '/') {
-  render(<MemoryRouter initialEntries={[path]}><Routes><Route element={<AppShell />}>
+  render(<ToastProvider><MemoryRouter initialEntries={[path]}><Routes><Route element={<AppShell />}>
     <Route path="/" element={<Link to="/log">記録を開始</Link>} />
     <Route path="/log" element={null} />
     <Route path="/history" element={<Link to="/log">記録に戻る</Link>} />
-  </Route></Routes></MemoryRouter>)
+  </Route></Routes></MemoryRouter></ToastProvider>)
 }
 beforeEach(() => { vi.clearAllMocks(); loadDraft.mockReturnValue(null); fetchIsAdmin.mockResolvedValue(false); fetchMyFeedback.mockResolvedValue([]); markRepliesSeen.mockResolvedValue(undefined); saveShowScreenIds(false) })
 describe('deferred recording screen', () => {
@@ -126,8 +127,14 @@ describe('screen IDs', () => {
     expect(toggle).toHaveAttribute('aria-checked', 'false')
     expect(screen.queryByLabelText(/^画面ID/)).not.toBeInTheDocument()
     await user.click(toggle)
-    expect(screen.getByLabelText('画面ID HIS-01')).toHaveTextContent('HIS-01')
-    expect(await screen.findByText(buttonIdFor('HIS-01', '記録に戻る'))).toBeInTheDocument()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    await user.click(screen.getByRole('button', { name: '画面ID HIS-01をコピー' }))
+    expect(writeText).toHaveBeenCalledWith('HIS-01')
+    expect(await screen.findByText('HIS-01 をコピーしました')).toBeInTheDocument()
+    const buttonId = buttonIdFor('HIS-01', '記録に戻る')
+    await user.click(await screen.findByText(buttonId))
+    expect(writeText).toHaveBeenLastCalledWith(buttonId)
     expect(localStorage.getItem('glog:show-screen-ids')).toBe('1')
     bounds.mockRestore()
   })
@@ -148,7 +155,7 @@ describe('replies to my feedback', () => {
     localStorage.clear()
     fetchMyFeedback.mockResolvedValue([answered])
     const user = userEvent.setup()
-    const view = render(<MemoryRouter initialEntries={['/']}><Routes><Route element={<AppShell />}><Route path="/" element={null} /></Route></Routes></MemoryRouter>)
+    const view = render(<ToastProvider><MemoryRouter initialEntries={['/']}><Routes><Route element={<AppShell />}><Route path="/" element={null} /></Route></Routes></MemoryRouter></ToastProvider>)
     const sheet = await screen.findByRole('dialog', { name: 'ご意見への返信' })
     expect(sheet).toHaveTextContent('対応済み')
     expect(sheet).toHaveTextContent('1kg刻みに対応しました')

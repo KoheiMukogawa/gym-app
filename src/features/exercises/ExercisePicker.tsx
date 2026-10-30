@@ -15,13 +15,16 @@ type Props = {
   onSelect: (exercise: Exercise) => void
   onCreate: (name: string, group: MuscleGroup) => Promise<void>
   createLabel?: string
+  /** 最初に開く部位と、表示の管理から始めるか（一覧入力の「種目を追加」から開くとき） */
+  initialGroup?: MuscleGroup
+  initialManaging?: boolean
 }
 const GROUPS = PICKER_GROUPS
 
-export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLabel = '追加して記録' }: Props) {
-  const [group, setGroup] = useState<MuscleGroup>('chest')
+export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLabel = '追加して記録', initialGroup = 'chest', initialManaging = false }: Props) {
+  const [group, setGroup] = useState<MuscleGroup>(initialGroup)
   const [creating, setCreating] = useState(false)
-  const [managing, setManaging] = useState(false)
+  const [managing, setManaging] = useState(initialManaging)
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)

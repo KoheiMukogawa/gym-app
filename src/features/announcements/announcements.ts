@@ -13,6 +13,12 @@ export type Announcement = {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: 'list-input-mode',
+    publishedAt: '2026-10-30T23:52:00+09:00',
+    title: '数字を打って一覧で記録できます',
+    body: 'メニューの「記録の入れ方」で「一覧」を選ぶと、種目を部位ごとに選び、セットを表に並べて重量と回数をキーボードで入力できます。前回の記録や上の行の値はボタンひとつで写せます。「戻る」か「記録を終了」で保存します。',
+  },
+  {
     id: 'exercise-catalog',
     publishedAt: '2026-10-24T13:55:00+09:00',
     title: '使う種目をリストから追加できます',

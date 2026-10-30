@@ -16,10 +16,20 @@ const EXACT: Record<string, string> = {
   '/admin/usage': 'ADMIN-02',
 }
 
-/** 記録画面は種目を選ぶ前（REC-01）と後（REC-02）で同じURLなので、選択中かどうかを受け取る。 */
-export function screenIdFor(pathname: string, pickingExercise: boolean): string | null {
+/**
+ * 記録画面で今出している画面。どれも同じURL（/log）なので、記録画面から受け取る。
+ * ダイヤル：種目選択 REC-01・記録入力 REC-02。一覧：今日の記録 REC-03・種目を選択 REC-04・記録入力 REC-05。
+ */
+export type LogScreen = 'REC-01' | 'REC-02' | 'REC-03' | 'REC-04' | 'REC-05'
+
+export function logScreenFor(mode: 'dial' | 'list', picking: boolean, choosingExercise: boolean): LogScreen {
+  if (mode === 'dial') return picking ? 'REC-01' : 'REC-02'
+  return picking ? (choosingExercise ? 'REC-04' : 'REC-03') : 'REC-05'
+}
+
+export function screenIdFor(pathname: string, logScreen: LogScreen): string | null {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
-  if (path === '/log') return pickingExercise ? 'REC-01' : 'REC-02'
+  if (path === '/log') return logScreen
   if (EXACT[path]) return EXACT[path]
   if (/^\/history\/[^/]+$/.test(path)) return 'HIS-02'
   if (/^\/exercises\/[^/]+$/.test(path)) return 'EX-01'

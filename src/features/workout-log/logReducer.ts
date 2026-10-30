@@ -30,6 +30,7 @@ export type LogAction =
   | { type: 'set-note'; id: string; note: string | null }
   | { type: 'remove-set'; id: string }
   | { type: 'load-sets'; sets: LoggedSet[] }
+  | { type: 'replace-exercise-sets'; exerciseId: string; sets: LoggedSet[] }
 
 export const initialLogState: LogState = {
   currentExerciseId: null,
@@ -82,6 +83,9 @@ export function logReducer(state: LogState, action: LogAction): LogState {
       return { ...state, sets: state.sets.filter((s) => s.id !== action.id) }
     case 'load-sets':
       return { ...state, sets: action.sets }
+    case 'replace-exercise-sets':
+      // 一覧入力で保存した種目のセットを差し替える。ほかの種目のセットと順番はそのまま
+      return { ...state, sets: [...state.sets.filter((s) => s.exercise_id !== action.exerciseId), ...action.sets] }
   }
 }
 

@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode, type PointerEvent } from 'react'
 const REVEAL=88
 
 /** メールアプリのように、左へスワイプすると削除ボタンが現れ、大きくスワイプするとそのまま削除する行。 */
-export function SwipeRow({children,label,onDelete,disabled,deleting=false,className='',id}:{children:ReactNode;label:string;onDelete:()=>Promise<void>|void;disabled:boolean;deleting?:boolean;className?:string;id?:string}){
+export function SwipeRow({children,label,onDelete,disabled,deleting=false,className='',id,compact=false}:{children:ReactNode;label:string;onDelete:()=>Promise<void>|void;disabled:boolean;deleting?:boolean;className?:string;id?:string;/** 表の行のように、高さを中身に合わせる */compact?:boolean}){
   const [offset,setOffset]=useState(0),[dragging,setDragging]=useState(false)
   const row=useRef<HTMLLIElement>(null)
   const start=useRef<{x:number;y:number;base:number}|null>(null)
@@ -37,7 +37,7 @@ export function SwipeRow({children,label,onDelete,disabled,deleting=false,classN
       className="absolute inset-y-0 right-0 flex items-center justify-end bg-accent pr-6 text-sm font-semibold text-white disabled:opacity-60" style={{width:Math.max(REVEAL,-offset)}}>{deleting?'削除中…':'削除'}</button>
     <div onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel}
       onClickCapture={e=>{if(moved.current){e.stopPropagation();e.preventDefault();moved.current=false}else if(offset!==0){e.stopPropagation();close()}}}
-      className={`relative flex min-h-14 touch-pan-y flex-wrap items-center justify-between gap-2 bg-surface py-2 ${dragging?'':'transition-transform duration-200'}`}
+      className={`relative flex touch-pan-y flex-wrap items-center justify-between gap-2 bg-surface ${compact?'py-0.5':'min-h-14 py-2'} ${dragging?'':'transition-transform duration-200'}`}
       style={{transform:`translateX(${offset}px)`}}>{children}</div>
   </li>
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { findPrefill, weightStep } from '../../lib/calc'
-import { validateSet } from '../../lib/dates'
+import { localDate, validateSet } from '../../lib/dates'
 import { isOffline, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
@@ -34,6 +34,22 @@ import { SetList } from './SetList'
 import { PreviousWorkoutCard } from './PreviousWorkoutCard'
 import { formatAddedLoad, latestBodyweight, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs, parseBodyweight, saveBodyweight } from '../profile/bodyweightQueries'
+import { removeWorkoutSet, saveEditableSet } from '../history/editorQueries'
+import { BottomSheet } from '../../components/ui/BottomSheet'
+import { ListSetTable } from './ListSetTable'
+import { ListPreviousRecord, usePreviousWorkout } from './ListPreviousRecord'
+import { GroupedExercisePicker } from './GroupedExercisePicker'
+import { TodaySummary } from './TodaySummary'
+import { AddFab } from './AddFab'
+import { logScreenFor, type LogScreen } from '../admin/screenIds'
+import { newRow, planListSave, rowsFromPrevious, rowsFromSets, type ListRow, type ListRows } from './listRows'
+import { shouldAskInputMode, useLogInputMode, type LogInputMode } from './inputMode'
+import { convertWeightText, useWeightUnit, type WeightUnit } from './weightUnit'
+
+const MODES: [LogInputMode, string, string][] = [
+  ['dial', 'ダイヤル', '1セットずつダイヤルで合わせて「セット完了」'],
+  ['list', '一覧', 'セットを表に並べて、重量と回数を数字で打つ'],
+]
 
 function OfflineBanner() {
   return (
@@ -63,8 +79,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'>
   })
 }
 
-export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => void, onPickingChange?: (picking: boolean) => void }) {
-  const { userId } = useSession()
+export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFinished?: () => void, onPickingChange?: (picking: boolean) => void, onScreenChange?: (screen: LogScreen) => void }) {
+  const { userId, profile } = useSession()
+  const { mode, chosen, setMode } = useLogInputMode(userId)
+  const [unit, setUnit] = useWeightUnit(userId)
   const navigate = useNavigate()
   const { show } = useToast()
 
@@ -96,12 +114,21 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
   const [routine, setRoutine] = useState<ActiveRoutine | null>(draft?.routine ?? null)
   const [editingRoutine, setEditingRoutine] = useState(false)
   const [history, setHistory] = useState<Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[]>([])
+  // 一覧入力の種目選択で「種目を追加」を押したときに開く部位（今までの種目選択の画面を出す）
+  const [managingGroup, setManagingGroup] = useState<MuscleGroup | null>(null)
+  // 一覧入力の今日の記録（REC-03）で、右下の＋から種目選択（REC-04）を開いているか
+  const [choosingExercise, setChoosingExercise] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [picking, setPicking] = useState(draft?.state.currentExerciseId == null)
-  // 管理者向けの画面ID（種目選択 REC-01 / 記録入力 REC-02）の切り替えに使う
+  // 種目を選んでいる間はタブを出す（AppShell）
   useEffect(() => { onPickingChange?.(picking) }, [picking, onPickingChange])
+  // まだ記録が無い日は、今日の記録を飛ばして種目選択から始める
+  const listChoosing = choosingExercise || managingGroup !== null || state.sets.length === 0
+  // 管理者向けの画面ID。ダイヤルと一覧で別の画面として数える
+  const logScreen = logScreenFor(mode, picking, listChoosing)
+  useEffect(() => { onScreenChange?.(logScreen) }, [logScreen, onScreenChange])
   const [justSaved, setJustSaved] = useState(false)
   const [offline, setOffline] = useState(isOffline())
   const [finishing, setFinishing] = useState(false)
@@ -111,6 +138,15 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
   const [editingBodyweight, setEditingBodyweight] = useState(false)
   const [savingBodyweight, setSavingBodyweight] = useState(false)
   const [editingSetId, setEditingSetId] = useState<string | null>(null)
+  // 一覧入力の行。保存は記録画面を抜けるとき（flushList）にまとめて行う
+  const [listRows, setListRowsState] = useState<ListRows | null>(draft?.listRows ?? null)
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+  const [savingList, setSavingList] = useState(false)
+  const previous = usePreviousWorkout(mode === 'list' ? userId : null, state.currentExerciseId)
+  function setListRows(next: ListRows | null) {
+    touchedRef.current = true
+    setListRowsState(next)
+  }
   const recordingHeader = useRef<HTMLElement>(null)
 
   useEffect(() => {
@@ -159,8 +195,8 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
   // workoutId は state 化したので、作成直後の値も取りこぼさずに書き込まれる。
   useEffect(() => {
     if (!userId || !touchedRef.current) return
-    saveDraft(userId, { state, workoutId, status: statusById, routine })
-  }, [state, workoutId, statusById, userId, routine])
+    saveDraft(userId, { state, workoutId, status: statusById, routine, listRows })
+  }, [state, workoutId, statusById, userId, routine, listRows])
 
   useEffect(() => {
     const update = () => setOffline(isOffline())
@@ -230,14 +266,17 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
     // 自重種目は体重を足した総重量で換算する
     const loadOffset = bw ? latestBodyweight(bodyweightLogs) ?? 0 : 0
     dispatch({ type: 'select-exercise', exerciseId, prefill: findPrefill(history, exerciseId), defaultWeight: bw ? 0 : undefined, history, loadOffset })
+    setChoosingExercise(false)
+    setManagingGroup(null)
     setPicking(false)
   }
-  function moveRoutine(direction: -1 | 1) {
+  async function moveRoutine(direction: -1 | 1) {
     if (!routine) return
     const index = routine.index + direction
     if (index < 0 || index >= routine.exerciseIds.length) return
     const id = routine.exerciseIds[index]
     if (!exercises.some((e) => e.id === id)) { show('この種目は見つかりません。ルーティンを編集してください。'); return }
+    if ((await flushList()) === null) return
     setRoutine({ ...routine, index })
     selectExercise(id)
   }
@@ -250,6 +289,28 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
       justSavedTimerRef.current = null
     }, 1200)
   }
+
+  // 今日のワークアウトのIDを返す。まだ無ければ作る（同時に呼ばれても1件だけ作る）
+  const ensureWorkout = useCallback(async (): Promise<string> => {
+    if (!userId) throw new Error('サインインしていません')
+    if (emptyCleanupRef.current) await emptyCleanupRef.current
+    // workoutId は state ではなく ref から読む。古いクロージャから呼ばれても最新の値になる
+    const current = workoutIdRef.current
+    if (current !== null) return current
+    if (workoutCreationRef.current === null) {
+      workoutCreationRef.current = createWorkout(userId)
+        .then((workout) => {
+          setWorkoutId(workout.id)
+          return workout.id
+        })
+        .catch((e: unknown) => {
+          // 失敗した作成は次回また作り直せるようにリセットする
+          workoutCreationRef.current = null
+          throw e
+        })
+    }
+    return workoutCreationRef.current
+  }, [userId])
 
   const persist = useCallback(
     (set: LoggedSet): Promise<void> => {
@@ -267,27 +328,9 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
       setStatusById((prev) => ({ ...prev, [set.id]: 'pending' }))
 
       const task = (async () => {
-        if (emptyCleanupRef.current) await emptyCleanupRef.current
-        // workoutId は state ではなく ref から読む。この関数オブジェクト自体は
-        // 過去のレンダー（例: 失敗トーストが捕まえた古い persist）から
-        // 再利用されることがあるが、ref は常に最新の値を指す。
-        let wid = workoutIdRef.current
+        let wid: string | null = null
         try {
-          if (wid === null) {
-            if (workoutCreationRef.current === null) {
-              workoutCreationRef.current = createWorkout(userId)
-                .then((workout) => {
-                  setWorkoutId(workout.id)
-                  return workout.id
-                })
-                .catch((e: unknown) => {
-                  // 失敗した作成は次回また作り直せるようにリセットする
-                  workoutCreationRef.current = null
-                  throw e
-                })
-            }
-            wid = await workoutCreationRef.current
-          }
+          wid = await ensureWorkout()
           await saveSet(wid, set)
 
           if (abandonedIdsRef.current.has(set.id)) {
@@ -341,7 +384,7 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
       task.finally(() => pendingSavesRef.current.delete(task))
       return task
     },
-    [userId, show],
+    [userId, show, ensureWorkout],
   )
 
   function handleCompleteSet() {
@@ -369,6 +412,136 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
       await updateSetNote(setId, note)
     }
     dispatch({ type: 'set-note', id: setId, note: value })
+  }
+
+  function minWeightFor(exerciseId: string): number {
+    return bodyweightIds.includes(exerciseId) && bodyweight !== null ? -bodyweight : 0
+  }
+
+  // 一覧入力では、種目を選んだら（今日の記録の読み込みが済んでから）その種目の行を用意する
+  useEffect(() => {
+    if (loading || picking || mode !== 'list' || !state.currentExerciseId || listRows?.exerciseId === state.currentExerciseId) return
+    setListRowsState(rowsFromSets(state.sets, state.currentExerciseId, unit))
+    setRowErrors({})
+  }, [loading, picking, mode, state, listRows, unit])
+
+  const flushingRef = useRef<Promise<number | null> | null>(null)
+  /**
+   * 一覧の行をまとめて保存する。記録画面を抜けるとき（種目を変える・記録を終了・ルーティンの移動・
+   * 入力方法の切り替え・アプリが裏に回ったとき）に呼ぶ。保存後のセット数を返し、保存できなければ null。
+   * background のときは画面を止められないので、打ちかけの行は下書きに残し、保存できる行だけ保存する。
+   */
+  function flushList(background = false): Promise<number | null> {
+    if (!listRows || !userId) return Promise.resolve(state.sets.length)
+    if (flushingRef.current) return flushingRef.current
+    const { exerciseId, rows } = listRows
+    const minWeight = minWeightFor(exerciseId)
+    const own = state.sets.filter((s) => s.exercise_id === exerciseId)
+    const saved = own.filter((s) => (statusById[s.id] ?? 'saved') === 'saved')
+    const plan = planListSave(rows, saved, exerciseId, minWeight, unit)
+    if (!background) {
+      const errors: Record<string, string> = Object.fromEntries(plan.incomplete.map((id) => [id, '重量と回数の両方を入れてください']))
+      if (plan.invalid) errors[plan.invalid.id] = plan.invalid.message
+      setRowErrors(errors)
+      if (plan.invalid || plan.incomplete.length) {
+        show(plan.invalid?.message ?? '重量と回数の両方を入れてください')
+        return Promise.resolve(null)
+      }
+    }
+    const total = state.sets.length - own.length + plan.sets.length
+    const settle = () => {
+      dispatch({ type: 'replace-exercise-sets', exerciseId, sets: plan.sets })
+      setStatusById((prev) => {
+        const next = { ...prev }
+        for (const s of own) delete next[s.id]
+        for (const s of plan.sets) next[s.id] = 'saved'
+        return next
+      })
+    }
+    // 保存前に行を消した、ダイヤルで失敗したままのセットは、送られないよう印を付ける
+    for (const s of own) if (!plan.sets.some((set) => set.id === s.id)) abandonedIdsRef.current.add(s.id)
+    if (!plan.upserts.length && !plan.deletes.length) {
+      settle()
+      return Promise.resolve(total)
+    }
+    setSavingList(true)
+    const task = (async () => {
+      try {
+        const current = workoutIdRef.current
+        if (current !== null) for (const id of plan.deletes) await removeWorkoutSet(current, id)
+        if (plan.upserts.length) {
+          const wid = await ensureWorkout()
+          for (const set of plan.upserts) await saveEditableSet(wid, set, minWeight)
+        }
+        settle()
+        // 最後のセットまで消したら、空のワークアウトもその場で消す（ダイヤルの削除と同じ）
+        const wid = workoutIdRef.current
+        if (total === 0 && wid !== null) {
+          const deleted = await deleteWorkoutIfEmpty(wid).catch((e: unknown) => {
+            console.error(`空ワークアウトの削除に失敗しました (workout: ${wid})`, e)
+            return false
+          })
+          if (deleted) {
+            setWorkoutId(null)
+            workoutCreationRef.current = null
+          }
+        }
+        return total
+      } catch (e) {
+        if (!background) show(`保存できませんでした。もう一度お試しください（${toMessage(e)}）`)
+        return null
+      } finally {
+        setSavingList(false)
+        flushingRef.current = null
+      }
+    })()
+    flushingRef.current = task
+    return task
+  }
+
+  // iPhoneのホーム画面アプリは、裏に回ったまま終了されることがある。その前に一覧の行を保存する
+  const flushRef = useRef(flushList)
+  flushRef.current = flushList
+  useEffect(() => {
+    const hide = () => { if (document.visibilityState === 'hidden') void flushRef.current(true) }
+    document.addEventListener('visibilitychange', hide)
+    return () => document.removeEventListener('visibilitychange', hide)
+  }, [])
+
+  // メニューやプロフィールでダイヤルに戻されたときも、一覧の行を保存してから外す
+  useEffect(() => {
+    if (mode !== 'dial' || !listRows) return
+    void flushRef.current(true).then((total) => { if (total !== null) setListRowsState(null) })
+  }, [mode, listRows])
+
+  async function changeExercise() {
+    if ((await flushList()) === null) return
+    // 今日の記録の画面でセットを消すことがあるので、次に開くときは保存済みのセットから行を作り直す
+    setListRowsState(null)
+    setManagingGroup(null)
+    setChoosingExercise(false)
+    setPicking(true)
+  }
+
+  // kg／lbsを切り替えたら、打ってある重さもその単位に書き換える（DBにはいつもkgで保存する）
+  function changeUnit(next: WeightUnit) {
+    if (next === unit) return
+    if (listRows) setListRows({ ...listRows, rows: listRows.rows.map((r) => ({ ...r, weight: convertWeightText(r.weight, unit, next) })) })
+    setUnit(next)
+  }
+
+  // 前回の記録をそのまま行にする。打った行があるときは、置き換えてよいか確かめる
+  function copyPrevious() {
+    if (!listRows || !previous.workout) return
+    if (listRows.rows.some((r) => r.weight.trim() || r.reps.trim()) && !window.confirm('入力中のセットを前回の記録で置き換えますか？')) return
+    updateRows(rowsFromPrevious(previous.workout.sets, unit))
+  }
+
+  function updateRows(rows: ListRow[]) {
+    if (!listRows) return
+    setListRows({ ...listRows, rows })
+    // 直した行のエラーは消す
+    setRowErrors((old) => Object.fromEntries(Object.entries(old).filter(([id]) => rows.some((r) => r.id === id && listRows.rows.find((o) => o.id === id) === r))))
   }
 
   async function handleDelete(setId: string) {
@@ -436,11 +609,14 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
 
   async function handleFinish() {
     if (!userId) return
+    const total = await flushList()
+    if (total === null) return
 
     // 未保存（保存に失敗した、または保存が確定していない）セットを残したまま
     // 下書きを消してしまうと、その場に立ち会っていない限り気づく手段が無い。
     // 件数を明示して確認する。
-    const unsavedCount = state.sets.filter((s) => {
+    // 一覧入力の種目は上の flushList で保存済み
+    const unsavedCount = state.sets.filter((s) => s.exercise_id !== listRows?.exerciseId).filter((s) => {
       const st = statusById[s.id] ?? 'saved'
       return st === 'failed' || st === 'pending'
     }).length
@@ -482,7 +658,7 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
         10_000,
       )
       clearDraft(userId)
-      if (state.sets.length > 0) markWorkoutFinished(userId)
+      if (total > 0) markWorkoutFinished(userId)
       onFinished?.()
       navigate('/')
     } finally {
@@ -493,9 +669,68 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
   if (loading) return <Spinner />
   if (loadError) return <div className="space-y-4 p-4"><p role="alert" className="text-sm text-accent">{loadError}</p><Button onClick={() => setLoadAttempt((n) => n + 1)}>再試行</Button></div>
 
+  // 一覧入力を公開した後に登録した人には、最初に入力方法を選んでもらう
+  const modeSheet = shouldAskInputMode(profile?.created_at, chosen) && <BottomSheet title="記録の入れ方を選んでください"
+    description="あとからメニューやプロフィールで変えられます" dismissible={false} onDismiss={() => {}}>
+    <div className="space-y-3 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      {MODES.map(([value, label, description]) => <button key={value} type="button" data-button-key={`choose-${value}-mode`}
+        onClick={() => setMode(value)}
+        className="flex min-h-14 w-full flex-col items-start rounded-xl border border-border bg-surface px-4 py-3 text-left active:bg-border">
+        <span className="font-semibold">{label}</span>
+        <span className="text-sm text-muted">{description}</span>
+      </button>)}
+    </div>
+  </BottomSheet>
+
+  const exerciseManager = managingGroup && <>
+    <button type="button" onClick={() => setManagingGroup(null)} className="mx-4 min-h-12 text-sm text-muted">← 部位の一覧に戻る</button>
+    <ExercisePicker key={managingGroup} exercises={exercises} userId={userId} initialGroup={managingGroup} initialManaging
+      onSelect={(e) => { setRoutine(null); selectExercise(e.id) }}
+      onCreate={async (name, group) => { await handleCreateExercise(name, group); setManagingGroup(null) }} />
+  </>
+
+  // 一覧入力は筋トレMemoと同じく、今日の記録（REC-03）から始まる。右下の＋で種目を選択（REC-04）を開く（まだ記録が無ければ種目選択から）
+  if (picking && mode === 'list') {
+    return (
+      <div className="min-h-full pb-44">
+        {modeSheet}
+        {offline && <OfflineBanner />}
+        {listChoosing ? <>
+          <header className="grid grid-cols-[4.5rem_minmax(0,1fr)_4.5rem] items-center gap-2 px-4 py-2">
+            {state.sets.length > 0
+              ? <button type="button" onClick={() => { setChoosingExercise(false); setManagingGroup(null) }}
+                  className="-ml-1 flex min-h-14 items-center gap-0.5 text-base font-semibold text-fg">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
+                  戻る
+                </button>
+              : <span />}
+            <h1 className="text-center text-lg font-semibold">種目を選択</h1>
+            <span />
+          </header>
+          {exerciseManager || <GroupedExercisePicker exercises={exercises} userId={userId}
+            onSelect={(e) => { setRoutine(null); selectExercise(e.id) }} onManage={setManagingGroup} />}
+        </> : <>
+          {/* 筋トレMemoと同じく、左上の「‹」で前の画面（ホーム）に戻り、日付を中央に置く。戻るときは記録を終えたことにする */}
+          <header className="grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem] items-center px-4 py-1">
+            <button type="button" data-button-key="finish-workout" aria-label="ホームに戻る" onClick={() => void handleFinish()} disabled={finishing}
+              className="-ml-2 flex h-11 w-11 items-center justify-center text-fg active:opacity-60 disabled:opacity-40">
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
+            </button>
+            <h1 className="text-center text-lg font-semibold tabular-nums">{finishing ? '保存中…' : localDate().replaceAll('-', '/')}</h1>
+            <span />
+          </header>
+          <TodaySummary sets={state.sets} exerciseNames={exerciseNames} bodyweightIds={bodyweightIds} bodyweight={bodyweight}
+            onOpen={(id) => { setRoutine(null); selectExercise(id) }} onDelete={handleDelete} deletingId={deletingId} />
+          <AddFab label="種目を追加" onClick={() => setChoosingExercise(true)} disabled={finishing} aboveNavigation />
+        </>}
+      </div>
+    )
+  }
+
   if (picking) {
     return (
       <div className="min-h-full">
+        {modeSheet}
         {offline && <OfflineBanner />}
         <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div className="min-w-0">
@@ -537,10 +772,37 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
   const currentName = state.currentExerciseId ? exerciseNames[state.currentExerciseId] : ''
   const editingSet = state.sets.find(set => set.id === editingSetId)
 
+  const listMode = mode === 'list' && listRows !== null && listRows.exerciseId === state.currentExerciseId
+  const needsBodyweight = isBodyweight && (bodyweight === null || editingBodyweight)
+  const bodyweightForm = <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
+    <p className="text-sm">この種目は「体重＋加重」で負荷を計算します。今日の体重を入力してください。</p>
+    <label className="block text-xs text-muted">体重（kg）
+      <input type="number" inputMode="decimal" min="20" max="300" step="0.1" required value={bodyweightDraft} disabled={savingBodyweight}
+        onChange={(e) => setBodyweightDraft(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl border border-border bg-bg px-4 text-2xl text-fg tabular-nums" />
+    </label>
+    <p className="text-xs text-muted">体重は自分だけが見られます。</p>
+    <Button type="submit" disabled={savingBodyweight}>{savingBodyweight ? '保存中…' : '体重を保存'}</Button>
+    {bodyweight !== null && <Button type="button" variant="ghost" disabled={savingBodyweight} onClick={() => setEditingBodyweight(false)}>キャンセル</Button>}
+  </form>
+
   return (
     <div className="flex min-h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] flex-col">
+      {modeSheet}
       {offline && <OfflineBanner />}
-      <header ref={recordingHeader} className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2">
+      {/* 一覧入力の記録入力（REC-05）は今日の記録（REC-03）と同じく、左上の「‹」で保存して戻り、種目名を中央に置く */}
+      {listMode && <header ref={recordingHeader} className="sticky top-0 z-20 grid grid-cols-[5.5rem_minmax(0,1fr)_5.5rem] items-center bg-bg px-4 py-1">
+        <button type="button" data-button-key="change-exercise" aria-label="今日の記録に戻る" onClick={() => void changeExercise()} disabled={savingList || finishing}
+          className="-ml-2 flex h-11 w-11 items-center justify-center text-fg active:opacity-60 disabled:opacity-40">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
+        </button>
+        <h1 className="break-words text-center text-lg font-semibold">{savingList ? '保存中…' : currentName}</h1>
+        <div role="radiogroup" aria-label="重さの単位" className="flex justify-self-end rounded-md bg-accent/20 p-0.5 text-xs">
+          {(['kg', 'lbs'] as const).map((value) => <button key={value} type="button" role="radio" aria-checked={unit === value}
+            disabled={savingList} onClick={() => changeUnit(value)}
+            className={`min-h-7 rounded px-1.5 font-semibold ${unit === value ? 'bg-accent text-white' : 'text-accent'}`}>{value}</button>)}
+        </div>
+      </header>}
+      {!listMode && <header ref={recordingHeader} className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2">
         <p className="min-w-0 flex-1 break-words text-lg font-semibold">{currentName}</p>
         {/* 記録の途中でも、この種目の推移を見に行ける。記録画面は裏で保持されるので入力は消えない */}
         {state.currentExerciseId && <Link to={`/exercises/${state.currentExerciseId}`} state={{ from: '/log' }} aria-label={`${currentName}のグラフ`} data-button-key="exercise-graph"
@@ -554,26 +816,40 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
           type="button"
           data-button-key="finish-workout"
           onClick={() => void handleFinish()}
-          disabled={finishing || !!editingSet}
+          disabled={finishing || savingList || !!editingSet}
           className="min-h-14 shrink-0 rounded-full border border-accent/50 bg-accent/10 px-4 text-sm font-semibold text-fg active:bg-accent/20 disabled:opacity-40"
         >
           {finishing ? '終了中…' : '記録を終了'}
         </button>
-      </header>
+      </header>}
       {routine && <section className="mx-4 mb-3 rounded-xl border border-border bg-surface px-3" aria-label="進行中のルーティン">
         <div className="pt-3 text-sm">{routine.name} <span className="text-muted">{routine.index + 1} / {routine.exerciseIds.length}種目</span></div>
         <div className="flex justify-between gap-2">
-          <button className="min-h-14 text-sm text-muted disabled:opacity-30" disabled={routine.index === 0 || !!editingSet} onClick={() => moveRoutine(-1)}>前の種目</button>
+          <button className="min-h-14 text-sm text-muted disabled:opacity-30" disabled={routine.index === 0 || !!editingSet} onClick={() => void moveRoutine(-1)}>前の種目</button>
           {routine.index < routine.exerciseIds.length - 1
-            ? <button disabled={!!editingSet} className="min-h-14 text-sm text-accent" onClick={() => moveRoutine(1)}>次の種目へ →</button>
+            ? <button disabled={!!editingSet} className="min-h-14 text-sm text-accent" onClick={() => void moveRoutine(1)}>次の種目へ →</button>
             : <span className="flex min-h-14 items-center text-xs text-muted">最後の種目です</span>}
         </div>
       </section>}
 
-      {userId && state.currentExerciseId && <div className="px-4 pt-3">
+      {userId && state.currentExerciseId && !listMode && <div className="px-4 pt-3">
         <PreviousWorkoutCard key={`${userId}:${state.currentExerciseId}`} userId={userId} exerciseId={state.currentExerciseId} isBodyweight={isBodyweight} />
       </div>}
-      <section aria-label="記録済みセット" className="px-4 pb-4 pt-3">
+      {listMode && state.currentExerciseId && <div className="px-4 pb-28 pt-1">
+        {needsBodyweight && bodyweightForm}
+        {isBodyweight && bodyweight !== null && !editingBodyweight && <p className="mb-2 text-xs text-muted">
+          体重 {bodyweight} kg に加重を足して計算します
+          <button type="button" className="ml-2 min-h-11 text-accent" onClick={() => { setBodyweightDraft(String(bodyweight)); setEditingBodyweight(true) }}>体重を更新</button>
+        </p>}
+        <ListPreviousRecord exerciseId={state.currentExerciseId} previous={previous} isBodyweight={isBodyweight} unit={unit} onCopy={copyPrevious}
+          disabled={savingList || finishing || needsBodyweight} />
+        <ListSetTable exerciseName={currentName} rows={listRows.rows} onChange={updateRows} errors={rowErrors}
+          previousFirst={previous.workout ? rowsFromPrevious(previous.workout.sets.slice(0, 1), unit)[0] : null} unit={unit}
+          bodyweight={isBodyweight ? { value: bodyweight } : null} disabled={savingList || finishing || needsBodyweight} />
+        <AddFab label="セットを追加" disabled={savingList || finishing || needsBodyweight} onClick={() => updateRows([...listRows.rows, newRow()])} />
+      </div>}
+      {/* 一覧入力では、ほかの種目のセットは今日の記録（REC-03）に出す */}
+      {!listMode && <section aria-label="記録済みセット" className="px-4 pb-4 pt-3">
         <SetList
           sets={state.sets}
           activeExerciseId={state.currentExerciseId}
@@ -589,23 +865,12 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
           bodyweightIds={bodyweightIds}
           bodyweight={bodyweight}
         />
-      </section>
+      </section>}
 
-      {editingSet ? <MemoInputSpace /> : <BottomInputDock navigation={false}>
+      {listMode ? null : editingSet ? <MemoInputSpace /> : <BottomInputDock navigation={false}>
         {/* 体重の入力欄が出るときだけスクロールさせる。ダイヤルの外をなぞってもページは動かさない */}
         <SlidingDial id="recording-dials" contentClassName={`min-h-0 overflow-y-auto overscroll-contain px-4 ${isBodyweight && (bodyweight === null || editingBodyweight) ? 'pt-2' : 'touch-none'}`}>
-          {isBodyweight && (bodyweight === null || editingBodyweight) ? (
-            <form className="mb-4 space-y-3 rounded-xl border border-border bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void handleSaveBodyweight() }}>
-              <p className="text-sm">この種目は「体重＋加重」で負荷を計算します。今日の体重を入力してください。</p>
-              <label className="block text-xs text-muted">体重（kg）
-                <input type="number" inputMode="decimal" min="20" max="300" step="0.1" required value={bodyweightDraft} disabled={savingBodyweight}
-                  onChange={(e) => setBodyweightDraft(e.target.value)} className="mt-1 min-h-14 w-full rounded-xl border border-border bg-bg px-4 text-2xl text-fg tabular-nums" />
-              </label>
-              <p className="text-xs text-muted">体重は自分だけが見られます。</p>
-              <Button type="submit" disabled={savingBodyweight}>{savingBodyweight ? '保存中…' : '体重を保存'}</Button>
-              {bodyweight !== null && <Button type="button" variant="ghost" disabled={savingBodyweight} onClick={() => setEditingBodyweight(false)}>キャンセル</Button>}
-            </form>
-          ) : <>
+          {needsBodyweight ? bodyweightForm : <>
           <div className="mb-1 grid grid-cols-2 gap-4">
             <WheelNumber
               label={isBodyweight ? '加重' : '重量'}
@@ -634,7 +899,7 @@ export function LogPage({ onFinished, onPickingChange }: { onFinished?: () => vo
           </>}
         </SlidingDial>
         <div className="flex shrink-0 gap-2 px-4 pb-3 pt-2">
-          <button type="button" data-button-key="change-exercise" onClick={() => setPicking(true)} className="min-h-14 shrink-0 self-center rounded-xl border border-border px-4 text-sm font-semibold text-fg active:bg-border">種目を変える</button>
+          <button type="button" data-button-key="change-exercise" onClick={() => void changeExercise()} className="min-h-14 shrink-0 self-center rounded-xl border border-border px-4 text-sm font-semibold text-fg active:bg-border">種目を変える</button>
           <Button size="lg" data-button-key="complete-set" className="min-w-0" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
             {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
           </Button>
