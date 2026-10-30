@@ -696,16 +696,17 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
         {modeSheet}
         {offline && <OfflineBanner />}
         {listChoosing ? <>
-          <header className="grid grid-cols-[4.5rem_minmax(0,1fr)_4.5rem] items-center gap-2 px-4 py-2">
-            {state.sets.length > 0
-              ? <button type="button" onClick={() => { setChoosingExercise(false); setManagingGroup(null) }}
-                  className="-ml-1 flex min-h-14 items-center gap-0.5 text-base font-semibold text-fg">
-                  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
-                  戻る
-                </button>
-              : <span />}
-            <h1 className="text-center text-lg font-semibold">種目を選択</h1>
-            <span />
+          {/* 見出しは左に寄せ、操作の説明は右端にそろえて小さく出す */}
+          <header className="flex items-center gap-2 px-4 py-1">
+            {state.sets.length > 0 && <button type="button" aria-label="戻る" onClick={() => { setChoosingExercise(false); setManagingGroup(null) }}
+              className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center text-fg active:opacity-60">
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
+            </button>}
+            <h1 className={`shrink-0 text-lg font-semibold ${state.sets.length > 0 ? '' : 'py-2'}`}>種目を選択</h1>
+            {!managingGroup && <p className="ml-auto min-w-0 text-right text-[10px] leading-tight text-muted">
+              <span className="block">← スワイプで非表示</span>
+              <span className="block">⠿ 長押しで並び替え</span>
+            </p>}
           </header>
           {exerciseManager || <GroupedExercisePicker exercises={exercises} userId={userId}
             onSelect={(e) => { setRoutine(null); selectExercise(e.id) }} onManage={setManagingGroup} />}

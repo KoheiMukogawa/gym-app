@@ -68,10 +68,6 @@ export function GroupedExercisePicker({ exercises, userId, onSelect, onManage }:
   })
 
   return <div className="space-y-4 px-4 pb-6">
-    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-      <span>← スワイプで非表示</span>
-      <span>⠿ 長押しで並び替え</span>
-    </p>
     {saveError && <p role="alert" className="text-sm text-accent">{saveError}</p>}
     {groups.map(({ group, items }) => {
       const label = MUSCLE_GROUP_LABELS[group]
