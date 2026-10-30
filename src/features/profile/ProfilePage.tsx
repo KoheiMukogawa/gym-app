@@ -61,7 +61,7 @@ export function ProfilePage() {
     <section className="space-y-1 rounded-2xl border border-border bg-surface p-4">
       <h2 className="font-semibold">アカウント</h2>
       <p className="pt-1 text-xs leading-relaxed text-muted">退会すると、記録とプロフィールはすべて削除されます。</p>
-      <Link to="/account/delete" className="flex min-h-14 items-center text-sm text-muted">退会する</Link>
+      <Link to="/account/delete" className="flex min-h-14 items-center text-sm font-semibold text-accent">退会する</Link>
     </section>
   </section>
 }
