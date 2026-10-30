@@ -28,6 +28,13 @@
 - README を本アプリの内容に差し替え
 - Playwright の設定と中核導線のE2Eテスト1件（`.env.e2e` 未設定なら自動スキップ）
 
+## 開発サーバー
+
+- `npm run dev` は `scripts/dev-phone.mjs` でViteを起動し、MacのChromeでiPhone 16 Proの枠を描いたアプリウインドウ（タブ・アドレスバーなし）を開く。アプリが受け取る画面は402×874で、表示を80%に縮めてノートPCの画面に収める（`SCALE`）。枠のページは開発サーバーの `/__phone`、アプリはその中のiframeで動き、開いている画面を `?path=` に残すのでCmd+Rで同じ画面に戻る
+- 普段のChromeとは別のプロフィール（`node_modules/.cache/dev-phone-chrome`）で開くので、ログインは別。起動前にChromeが覚えたウインドウの大きさ・異常終了の状態・セッションを消し、毎回同じ大きさで開く
+- Dynamic Islandは描いていない（Chromeではsafe-areaが0で、アプリの上部に重なるため）
+- `npm run dev:pc` はViteだけを起動する。Chromeがない環境ではウインドウを開かない。E2Eは開発サーバーを直接起動するので影響しない
+
 ## 検証結果
 
 - Health同期の検証結果は `.superpowers/sdd/2026-10-02-health-sync/task-3-5-report.md` とbackend reportを参照。SQLのPGliteは同時セッションや本番PostgREST/gatewayを再現しない
