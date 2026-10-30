@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { HomePage } from './HomePage'
+import { Big3Column, HomePage } from './HomePage'
 import { invalidateMonthWorkouts } from '../history/useMonthWorkouts'
 import { buildStrengthSnapshot } from '../strength/strengthSnapshot'
 import type { FeedItem } from '../feed/queries'
@@ -86,5 +86,27 @@ describe('HomePage', () => {
     const month = screen.getByRole('region', { name: '今月のトレーニング' })
     expect(await within(month).findByRole('alert')).toBeInTheDocument()
     expect(within(month).getByRole('button', { name: '再試行' })).toBeInTheDocument()
+  })
+})
+
+describe('Big3Column', () => {
+  const rows = ['squat', 'bench', 'deadlift'].map((exercise_id, i) => ({
+    exercise_id, weight_kg: [150, 100, 180][i], reps: 1, performed_at: new Date().toISOString(),
+  }))
+  const goal = { id: 'g', user_id: 'u1', label: 'Big3目標', target_date: '2027-01-01', target_total_kg: 500, created_at: '' }
+  const widths = () => [...document.querySelectorAll<HTMLElement>('[aria-hidden="true"] > div')].map((bar) => bar.style.width)
+
+  it('fills each lift bar toward its own goal when one is set', () => {
+    render(<MemoryRouter><Big3Column snapshot={buildStrengthSnapshot([...EXERCISES], [], rows)}
+      goal={{ ...goal, target_squat_kg: 200, target_bench_kg: null, target_deadlift_kg: 180 }} /></MemoryRouter>)
+    // total bar 430/500, squat 150/200, bench scaled to the heaviest lift (100/180), deadlift reached its goal.
+    expect(widths()).toEqual(['86%', '75%', `${(100 / 180) * 100}%`, '100%'])
+    expect(screen.getByText('目標 200 kg')).toBeInTheDocument()
+    expect(screen.getByText('目標 180 kg')).toBeInTheDocument()
+  })
+
+  it('keeps comparing the lifts with each other without lift goals', () => {
+    render(<MemoryRouter><Big3Column snapshot={buildStrengthSnapshot([...EXERCISES], [], rows)} goal={goal} /></MemoryRouter>)
+    expect(widths().slice(1)).toEqual([`${(150 / 180) * 100}%`, `${(100 / 180) * 100}%`, '100%'])
   })
 })

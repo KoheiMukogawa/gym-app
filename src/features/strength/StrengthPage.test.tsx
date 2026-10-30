@@ -95,9 +95,22 @@ describe('StrengthPage', () => {
     expect(total).toHaveValue(550)
     await user.click(screen.getByRole('button', { name: '目標を保存' }))
     expect(await screen.findByText('目標 550 kg')).toBeInTheDocument()
-    expect(saveCurrentGoal).toHaveBeenLastCalledWith(expect.objectContaining({ existing: goal, targetTotalKg: 550 }))
+    expect(saveCurrentGoal).toHaveBeenLastCalledWith(expect.objectContaining({ existing: goal, targetTotalKg: 550, liftTargets: { squat: null, bench: null, deadlift: null } }))
     await user.click(screen.getByRole('button', { name: '目標を変更' }))
     expect(screen.getByLabelText('目標の合計重量（kg）')).toHaveValue(550)
+  })
+  it('edits the optional per-lift goals with the total', async () => {
+    const goal = { id: 'g1', user_id: 'u1', label: '年内', target_date: '2026-12-31', target_total_kg: 600, target_squat_kg: 200, created_at: '2026-09-01' }
+    fetchStrengthGoals.mockResolvedValue([goal])
+    saveCurrentGoal.mockResolvedValueOnce({ ...goal, target_bench_kg: 150 })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: '目標を変更' }))
+    expect(screen.getByLabelText('スクワット')).toHaveValue(200)
+    expect(screen.getByLabelText('ベンチ')).toHaveValue(null)
+    await user.type(screen.getByLabelText('ベンチ'), '150')
+    await user.click(screen.getByRole('button', { name: '目標を保存' }))
+    expect(saveCurrentGoal).toHaveBeenLastCalledWith(expect.objectContaining({ liftTargets: { squat: 200, bench: 150, deadlift: null } }))
   })
   it('shows goal achieved without switching to an older goal', async () => {
     fetchStrengthGoals.mockResolvedValue([{ id: 'g1', user_id: 'u1', label: '目標', target_date: '2026-12-31', target_total_kg: 400, created_at: '2026-09-01' }])

@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react'
 
 type Props = {
-  title: string
+  /** 見出し。日付の選択のように、押せる部品を置くこともある */
+  title: ReactNode
   description?: string
   children: ReactNode
   onDismiss: () => void

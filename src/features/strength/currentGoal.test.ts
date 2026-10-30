@@ -16,7 +16,16 @@ it('keeps one deterministic latest legacy goal', () => {
 })
 it('updates the existing goal ID instead of inserting another', async () => {
   await saveCurrentGoal({ userId: 'u1', existing: goal, targetDate: '2027-01-01', targetTotalKg: 550 })
-  expect(api.upsert).toHaveBeenCalledWith({ id: 'existing', user_id: 'u1', label: '年内', target_date: '2027-01-01', target_total_kg: 550 }, { onConflict: 'id' })
+  expect(api.upsert).toHaveBeenCalledWith({ id: 'existing', user_id: 'u1', label: '年内', target_date: '2027-01-01', target_total_kg: 550,
+    target_squat_kg: null, target_bench_kg: null, target_deadlift_kg: null }, { onConflict: 'id' })
+})
+it('saves the optional per-lift goals', async () => {
+  await saveCurrentGoal({ userId: 'u1', existing: goal, targetDate: '2027-01-01', targetTotalKg: 550, liftTargets: { squat: 200, bench: 140.5, deadlift: null } })
+  expect(api.upsert.mock.calls[0][0]).toMatchObject({ target_squat_kg: 200, target_bench_kg: 140.5, target_deadlift_kg: null })
+})
+it.each([0, -5, 10000, 100.12, NaN])('rejects an invalid lift goal %s before writing', async (squat) => {
+  await expect(saveCurrentGoal({ userId: 'u1', existing: null, targetDate: '2027-01-01', targetTotalKg: 500, liftTargets: { squat, bench: null, deadlift: null } })).rejects.toThrow('種目別の目標')
+  expect(api.from).not.toHaveBeenCalled()
 })
 it('uses the same first ID for failed-response retries and other devices', async () => {
   api.single.mockResolvedValueOnce({ data: null, error: { message: 'network' } })

@@ -60,6 +60,10 @@ export type StrengthGoal = {
   label: string
   target_date: string
   target_total_kg: number
+  /** 種目別の目標（任意）。ホームの種目別の棒グラフに使う */
+  target_squat_kg?: number | null
+  target_bench_kg?: number | null
+  target_deadlift_kg?: number | null
   created_at: string
 }
 

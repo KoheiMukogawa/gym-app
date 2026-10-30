@@ -35,7 +35,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   const [notice, setNotice] = useState<string | null>(null)
   const [entryOpen, setEntryOpen] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  // null は今日の記録。過去の日をタップするとその日を直す
+  // null は今日。グラフの過去の日をタップするか、シートの見出しの日付を変えるとその日を入力・修正する
   const [editing, setEditing] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [confirming, setConfirming] = useState(false)
@@ -84,6 +84,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     if (bodyweightKg === null) { setError('体重は20〜300kgで入力してください'); return }
     const bodyFatPct = fat.trim() ? parseBodyFat(fat) : null
     if (fat.trim() && bodyFatPct === null) { setError('体脂肪率は1〜70%で入力してください'); return }
+    if (editing !== null && editing > today) { setError('未来の日付には記録できません'); return }
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -146,6 +147,19 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     setEntryOpen(true)
   }
   const onSelectDay = useCallback((date: string) => selectDay.current(date), [])
+
+  // シートの見出しの日付を変えたら、その日の記録があれば読み込み、なければ打った値のまま残す
+  function changeDate(date: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || locked) return
+    setEditing(date === today ? null : date)
+    const row = logs.find((l) => l.recorded_on === date)
+    if (row) {
+      setWeight(String(row.bodyweight_kg))
+      setFat(row.body_fat_pct === null || row.body_fat_pct === undefined ? '' : String(row.body_fat_pct))
+    }
+    setError(null)
+    setConfirming(false)
+  }
 
   function openTodayEntry() {
     if (locked) return
@@ -220,8 +234,8 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       <p role="alert" className="text-sm text-accent">{loadError}</p>
       <Button variant="ghost" onClick={() => setAttempt((n) => n + 1)}>再試行</Button>
     </div>}
-    {entryOpen ? <BottomSheet title={editing ? editing.slice(5).replace('-', '/') + 'の記録' : '今日の記録'}
-      description={target} initialFocusRef={weightInput} dismissible={!busy && deleting === null} onDismiss={dismissEntry}>
+    {entryOpen ? <BottomSheet title={<EntryDate date={target} today={today} disabled={locked} onChange={changeDate} />}
+      initialFocusRef={weightInput} dismissible={!busy && deleting === null} onDismiss={dismissEntry}>
       <form aria-label="記録の入力" noValidate onSubmit={(event) => { event.preventDefault(); void save() }} className="flex min-h-0 flex-col">
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-5 pb-4">
           <div className="grid grid-cols-2 gap-3">
@@ -253,6 +267,18 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       </form>
     </BottomSheet> : <FloatingRecordAction label="体重を記録" buttonRef={entryTrigger} onClick={openTodayEntry} disabled={locked} />}
   </div>
+}
+
+/** 入力シートの見出し。日付を押すとネイティブの日付選択が開き、過去の日も同じシートで入力できる */
+function EntryDate({ date, today, disabled, onChange }: { date: string; today: string; disabled: boolean; onChange: (date: string) => void }) {
+  return <span className="relative inline-flex items-center gap-1.5 tabular-nums">
+    {date.replaceAll('-', '/')}{date === today && <span className="text-sm font-normal text-muted">（今日）</span>}
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+    {/* 見た目は日付の文字のまま、透明なネイティブの日付選択を重ねる（DateField と同じ方法） */}
+    <input type="date" aria-label="記録する日" lang="ja-JP" value={date} max={today} disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0" />
+  </span>
 }
 
 const signed = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : '±'}${Math.abs(value).toFixed(1)}`

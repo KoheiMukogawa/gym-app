@@ -454,7 +454,7 @@ test('mobile: floating record actions stay above navigation and open the correct
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({ path: 'test-results/floating-record-body.png', fullPage: true })
   await bodyAction.click()
-  const sheet = page.getByRole('dialog', { name: '今日の記録' })
+  const sheet = page.getByRole('dialog', { name: /（今日）/ })
   await expect(sheet).toBeVisible()
   expect(await sheet.evaluate((element) => element.matches(':modal'))).toBe(true)
   expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
@@ -848,9 +848,12 @@ test('Big3 score has one editable goal and the logo returns home', async ({ page
   await expect(score).toContainText('78%')
   await page.getByRole('button', { name: '目標を変更', exact: true }).click()
   await page.getByLabel('目標の合計重量（kg）').fill('550')
+  await page.getByLabel('スクワット', { exact: true }).fill('200')
+  await page.screenshot({ path: 'test-results/strength-goal-form.png' })
   await page.getByRole('button', { name: '目標を保存', exact: true }).click()
   await expect(score).toContainText('目標 550 kg')
   expect(data.goals).toHaveLength(1)
+  expect(data.goals[0]).toMatchObject({ target_squat_kg: 200, target_bench_kg: null })
   await page.reload()
   await expect(score).toContainText('目標 550 kg')
   await expect(score).toContainText('77.5 kg')
@@ -859,6 +862,9 @@ test('Big3 score has one editable goal and the logo returns home', async ({ page
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.getByRole('link', { name: 'Glog トップへ', exact: true }).click()
   await expect(page).toHaveURL(/\/$/)
+  // The squat bar on home now shows progress toward its own goal.
+  await expect(page.getByRole('link', { name: 'BIG3の詳細へ' })).toContainText('目標 200 kg')
+  await page.getByRole('link', { name: 'BIG3の詳細へ' }).screenshot({ path: 'test-results/home-big3-lift-goal.png' })
   // Home is BIG3. Today's sets were seeded above, so recording continues today's single workout.
   await page.getByRole('link', { name: /続きを記録.*今日 3セット/ }).click()
   await expect(page.getByRole('heading', { name: '次はどの種目？' })).toBeVisible()
@@ -1157,7 +1163,6 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
     d.setDate(d.getDate() - daysAgo)
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }
-  const short = (day: string) => day.slice(5).replace('-', '/')
   const today = date(0), past = date(3), older = date(45), oldest = date(180)
   data.bodyweights.push(
     { recorded_on: oldest, bodyweight_kg: 66, body_fat_pct: 18 },
@@ -1171,6 +1176,11 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   await page.getByRole('button', { name: '体重を記録', exact: true }).click()
   await expect(page.getByLabel('体重（kg）')).toHaveValue('70')
   await expect(page.getByLabel('体脂肪率（%）')).toHaveValue('16')
+  // The sheet title is the date itself, and it opens a date picker for past days.
+  await expect(page.getByRole('dialog').getByRole('heading')).toContainText('（今日）')
+  await expect(page.getByRole('dialog')).not.toContainText('今日の記録')
+  await expect(page.getByLabel('記録する日')).toBeVisible()
+  await page.screenshot({ path: 'test-results/body-entry-date.png' })
   const trend = page.getByRole('region', { name: '推移' })
   const form = page.getByRole('dialog')
   const weightDots = trend.locator('.recharts-line-dots circle[fill="#E8412F"]')
@@ -1242,7 +1252,7 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   await inspectPoint(1, '70.8 kg')
   // Tapping a day on the chart opens it in the form.
   await tapPoint(0)
-  await expect(form).toContainText(`${short(past)}の記録`)
+  await expect(form.getByRole('heading')).toContainText(past.replaceAll('-', '/'))
   await expect(page.getByLabel('体重（kg）')).toHaveValue('70')
   await page.getByLabel('体重（kg）').fill('71')
   await page.getByRole('button', { name: '記録する', exact: true }).click()
@@ -1260,7 +1270,7 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   await expect(weightDots).toHaveCount(2)
   // Deleting asks once more before removing the day.
   await tapPoint(0)
-  await expect(form).toContainText(`${short(past)}の記録`)
+  await expect(form.getByRole('heading')).toContainText(past.replaceAll('-', '/'))
   await form.getByRole('button', { name: `${past} の記録を削除` }).click()
   expect(data.bodyweights.some((b) => b.recorded_on === past)).toBe(true)
   await form.getByRole('button', { name: '削除する', exact: true }).click()

@@ -15,6 +15,9 @@ import {
 } from './queries'
 import { LiftCard } from './LiftCard'
 
+type LiftKey = 'squat' | 'bench' | 'deadlift'
+const LIFT_FIELDS: [LiftKey, string][] = [['squat', 'スクワット'], ['bench', 'ベンチ'], ['deadlift', 'デッド']]
+
 export function StrengthPage() {
   const { userId } = useSession()
   const { show } = useToast()
@@ -27,6 +30,8 @@ export function StrengthPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [targetDate, setTargetDate] = useState('')
   const [targetTotal, setTargetTotal] = useState('')
+  // 種目別の目標（任意）。空欄は設定しない
+  const [liftTexts, setLiftTexts] = useState<Record<LiftKey, string>>({ squat: '', bench: '', deadlift: '' })
   const saveLock = useRef(false)
   const load = useCallback(() => {
     if (!userId) return
@@ -40,6 +45,8 @@ export function StrengthPage() {
   function edit() {
     setTargetDate(goal?.target_date ?? '')
     setTargetTotal(goal ? String(goal.target_total_kg) : '')
+    const text = (value: number | null | undefined) => (value == null ? '' : String(value))
+    setLiftTexts({ squat: text(goal?.target_squat_kg), bench: text(goal?.target_bench_kg), deadlift: text(goal?.target_deadlift_kg) })
     setSaveError(null); setEditing(true)
   }
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -47,7 +54,9 @@ export function StrengthPage() {
     if (!userId || saveLock.current) return
     saveLock.current = true; setSaving(true); setSaveError(null)
     try {
-      const saved = await saveCurrentGoal({ userId, existing: goal, targetDate, targetTotalKg: Number(targetTotal) })
+      const lift = (key: LiftKey) => (liftTexts[key].trim() === '' ? null : Number(liftTexts[key]))
+      const saved = await saveCurrentGoal({ userId, existing: goal, targetDate, targetTotalKg: Number(targetTotal),
+        liftTargets: { squat: lift('squat'), bench: lift('bench'), deadlift: lift('deadlift') } })
       setGoal(saved); setEditing(false); show('目標を保存しました')
     } catch (e) { setSaveError(toMessage(e)) }
     finally { saveLock.current = false; setSaving(false) }
@@ -67,6 +76,17 @@ export function StrengthPage() {
             value={targetTotal} disabled={saving} onChange={(e) => setTargetTotal(e.target.value)} placeholder="500"
             className="min-h-14 w-full min-w-0 rounded-xl border border-border bg-bg px-4 text-2xl text-fg" />
         </label>
+        <fieldset className="space-y-2">
+          <legend className="text-sm text-muted">種目別の目標（任意・推定1RM kg）</legend>
+          <p className="text-xs text-muted">入れた種目は、ホームの種目別の棒グラフが目標までの進み具合になります。</p>
+          <div className="grid grid-cols-3 gap-2">
+            {LIFT_FIELDS.map(([key, label]) => <label key={key} className="flex min-w-0 flex-col gap-1 text-xs text-muted">{label}
+              <input type="number" inputMode="decimal" min="0.1" max="9999.9" step="0.1" value={liftTexts[key]} disabled={saving}
+                onChange={(e) => setLiftTexts((old) => ({ ...old, [key]: e.target.value }))} placeholder="—"
+                className="min-h-14 w-full min-w-0 rounded-xl border border-border bg-bg px-3 text-lg text-fg" />
+            </label>)}
+          </div>
+        </fieldset>
         <label className="flex flex-col gap-2 text-sm text-muted">目標期限
           <input type="date" required value={targetDate} disabled={saving} onChange={(e) => setTargetDate(e.target.value)}
             className="min-h-14 w-full min-w-0 rounded-xl border border-border bg-bg px-4 text-fg" />

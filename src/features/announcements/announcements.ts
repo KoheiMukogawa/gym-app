@@ -13,6 +13,13 @@ export type Announcement = {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: 'lift-goals',
+    publishedAt: '2026-10-31T00:10:00+09:00',
+    title: 'BIG3の目標を種目ごとにも決められます',
+    body: 'BIG3の「目標を変更」で、スクワット・ベンチ・デッドの目標を入れると、ホームの種目ごとの棒が目標までの進み具合になります。',
+    link: { to: '/big3', label: 'BIG3を開く' },
+  },
+  {
     id: 'list-input-mode',
     publishedAt: '2026-10-30T23:52:00+09:00',
     title: '数字を打って一覧で記録できます',

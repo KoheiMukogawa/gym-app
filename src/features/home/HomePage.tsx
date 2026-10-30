@@ -20,9 +20,9 @@ import { InstallCard } from '../install/InstallCard'
 
 // BIG3画面のリングと同じ濃淡で、スクワット→ベンチ→デッドを見分けられるようにする
 const LIFTS = [
-  { key: 'squat', label: 'スクワット', opacity: 1 },
-  { key: 'bench', label: 'ベンチプレス', opacity: 0.68 },
-  { key: 'deadlift', label: 'デッドリフト', opacity: 0.4 },
+  { key: 'squat', label: 'スクワット', opacity: 1, goal: 'target_squat_kg' },
+  { key: 'bench', label: 'ベンチプレス', opacity: 0.68, goal: 'target_bench_kg' },
+  { key: 'deadlift', label: 'デッドリフト', opacity: 0.4, goal: 'target_deadlift_kg' },
 ] as const
 const kg = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1))
 
@@ -31,8 +31,9 @@ export function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goa
   const values = LIFTS.map(({ key }) => snapshot.lifts[key].allTimeE1rm)
   const total = strengthTotal(values)
   const ratio = total !== null && goal ? Math.min(1, total / goal.target_total_kg) : null
-  // 3種目の棒は、その中で一番重い種目を基準に長さをそろえる
+  // 種目別の目標があればその目標までの進み具合、なければ3種目の中で一番重い種目を基準にした長さ
   const scale = Math.max(1, ...values.map((v) => v ?? 0))
+  const liftGoals = LIFTS.map((lift) => goal?.[lift.goal] ?? null)
   return <Link to="/big3" aria-label="BIG3の詳細へ" className="block rounded-xl border border-border p-3">
     <p className="text-[11px] text-muted">合計</p>
     <p className="text-2xl font-semibold leading-tight tabular-nums">
@@ -51,8 +52,9 @@ export function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goa
           <span className="text-sm font-semibold tabular-nums">{values[i] === null ? '—' : kg(values[i]!)}</span>
         </div>
         <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-border" aria-hidden="true">
-          <div className="h-full rounded-full bg-accent" style={{ width: `${((values[i] ?? 0) / scale) * 100}%`, opacity: lift.opacity }} />
+          <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(1, (values[i] ?? 0) / (liftGoals[i] ?? scale)) * 100}%`, opacity: lift.opacity }} />
         </div>
+        {liftGoals[i] !== null && <p className="mt-0.5 text-[10px] text-muted">目標 {kg(Number(liftGoals[i]))} kg</p>}
       </div>)}
     </div>
   </Link>

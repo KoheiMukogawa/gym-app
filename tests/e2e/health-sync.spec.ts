@@ -198,7 +198,7 @@ test('Health history reads more than 1000 rows and charts the earliest year',asy
   // The earliest day stays reachable: a tap on its dot opens it in the form.
   const first=dots.first();await first.scrollIntoViewIfNeeded();const box=(await first.boundingBox())!
   await page.mouse.click(box.x+box.width/2,box.y+box.height/2)
-  await expect(page.getByRole('dialog')).toContainText('01/01の記録')
+  await expect(page.getByRole('dialog').getByRole('heading')).toContainText('/01/01')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   expect(errors).toEqual([])
 })

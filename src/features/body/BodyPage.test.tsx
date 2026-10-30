@@ -38,7 +38,7 @@ Object.defineProperties(HTMLDialogElement.prototype, {
 const openToday = async () => {
   await waitFor(() => expect(screen.getByRole('button', { name: '体重を記録' })).toBeEnabled())
   await userEvent.click(screen.getByRole('button', { name: '体重を記録' }))
-  await screen.findByRole('dialog', { name: '今日の記録' })
+  await screen.findByRole('dialog', { name: /（今日）/ })
 }
 const renderPage = async () => {
   render(<MemoryRouter><BodyPage /></MemoryRouter>)
@@ -113,7 +113,7 @@ describe('BodyPage', () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
     await userEvent.click(await screen.findByRole('button', { name: pastDate + ' の記録を修正' }))
-    expect(screen.getByRole('dialog')).toHaveTextContent(pastDate.slice(5).replace('-', '/') + 'の記録')
+    expect(screen.getByRole('dialog')).toHaveTextContent(pastDate.replaceAll('-', '/'))
 
     const weight = screen.getByLabelText('体重（kg）')
     await userEvent.clear(weight)
@@ -126,13 +126,34 @@ describe('BodyPage', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('今日')
   })
 
+  it('enters a past day by changing the date in the sheet title', async () => {
+    fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
+    await renderPage()
+    await openToday()
+    const date = screen.getByLabelText('記録する日')
+    expect(date).toHaveAttribute('max', new Date().toLocaleDateString('sv-SE'))
+    // A day with a record loads its values for correction.
+    fireEvent.change(date, { target: { value: pastDate } })
+    expect(within(screen.getByRole('dialog')).getByRole('heading')).toHaveTextContent(pastDate.replaceAll('-', '/'))
+    expect(screen.getByLabelText('体重（kg）')).toHaveValue(69.8)
+    expect(screen.getByRole('button', { name: pastDate + ' の記録を削除' })).toBeInTheDocument()
+    // A day without one keeps the typed values and saves them to that day.
+    fireEvent.change(date, { target: { value: '2026-01-02' } })
+    const weight = screen.getByLabelText('体重（kg）')
+    await userEvent.clear(weight)
+    await userEvent.type(weight, '71')
+    await userEvent.click(screen.getByRole('button', { name: '記録する' }))
+    await waitFor(() => expect(saveBodyComposition).toHaveBeenCalledWith('u1', { date: '2026-01-02', bodyweightKg: 71, bodyFatPct: 16 }))
+  })
+
   it('dismisses a past entry without saving and opens today from the floating action', async () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
     await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
     await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
     await openToday()
-    expect(screen.getByRole('dialog')).toHaveTextContent('今日の記録')
+    expect(screen.getByRole('dialog')).toHaveTextContent('（今日）')
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('今日の記録')
     expect(screen.getByLabelText('体重（kg）')).toHaveFocus()
     expect(saveBodyComposition).not.toHaveBeenCalled()
     await userEvent.tab()
@@ -283,7 +304,7 @@ it('removes the record list; past days are reached from the chart', async () => 
   expect(screen.getByText('グラフをタップすると、その日の記録を修正・削除できます。')).toBeVisible()
   await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
   const form = screen.getByRole('dialog')
-  expect(within(form).getByRole('heading')).toHaveTextContent(pastDate.slice(5).replace('-', '/') + 'の記録')
+  expect(within(form).getByRole('heading')).toHaveTextContent(pastDate.replaceAll('-', '/'))
   expect(screen.getByLabelText('体重（kg）')).toHaveValue(70)
   await userEvent.click(within(form).getByRole('button', { name: pastDate + ' の記録を削除' }))
   await userEvent.click(within(form).getByRole('button', { name: 'やめる' }))
