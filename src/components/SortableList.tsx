@@ -2,9 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 type Item = { id: string; label: string }
 type Drag = { id: string; y: number; index: number; active: boolean; moved: boolean }
-export function SortableList({ items, onReorder, disabled = false, renderItem, className = '' }: {
+export function SortableList({ items, onReorder, disabled = false, renderItem, className = '', compact = false }: {
   items: Item[]; onReorder: (ids: string[]) => void; disabled?: boolean
   renderItem: (item: Item, handle: ReactNode) => ReactNode; className?: string
+  /** 細い行の一覧では、つまみを44pxにして行を押し広げない */
+  compact?: boolean
 }) {
   const root = useRef<HTMLDivElement>(null)
   const drag = useRef<Drag | null>(null)
@@ -56,7 +58,7 @@ export function SortableList({ items, onReorder, disabled = false, renderItem, c
       {renderItem(item, <button type="button" disabled={disabled || items.length < 2}
         aria-label={item.label + 'を長押しして並び替え'} aria-pressed={preview?.id === item.id}
         title="長押ししてドラッグ。キーボードでは上下キー。"
-        className="flex min-h-14 min-w-14 touch-none select-none items-center justify-center text-xl text-muted disabled:opacity-25"
+        className={`flex ${compact ? 'min-h-11 min-w-11' : 'min-h-14 min-w-14'} touch-none select-none items-center justify-center text-xl text-muted disabled:opacity-25`}
         // Override the app's unlayered touch-action: manipulation button rule.
         style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
         onContextMenu={(e) => e.preventDefault()}
