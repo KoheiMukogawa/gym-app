@@ -508,7 +508,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     return () => document.removeEventListener('visibilitychange', hide)
   }, [])
 
-  // メニューやプロフィールでダイヤルに戻されたときも、一覧の行を保存してから外す
+  // プロフィールでダイヤルに戻されたときも、一覧の行を保存してから外す
   useEffect(() => {
     if (mode !== 'dial' || !listRows) return
     void flushRef.current(true).then((total) => { if (total !== null) setListRowsState(null) })
@@ -671,7 +671,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
 
   // 一覧入力を公開した後に登録した人には、最初に入力方法を選んでもらう
   const modeSheet = shouldAskInputMode(profile?.created_at, chosen) && <BottomSheet title="記録の入れ方を選んでください"
-    description="あとからメニューやプロフィールで変えられます" dismissible={false} onDismiss={() => {}}>
+    description="あとからプロフィールの「アプリ設定」で変えられます" dismissible={false} onDismiss={() => {}}>
     <div className="space-y-3 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
       {MODES.map(([value, label, description]) => <button key={value} type="button" data-button-key={`choose-${value}-mode`}
         onClick={() => setMode(value)}

@@ -39,7 +39,7 @@ export function shouldAskInputMode(registeredAt: string | null | undefined, chos
   return Date.parse(registeredAt) > Date.parse(LIST_MODE_RELEASED_AT)
 }
 
-/** 入力方法の設定。記録画面・メニュー・プロフィールのどこで変えても、ほかの画面にすぐ伝わる。 */
+/** 入力方法の設定。プロフィールで変えると、開いている記録画面にもすぐ伝わる。 */
 export function useLogInputMode(userId: string | null): { mode: LogInputMode; chosen: boolean; setMode: (mode: LogInputMode) => void } {
   const [stored, setStored] = useState<LogInputMode | null>(() => (userId ? loadInputMode(userId) : null))
   useEffect(() => {
