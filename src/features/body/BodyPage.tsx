@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { MonthCalendar } from '../history/MonthCalendar'
 import { Button } from '../../components/ui/Button'
 import { BottomSheet } from '../../components/ui/BottomSheet'
 import { FloatingRecordAction } from '../../components/ui/FloatingRecordAction'
@@ -40,6 +41,8 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   const [attempt, setAttempt] = useState(0)
   const [confirming, setConfirming] = useState(false)
   const [healthBusy, setHealthBusy] = useState(false)
+  // 入力シートの日付の横のカレンダー。開いている月（YYYY-MM）
+  const [calendarMonth, setCalendarMonth] = useState<string | null>(null)
   const weightInput = useRef<HTMLInputElement>(null)
   const entryTrigger = useRef<HTMLButtonElement>(null)
 
@@ -144,6 +147,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     setError(null)
     setNotice(null)
     setConfirming(false)
+    setCalendarMonth(null)
     setEntryOpen(true)
   }
   const onSelectDay = useCallback((date: string) => selectDay.current(date), [])
@@ -159,6 +163,20 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     }
     setError(null)
     setConfirming(false)
+    setCalendarMonth(null)
+  }
+
+  function toggleCalendar() {
+    setCalendarMonth((open) => (open ? null : target.slice(0, 7)))
+  }
+
+  function moveCalendar(step: -1 | 1) {
+    setCalendarMonth((open) => {
+      if (!open) return open
+      const [y, m] = open.split('-').map(Number)
+      const next = new Date(y, m - 1 + step, 1)
+      return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
+    })
   }
 
   function openTodayEntry() {
@@ -168,6 +186,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     setError(null)
     setNotice(null)
     setConfirming(false)
+    setCalendarMonth(null)
     setEntryOpen(true)
   }
 
@@ -234,10 +253,26 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       <p role="alert" className="text-sm text-accent">{loadError}</p>
       <Button variant="ghost" onClick={() => setAttempt((n) => n + 1)}>再試行</Button>
     </div>}
-    {entryOpen ? <BottomSheet title={<EntryDate date={target} today={today} disabled={locked} onChange={changeDate} />}
+    {entryOpen ? <BottomSheet title={<EntryDate date={target} open={calendarMonth !== null} disabled={locked} onToggle={toggleCalendar} />}
       initialFocusRef={weightInput} dismissible={!busy && deleting === null} onDismiss={dismissEntry}>
       <form aria-label="記録の入力" noValidate onSubmit={(event) => { event.preventDefault(); void save() }} className="flex min-h-0 flex-col">
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-5 pb-4">
+          {calendarMonth && <section aria-label="日付を選ぶ" className="rounded-2xl border border-border bg-bg p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <button type="button" aria-label="前の月" onClick={() => moveCalendar(-1)}
+                className="flex h-11 w-11 items-center justify-center rounded-full text-muted active:bg-border">
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 6-6 6 6 6" /></svg>
+              </button>
+              <p className="text-sm font-semibold tabular-nums">{Number(calendarMonth.slice(0, 4))}年{Number(calendarMonth.slice(5))}月</p>
+              <button type="button" aria-label="次の月" disabled={calendarMonth >= today.slice(0, 7)} onClick={() => moveCalendar(1)}
+                className="flex h-11 w-11 items-center justify-center rounded-full text-muted active:bg-border disabled:opacity-30">
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+              </button>
+            </div>
+            <MonthCalendar year={Number(calendarMonth.slice(0, 4))} month={Number(calendarMonth.slice(5))}
+              activeDates={logs.map((l) => l.recorded_on)} activeLabel="記録あり" selectedDate={target} maxDate={today}
+              onSelect={(date) => { if (!locked) changeDate(date) }} />
+          </section>}
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-2 text-sm text-muted">体重（kg）
               <input ref={weightInput} type="number" inputMode="decimal" min="20" max="300" step="0.1" value={weight} disabled={locked}
@@ -269,15 +304,16 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   </div>
 }
 
-/** 入力シートの見出し。日付を押すとネイティブの日付選択が開き、過去の日も同じシートで入力できる */
-function EntryDate({ date, today, disabled, onChange }: { date: string; today: string; disabled: boolean; onChange: (date: string) => void }) {
-  return <span className="relative inline-flex items-center gap-1.5 tabular-nums">
-    {date.replaceAll('-', '/')}{date === today && <span className="text-sm font-normal text-muted">（今日）</span>}
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-muted" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-    {/* 見た目は日付の文字のまま、透明なネイティブの日付選択を重ねる（DateField と同じ方法） */}
-    <input type="date" aria-label="記録する日" lang="ja-JP" value={date} max={today} disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-      className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0" />
+/** 入力シートの見出し。日付の横のカレンダーマークで、過去の日を選ぶカレンダーを開く */
+function EntryDate({ date, open, disabled, onToggle }: { date: string; open: boolean; disabled: boolean; onToggle: () => void }) {
+  return <span className="inline-flex items-center gap-2 tabular-nums">
+    {date.replaceAll('-', '/')}
+    <button type="button" aria-label={open ? 'カレンダーを閉じる' : 'カレンダーで日付を選ぶ'} aria-expanded={open} disabled={disabled} onClick={onToggle}
+      className={`flex h-11 w-11 items-center justify-center rounded-full disabled:opacity-40 ${open ? 'bg-accent/15 text-accent' : 'text-muted active:bg-border'}`}>
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" />
+      </svg>
+    </button>
   </span>
 }
 

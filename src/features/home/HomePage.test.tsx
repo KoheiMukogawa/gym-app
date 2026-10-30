@@ -94,19 +94,43 @@ describe('Big3Column', () => {
     exercise_id, weight_kg: [150, 100, 180][i], reps: 1, performed_at: new Date().toISOString(),
   }))
   const goal = { id: 'g', user_id: 'u1', label: 'Big3目標', target_date: '2027-01-01', target_total_kg: 500, created_at: '' }
-  const widths = () => [...document.querySelectorAll<HTMLElement>('[aria-hidden="true"] > div')].map((bar) => bar.style.width)
+  const bars = () => [...document.querySelectorAll<HTMLElement>('[aria-hidden="true"].relative')]
+  const fill = (bar: HTMLElement) => (bar.firstElementChild as HTMLElement).style.width
 
-  it('fills each lift bar toward its own goal when one is set', () => {
+  it('fills each lift bar toward its own goal and marks the part beyond it', () => {
     render(<MemoryRouter><Big3Column snapshot={buildStrengthSnapshot([...EXERCISES], [], rows)}
-      goal={{ ...goal, target_squat_kg: 200, target_bench_kg: null, target_deadlift_kg: 180 }} /></MemoryRouter>)
-    // total bar 430/500, squat 150/200, bench scaled to the heaviest lift (100/180), deadlift reached its goal.
-    expect(widths()).toEqual(['86%', '75%', `${(100 / 180) * 100}%`, '100%'])
-    expect(screen.getByText('目標 200 kg')).toBeInTheDocument()
-    expect(screen.getByText('目標 180 kg')).toBeInTheDocument()
+      goal={{ ...goal, target_squat_kg: 200, target_bench_kg: null, target_deadlift_kg: 160 }} /></MemoryRouter>)
+    const [total, squat, bench, deadlift] = bars()
+    // total 430/500 and squat 150/200 have not reached their goals: no goal line or extra part.
+    expect(fill(total)).toBe('86%')
+    expect(fill(squat)).toBe('75%')
+    expect(squat.querySelector('[data-over]')).toBeNull()
+    // bench has no goal, so it is compared with the heaviest lift.
+    expect(fill(bench)).toBe(`${(100 / 180) * 100}%`)
+    // deadlift 180 passed its 160 goal: the bar ends at the record, with a line at the goal and a gold extra part.
+    expect(fill(deadlift)).toBe(`${(160 / 180) * 100}%`)
+    expect((deadlift.querySelector('[data-over]') as HTMLElement).style.width).toBe(`${(20 / 180) * 100}%`)
+    expect((deadlift.querySelector('[data-goal-line]') as HTMLElement).style.left).toMatch(/^calc\(88\.88\d*% - 1px\)$/)
+    // Goal numbers are not written on home.
+    expect(screen.queryByText(/目標/)).toBeNull()
+  })
+
+  it('measures from the start recorded with the goal, so small gains still move the gauge', () => {
+    render(<MemoryRouter><Big3Column snapshot={buildStrengthSnapshot([...EXERCISES], [], rows)}
+      goal={{ ...goal, start_total_kg: 400, target_squat_kg: 160, start_squat_kg: 140, target_bench_kg: 110, start_bench_kg: 120, target_deadlift_kg: 200, start_deadlift_kg: 170 }} /></MemoryRouter>)
+    const [total, squat, bench, deadlift] = bars()
+    // total 430 between start 400 and goal 500 is 30%, not 86%.
+    expect(fill(total)).toBe('30%')
+    // squat 150 is half way from its start 140 to its goal 160.
+    expect(fill(squat)).toBe('50%')
+    // a start above the goal is ignored, so bench measures from zero: 100 of 110.
+    expect(fill(bench)).toBe(`${(100 / 110) * 100}%`)
+    // deadlift 180 between 170 and 200 is a third.
+    expect(parseFloat(fill(deadlift))).toBeCloseTo(100 / 3, 5)
   })
 
   it('keeps comparing the lifts with each other without lift goals', () => {
     render(<MemoryRouter><Big3Column snapshot={buildStrengthSnapshot([...EXERCISES], [], rows)} goal={goal} /></MemoryRouter>)
-    expect(widths().slice(1)).toEqual([`${(150 / 180) * 100}%`, `${(100 / 180) * 100}%`, '100%'])
+    expect(bars().slice(1).map(fill)).toEqual([`${(150 / 180) * 100}%`, `${(100 / 180) * 100}%`, '100%'])
   })
 })

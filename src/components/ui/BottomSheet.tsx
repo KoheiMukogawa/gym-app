@@ -8,10 +8,12 @@ type Props = {
   onDismiss: () => void
   dismissible?: boolean
   initialFocusRef?: RefObject<HTMLElement | null>
+  /** 右上の×の読み上げ名。入力のないお知らせなどでは「閉じる」 */
+  closeLabel?: string
 }
 
 /** The native modal dialog traps focus and keeps the underlying page inert. */
-export function BottomSheet({ title, description, children, onDismiss, dismissible = true, initialFocusRef }: Props) {
+export function BottomSheet({ title, description, children, onDismiss, dismissible = true, initialFocusRef, closeLabel = '入力を閉じる' }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   const descriptionId = useId()
@@ -65,7 +67,7 @@ export function BottomSheet({ title, description, children, onDismiss, dismissib
         <h2 id={titleId} className="text-xl font-semibold">{title}</h2>
         {description && <p id={descriptionId} className="mt-1 text-sm text-muted tabular-nums">{description}</p>}
       </div>
-      <button type="button" aria-label="入力を閉じる" disabled={!dismissible} onClick={onDismiss}
+      <button type="button" aria-label={closeLabel} disabled={!dismissible} onClick={onDismiss}
         className="flex min-h-14 min-w-14 items-center justify-center rounded-full text-muted active:bg-border disabled:opacity-40">
         <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
           <path d="m6 6 12 12M6 18 18 6" />

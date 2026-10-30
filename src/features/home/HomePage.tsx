@@ -20,41 +20,55 @@ import { InstallCard } from '../install/InstallCard'
 
 // BIG3画面のリングと同じ濃淡で、スクワット→ベンチ→デッドを見分けられるようにする
 const LIFTS = [
-  { key: 'squat', label: 'スクワット', opacity: 1, goal: 'target_squat_kg' },
-  { key: 'bench', label: 'ベンチプレス', opacity: 0.68, goal: 'target_bench_kg' },
-  { key: 'deadlift', label: 'デッドリフト', opacity: 0.4, goal: 'target_deadlift_kg' },
+  { key: 'squat', label: 'スクワット', opacity: 1, goal: 'target_squat_kg', start: 'start_squat_kg' },
+  { key: 'bench', label: 'ベンチプレス', opacity: 0.68, goal: 'target_bench_kg', start: 'start_bench_kg' },
+  { key: 'deadlift', label: 'デッドリフト', opacity: 0.4, goal: 'target_deadlift_kg', start: 'start_deadlift_kg' },
 ] as const
 const kg = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1))
+
+/**
+ * 目標までの棒。目標を決めた時点の記録（start）があれば、そこを左端にして「スタート→目標」で測る
+ * （BIG3は伸び幅が小さく、0から測るといつも満タン近くになるため）。目標を超えたら、目標の位置に
+ * 区切り線を入れ、超えた分を金色で足す（右端は目標と記録の大きい方）。目標がなければ scale を基準にした長さ。
+ */
+function GoalBar({ value, goal, start = null, scale, opacity = 1, className }: {
+  value: number | null; goal: number | null; start?: number | null; scale: number; opacity?: number; className: string
+}) {
+  const current = value ?? 0
+  const base = goal !== null && start !== null && start < goal ? start : 0
+  const end = goal === null ? scale : Math.max(goal, current)
+  const span = Math.max(end - base, 1e-9)
+  const reached = Math.max(0, (goal === null ? current : Math.min(current, goal)) - base)
+  const over = goal === null ? 0 : Math.max(0, current - goal)
+  return <div className={`relative flex overflow-hidden rounded-full bg-border ${className}`} aria-hidden="true">
+    <div className="h-full bg-accent" style={{ width: `${(reached / span) * 100}%`, opacity }} />
+    {over > 0 && <div data-over="" className="h-full bg-amber-400" style={{ width: `${(over / span) * 100}%` }} />}
+    {goal !== null && over > 0 && <div data-goal-line="" className="absolute inset-y-0 w-0.5 bg-fg" style={{ left: `calc(${((goal - base) / span) * 100}% - 1px)` }} />}
+  </div>
+}
 
 /** Right-hand column next to the calendar: the BIG3 total and each lift as a bar. */
 export function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goal: StrengthGoal | null }) {
   const values = LIFTS.map(({ key }) => snapshot.lifts[key].allTimeE1rm)
   const total = strengthTotal(values)
-  const ratio = total !== null && goal ? Math.min(1, total / goal.target_total_kg) : null
   // 種目別の目標があればその目標までの進み具合、なければ3種目の中で一番重い種目を基準にした長さ
   const scale = Math.max(1, ...values.map((v) => v ?? 0))
-  const liftGoals = LIFTS.map((lift) => goal?.[lift.goal] ?? null)
+  const num = (value: number | null | undefined) => (value == null ? null : Number(value))
+  const liftGoals = LIFTS.map((lift) => num(goal?.[lift.goal]))
+  const liftStarts = LIFTS.map((lift) => num(goal?.[lift.start]))
   return <Link to="/big3" aria-label="BIG3の詳細へ" className="block rounded-xl border border-border p-3">
     <p className="text-[11px] text-muted">合計</p>
     <p className="text-2xl font-semibold leading-tight tabular-nums">
       {total === null ? '—' : kg(total)}<span className="ml-0.5 text-xs font-normal text-muted">kg</span>
     </p>
-    {ratio !== null && goal && <>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border" aria-hidden="true">
-        <div className="h-full rounded-full bg-accent" style={{ width: `${ratio * 100}%` }} />
-      </div>
-      <p className="mt-0.5 text-[10px] text-muted">目標 {kg(goal.target_total_kg)} kg</p>
-    </>}
+    {total !== null && goal && <GoalBar value={total} goal={Number(goal.target_total_kg)} start={num(goal.start_total_kg)} scale={1} className="mt-1 h-1.5" />}
     <div className="mt-2 space-y-1.5 border-t border-border pt-2">
       {LIFTS.map((lift, i) => <div key={lift.key}>
         <div className="flex items-baseline justify-between gap-1">
           <span className="text-[10px] text-muted">{lift.label}</span>
           <span className="text-sm font-semibold tabular-nums">{values[i] === null ? '—' : kg(values[i]!)}</span>
         </div>
-        <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-border" aria-hidden="true">
-          <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(1, (values[i] ?? 0) / (liftGoals[i] ?? scale)) * 100}%`, opacity: lift.opacity }} />
-        </div>
-        {liftGoals[i] !== null && <p className="mt-0.5 text-[10px] text-muted">目標 {kg(Number(liftGoals[i]))} kg</p>}
+        <GoalBar value={values[i]} goal={liftGoals[i]} start={liftStarts[i]} scale={scale} opacity={lift.opacity} className="mt-0.5 h-1" />
       </div>)}
     </div>
   </Link>

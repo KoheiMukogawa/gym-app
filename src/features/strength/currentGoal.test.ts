@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { currentGoal, saveCurrentGoal } from './currentGoal'
+import { currentGoal, goalStarts, saveCurrentGoal } from './currentGoal'
 const api = vi.hoisted(() => ({ from: vi.fn(), upsert: vi.fn(), select: vi.fn(), single: vi.fn() }))
 vi.mock('../../lib/supabase', () => ({ supabase: { from: api.from } }))
 const goal = { id: 'existing', user_id: 'u1', label: '年内', target_date: '2026-12-31', target_total_kg: 500, created_at: '2026-01-01' }
@@ -17,7 +17,25 @@ it('keeps one deterministic latest legacy goal', () => {
 it('updates the existing goal ID instead of inserting another', async () => {
   await saveCurrentGoal({ userId: 'u1', existing: goal, targetDate: '2027-01-01', targetTotalKg: 550 })
   expect(api.upsert).toHaveBeenCalledWith({ id: 'existing', user_id: 'u1', label: '年内', target_date: '2027-01-01', target_total_kg: 550,
-    target_squat_kg: null, target_bench_kg: null, target_deadlift_kg: null }, { onConflict: 'id' })
+    target_squat_kg: null, target_bench_kg: null, target_deadlift_kg: null,
+    start_total_kg: null, start_squat_kg: null, start_bench_kg: null, start_deadlift_kg: null }, { onConflict: 'id' })
+})
+it('saves the start values with the goal', async () => {
+  await saveCurrentGoal({ userId: 'u1', existing: goal, targetDate: '2027-01-01', targetTotalKg: 550,
+    liftTargets: { squat: 200, bench: 140, deadlift: 210 }, starts: { total: 470.4, squat: 180, bench: 100.2, deadlift: null } })
+  expect(api.upsert.mock.calls[0][0]).toMatchObject({ start_total_kg: 470.4, start_squat_kg: 180, start_bench_kg: 100.2, start_deadlift_kg: null })
+})
+it('takes new starts for changed targets and keeps them when only the deadline changes', () => {
+  const now = { total: 480.04, squat: 185, bench: 103, deadlift: 192 }
+  const targets = { total: 550, squat: 200, bench: 140, deadlift: 210 }
+  // A first goal starts from today's records (rounded to one decimal).
+  expect(goalStarts(null, targets, now)).toEqual({ total: 480, squat: 185, bench: 103, deadlift: 192 })
+  // Unchanged targets keep their old start; a changed bench target restarts from today.
+  const saved = { ...goal, target_total_kg: 550, target_squat_kg: 200, target_bench_kg: 130, target_deadlift_kg: 210,
+    start_total_kg: 450, start_squat_kg: 170, start_bench_kg: 95, start_deadlift_kg: null }
+  expect(goalStarts(saved, targets, now)).toEqual({ total: 450, squat: 170, bench: 103, deadlift: 192 })
+  // Without a record there is no start, so the gauge measures from zero.
+  expect(goalStarts(null, targets, { total: null, squat: null, bench: 0, deadlift: 192 })).toEqual({ total: null, squat: null, bench: null, deadlift: 192 })
 })
 it('saves the optional per-lift goals', async () => {
   await saveCurrentGoal({ userId: 'u1', existing: goal, targetDate: '2027-01-01', targetTotalKg: 550, liftTargets: { squat: 200, bench: 140.5, deadlift: null } })

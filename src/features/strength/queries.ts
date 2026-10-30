@@ -64,6 +64,11 @@ export type StrengthGoal = {
   target_squat_kg?: number | null
   target_bench_kg?: number | null
   target_deadlift_kg?: number | null
+  /** 目標を決めた時点の推定1RM。ホームのゲージを「スタート→目標」で測る */
+  start_total_kg?: number | null
+  start_squat_kg?: number | null
+  start_bench_kg?: number | null
+  start_deadlift_kg?: number | null
   created_at: string
 }
 

@@ -33,7 +33,7 @@ export function FeedbackReplyGate({ unseen }: { unseen: MyFeedback[] }) {
     try { if (userId) localStorage.setItem(shownKey(userId), latest) } catch { /* shown again next launch */ }
     if (to) navigate(to)
   }
-  return <BottomSheet title="ご意見への返信" description="送っていただいた意見に、運営から返信がありました。" onDismiss={() => close()}>
+  return <BottomSheet title="ご意見への返信" description="送っていただいた意見に、運営から返信がありました。" closeLabel="閉じる" onDismiss={() => close()}>
     <div className="space-y-4 overflow-y-auto px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
       <ul className="space-y-3">{fresh.map((item) => <li key={item.id} className="space-y-2 rounded-xl border border-border bg-surface p-4 text-sm">
         <p className="line-clamp-2 whitespace-pre-wrap break-words text-muted">{item.body}</p>
@@ -41,7 +41,6 @@ export function FeedbackReplyGate({ unseen }: { unseen: MyFeedback[] }) {
         {item.reply && <p className="whitespace-pre-wrap break-words leading-relaxed">{item.reply}</p>}
       </li>)}</ul>
       <Button onClick={() => close('/feedback')}>ご意見の画面で見る</Button>
-      <Button variant="ghost" onClick={() => close()}>閉じる</Button>
     </div>
   </BottomSheet>
 }

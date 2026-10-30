@@ -9,9 +9,11 @@ type Props = {
   maxDate?: string
   /** ホーム用の小さい表示 */
   compact?: boolean
+  /** 塗った日の読み上げ（体組成では「記録あり」） */
+  activeLabel?: string
 }
 
-export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect, maxDate, compact = false }: Props) {
+export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect, maxDate, compact = false, activeLabel = 'トレーニングあり' }: Props) {
   // ホームでは小さな丸いマスにする（トレーニングした日は塗りつぶし）
   const cell = compact ? 'aspect-square text-[11px] rounded-full' : 'aspect-square text-sm rounded-lg'
   const selectedRing = compact ? 'ring-1 ring-fg' : 'ring-2 ring-accent ring-offset-2 ring-offset-bg'
@@ -38,14 +40,14 @@ export function MonthCalendar({ year, month, activeDates, selectedDate, onSelect
           const key = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
           const isActive = active.has(key)
           if (onSelect) return <button key={key} type="button"
-            aria-label={`${month}月${day}日${isActive ? ' トレーニングあり' : ''}`}
+            aria-label={`${month}月${day}日${isActive ? ` ${activeLabel}` : ''}`}
             aria-pressed={selectedDate === key} disabled={!!maxDate && key > maxDate}
             onClick={() => onSelect(key)}
             className={`flex ${cell} items-center justify-center tabular-nums disabled:opacity-30 ${selectedDate === key ? selectedRing : ''} ${isActive ? 'bg-accent font-semibold text-white' : 'text-muted'}`}>{day}</button>
           return (
             <span
               key={key}
-              aria-label={isActive ? `${month}月${day}日 トレーニングあり` : undefined}
+              aria-label={isActive ? `${month}月${day}日 ${activeLabel}` : undefined}
               className={`flex ${cell} items-center justify-center tabular-nums ${
                 isActive ? 'bg-accent font-semibold text-white' : 'text-muted'
               }`}

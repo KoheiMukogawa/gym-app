@@ -7,12 +7,18 @@ insert into auth.users(id, email, raw_user_meta_data) values
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'c0000000-0000-4000-8000-00000000000a', true);
 -- The owner stores per-lift goals next to the total; they stay optional.
-insert into public.strength_goals(id, user_id, label, target_date, target_total_kg, target_squat_kg, target_bench_kg, target_deadlift_kg)
- values ('c0000000-0000-4000-8000-00000000000a', 'c0000000-0000-4000-8000-00000000000a', 'Big3目標', '2027-01-01', 500, 180, 120.5, null);
+insert into public.strength_goals(id, user_id, label, target_date, target_total_kg, target_squat_kg, target_bench_kg, target_deadlift_kg,
+  start_total_kg, start_squat_kg, start_bench_kg, start_deadlift_kg)
+ values ('c0000000-0000-4000-8000-00000000000a', 'c0000000-0000-4000-8000-00000000000a', 'Big3目標', '2027-01-01', 500, 180, 120.5, null,
+  450.2, 160, 110.5, null);
 do $$ begin
   begin
     update public.strength_goals set target_bench_kg = 0 where id = 'c0000000-0000-4000-8000-00000000000a';
     raise exception 'zero lift goal accepted';
+  exception when check_violation then null; end;
+  begin
+    update public.strength_goals set start_squat_kg = -1 where id = 'c0000000-0000-4000-8000-00000000000a';
+    raise exception 'negative start accepted';
   exception when check_violation then null; end;
 end $$;
 
@@ -29,5 +35,7 @@ do $$ begin
     raise exception 'other user changed a goal'; end if;
   if (select target_deadlift_kg from public.strength_goals where id = 'c0000000-0000-4000-8000-00000000000a') is not null then
     raise exception 'optional lift goal not null'; end if;
+  if (select start_bench_kg from public.strength_goals where id = 'c0000000-0000-4000-8000-00000000000a') <> 110.5 then
+    raise exception 'start value not stored'; end if;
 end $$;
 rollback;

@@ -38,7 +38,7 @@ Object.defineProperties(HTMLDialogElement.prototype, {
 const openToday = async () => {
   await waitFor(() => expect(screen.getByRole('button', { name: '体重を記録' })).toBeEnabled())
   await userEvent.click(screen.getByRole('button', { name: '体重を記録' }))
-  await screen.findByRole('dialog', { name: /（今日）/ })
+  await screen.findByRole('dialog', { name: new RegExp('^' + today.replaceAll('-', '/')) })
 }
 const renderPage = async () => {
   render(<MemoryRouter><BodyPage /></MemoryRouter>)
@@ -123,27 +123,39 @@ describe('BodyPage', () => {
     await waitFor(() => expect(saveBodyComposition).toHaveBeenCalledWith('u1', { date: pastDate, bodyweightKg: 69.5, bodyFatPct: 16 }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await openToday()
-    expect(screen.getByRole('dialog')).toHaveTextContent('今日')
+    expect(screen.getByRole('dialog')).toHaveTextContent(today.replaceAll('-', '/'))
   })
 
-  it('enters a past day by changing the date in the sheet title', async () => {
+  it('enters a past day by picking it on the calendar in the sheet title', async () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
     await openToday()
-    const date = screen.getByLabelText('記録する日')
-    expect(date).toHaveAttribute('max', new Date().toLocaleDateString('sv-SE'))
-    // A day with a record loads its values for correction.
-    fireEvent.change(date, { target: { value: pastDate } })
-    expect(within(screen.getByRole('dialog')).getByRole('heading')).toHaveTextContent(pastDate.replaceAll('-', '/'))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).not.toHaveTextContent('（今日）')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'カレンダーで日付を選ぶ' }))
+    const calendar = within(dialog).getByRole('region', { name: '日付を選ぶ' })
+    // The current month is shown, and the future cannot be reached.
+    expect(within(calendar).getByRole('button', { name: '次の月' })).toBeDisabled()
+    const [, pm, pd] = pastDate.split('-').map(Number)
+    if (pastDate.slice(0, 7) !== today.slice(0, 7)) await userEvent.click(within(calendar).getByRole('button', { name: '前の月' }))
+    // A day with a record is marked; picking it loads its values for correction and closes the calendar.
+    await userEvent.click(within(calendar).getByRole('button', { name: `${pm}月${pd}日 記録あり` }))
+    expect(within(dialog).getByRole('heading')).toHaveTextContent(pastDate.replaceAll('-', '/'))
+    expect(within(dialog).queryByRole('region', { name: '日付を選ぶ' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('体重（kg）')).toHaveValue(69.8)
     expect(screen.getByRole('button', { name: pastDate + ' の記録を削除' })).toBeInTheDocument()
     // A day without one keeps the typed values and saves them to that day.
-    fireEvent.change(date, { target: { value: '2026-01-02' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'カレンダーで日付を選ぶ' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: '前の月' }))
+    const shown = new Date(pastDate.slice(0, 7) + '-15T12:00:00')
+    shown.setMonth(shown.getMonth() - 1)
+    const target = `${shown.toLocaleDateString('sv-SE').slice(0, 7)}-02`
+    await userEvent.click(within(dialog).getByRole('button', { name: `${shown.getMonth() + 1}月2日` }))
     const weight = screen.getByLabelText('体重（kg）')
     await userEvent.clear(weight)
     await userEvent.type(weight, '71')
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
-    await waitFor(() => expect(saveBodyComposition).toHaveBeenCalledWith('u1', { date: '2026-01-02', bodyweightKg: 71, bodyFatPct: 16 }))
+    await waitFor(() => expect(saveBodyComposition).toHaveBeenCalledWith('u1', { date: target, bodyweightKg: 71, bodyFatPct: 16 }))
   })
 
   it('dismisses a past entry without saving and opens today from the floating action', async () => {
@@ -152,7 +164,7 @@ describe('BodyPage', () => {
     await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
     await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
     await openToday()
-    expect(screen.getByRole('dialog')).toHaveTextContent('（今日）')
+    expect(screen.getByRole('dialog')).toHaveTextContent(today.replaceAll('-', '/'))
     expect(screen.getByRole('dialog')).not.toHaveTextContent('今日の記録')
     expect(screen.getByLabelText('体重（kg）')).toHaveFocus()
     expect(saveBodyComposition).not.toHaveBeenCalled()
@@ -194,7 +206,7 @@ describe('BodyPage', () => {
     await openToday()
     expect(screen.getByLabelText('体重（kg）')).toHaveValue(71)
     expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(17)
-    expect(screen.getByRole('dialog')).toHaveTextContent('今日')
+    expect(screen.getByRole('dialog')).toHaveTextContent(today.replaceAll('-', '/'))
   })
 
   it('includes preceding records in the seven-day average at the period boundary', async () => {

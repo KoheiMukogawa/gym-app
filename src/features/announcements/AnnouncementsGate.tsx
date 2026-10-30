@@ -34,14 +34,13 @@ export function AnnouncementsGate({ items = ANNOUNCEMENTS }: { items?: Announcem
     void markAnnouncementsSeen().catch(() => undefined)
     if (to) navigate(to)
   }
-  return <BottomSheet title="新しい機能" onDismiss={() => close()}>
+  return <BottomSheet title="新しい機能" closeLabel="閉じる" onDismiss={() => close()}>
     <div className="space-y-5 overflow-y-auto px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
       <ul className="space-y-4">{unread.map((a) => <li key={a.id} className="space-y-2 rounded-xl border border-border bg-surface p-4">
         <h3 className="font-semibold">{a.title}</h3>
         <p className="text-sm leading-relaxed text-muted">{a.body}</p>
         {a.link && <Button onClick={() => close(a.link!.to)}>{a.link.label}</Button>}
       </li>)}</ul>
-      <Button variant="ghost" onClick={() => close()}>閉じる</Button>
     </div>
   </BottomSheet>
 }
