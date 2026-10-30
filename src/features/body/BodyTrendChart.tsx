@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useMemo, useRef, useState } from 'react'
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { CombinedPoint } from '../../lib/bodyComposition'
 
@@ -16,12 +16,13 @@ const oneDecimal = (value: number) => String(Math.round(value * 10) / 10)
  * text so the two scales are never told apart by color alone.
  * Keep the long-history SVG stable while inputs or progressive list counts change.
  */
-export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, onSelectDay }: {
-  points: CombinedPoint[]; showYear: boolean; onSelectDay: (date: string) => void
+export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, onSelectDay, onEditDay }: {
+  points: CombinedPoint[]; showYear: boolean; onSelectDay: (date: string) => void; onEditDay: (date: string) => void
 }) {
   const hasFat = points.some((p) => p.fat !== null)
   const date = (d: string) => showYear ? d.replaceAll('-', '/') : d.slice(5).replace('-', '/')
   const box = useRef<HTMLDivElement>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const weightDays = useMemo(() => points.filter((p) => p.weight !== null).map((p) => p.date), [points])
   // Recharts reports the day its tooltip last activated, which can lag behind a quick tap.
   // Pick the weight dot nearest to the tap instead, and fall back to Recharts' label.
@@ -34,8 +35,8 @@ export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, o
         const d = Math.abs(bounds.left + bounds.width / 2 - clientX)
         if (d < distance) { distance = d; nearest = index }
       })
-      onSelectDay(weightDays[nearest])
-    } else if (activeLabel !== undefined) onSelectDay(String(activeLabel))
+      setSelectedDate(weightDays[nearest]); onSelectDay(weightDays[nearest])
+    } else if (activeLabel !== undefined) { setSelectedDate(String(activeLabel)); onSelectDay(String(activeLabel)) }
   }
   return <div ref={box} className="relative h-56 w-full">
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 flex justify-between text-[10px] text-muted">
@@ -52,7 +53,12 @@ export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, o
           <Tooltip contentStyle={{ background: '#17171A', border: '1px solid #2A2A2F', borderRadius: 12, color: '#F5F5F5', fontSize: 12, padding: '6px 10px' }}
             itemStyle={{ color: '#F5F5F5', padding: 0 }} labelFormatter={(d) => date(String(d))}
             itemSorter={(item) => SERIES_ORDER.indexOf(String(item.name))}
-            formatter={(v, name) => [`${v} ${String(name).startsWith('体重') ? 'kg' : '%'}`, name]} />
+            formatter={(v, name) => [`${v} ${String(name).startsWith('体重') ? 'kg' : '%'}`, name]}
+            content={({ active, label, payload }) => active && payload?.length ? <div className="rounded-xl border border-border bg-surface p-3 text-sm shadow-xl">
+              <p className="mb-2 font-semibold">{date(String(label))}</p>
+              <div className="space-y-1">{payload.map((item) => <p key={String(item.name)}>{String(item.name)}：{item.value} {String(item.name).startsWith('体重') ? 'kg' : '%'}</p>)}</div>
+              <button type="button" className="mt-3 min-h-11 w-full rounded-lg bg-accent px-3 font-semibold text-white" onClick={(event) => { event.stopPropagation(); onEditDay(String(label)) }}>この日の記録を編集</button>
+            </div> : null} />
           {/* Daily records are dots only; the 7-day averages are the two lines. */}
           <Line yAxisId="weight" name="体重" dataKey="weight" stroke="none" dot={{ r: 2.5, fill: WEIGHT, stroke: 'none' }}
             activeDot={{ r: 4, fill: WEIGHT, stroke: '#17171A', strokeWidth: 2 }} isAnimationActive={false} />
@@ -64,5 +70,7 @@ export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, o
             connectNulls isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
+      {selectedDate && <button type="button" className="absolute bottom-1 right-1 z-10 min-h-11 rounded-lg bg-surface px-3 text-xs font-semibold shadow"
+        onClick={() => onEditDay(selectedDate)}>{date(selectedDate)}を編集</button>}
   </div>
 })

@@ -5,10 +5,11 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { resolve } from 'node:path'
 import { createServer } from 'vite'
 
-// The app sees an iPhone 16 Pro viewport (402x874). The body adds about 15pt of bezel,
-// as on the real phone (71.5mm wide, 66.6mm screen). Chrome zooms everything to 80%,
-// so the phone fits a laptop screen at about real size.
+// The simulated screen is the iPhone 16 Pro's 402x874 logical resolution. The app gets
+// the usable area below the 59pt status bar. The body adds about 15pt of bezel, and Chrome
+// zooms everything to 80% so it fits a laptop screen.
 const VIEWPORT = { width: 402, height: 874 }
+const STATUS_BAR = 59
 const BEZEL = 15
 const MARGIN = 12
 const SCALE = 0.8
@@ -86,20 +87,69 @@ function frameHtml() {
     background: #000;
     box-shadow: inset 0 0 0 3px #77767a, inset 0 0 0 4px #2b2b2e, 0 16px 40px rgba(0, 0, 0, .45);
   }
+  .screen {
+    width: ${VIEWPORT.width}px;
+    height: ${VIEWPORT.height}px;
+    overflow: hidden;
+    border-radius: 55px;
+    background: #0a0a0b;
+    color: #f7f7f8;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  }
+  .status-bar {
+    position: relative;
+    display: flex;
+    height: ${STATUS_BAR}px;
+    box-sizing: border-box;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 17px 27px 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    letter-spacing: -0.2px;
+    user-select: none;
+  }
+  .dynamic-island {
+    position: absolute;
+    left: 50%;
+    top: 11px;
+    width: 104px;
+    height: 31px;
+    transform: translateX(-50%);
+    border-radius: 18px;
+    background: #000;
+  }
+  .status-icons { display: flex; height: 20px; align-items: center; gap: 7px; }
+  .status-icons svg { display: block; fill: currentColor; }
   iframe {
     display: block;
     width: ${VIEWPORT.width}px;
-    height: ${VIEWPORT.height}px;
+    height: ${VIEWPORT.height - STATUS_BAR}px;
     border: 0;
-    border-radius: 55px;
     background: #0a0a0b;
   }
 </style>
 </head>
 <body>
-<div class="phone"><iframe title="Glog"></iframe></div>
+<div class="phone"><div class="screen">
+  <div class="status-bar" aria-hidden="true">
+    <span id="status-time">9:41</span>
+    <span class="dynamic-island"></span>
+    <span class="status-icons">
+      <svg width="18" height="12" viewBox="0 0 18 12"><rect x="1" y="8" width="3" height="4" rx="1"/><rect x="5.5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="14.5" width="3" height="12" rx="1"/></svg>
+      <svg width="17" height="12" viewBox="0 0 17 12"><path d="M8.5 12a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8Zm4.3-4.1a6.1 6.1 0 0 0-8.6 0L5.8 9.5a3.8 3.8 0 0 1 5.4 0l1.6-1.6Zm3-3a10.3 10.3 0 0 0-14.6 0l1.6 1.6a8 8 0 0 1 11.4 0l1.6-1.6Z"/></svg>
+      <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".75" y=".75" width="22" height="11.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="2.5" y="2.5" width="18.5" height="8" rx="1.5"/><path d="M24 4.2c1.2.4 2 1.5 2 2.8s-.8 2.4-2 2.8V4.2Z"/></svg>
+    </span>
+  </div>
+  <iframe title="Glog"></iframe>
+</div></div>
 <script>
   const frame = document.querySelector('iframe')
+  const time = document.querySelector('#status-time')
+  const updateTime = () => { time.textContent = new Intl.DateTimeFormat('ja-JP', { hour: 'numeric', minute: '2-digit', hour12: false }).format(new Date()) }
+  updateTime()
+  setInterval(updateTime, 30000)
   frame.src = new URLSearchParams(location.search).get('path') || '/'
   setInterval(() => {
     let loc

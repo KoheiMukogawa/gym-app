@@ -1271,8 +1271,11 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   await expect(fatDots).toHaveCount(1)
   await expect(latest.getByLabel('体脂肪率 未記録')).toBeVisible()
   await inspectPoint(1, '70.8 kg')
-  // Tapping a day on the chart opens it in the form.
+  // Tapping only inspects the day; editing requires the explicit button.
   await tapPoint(0)
+  await expect(form).toHaveCount(0)
+  await expect(tooltip).toContainText('70 kg')
+  await page.getByRole('button', { name: `${past.slice(5).replace('-', '/')}の記録を編集` }).click()
   await expect(form.getByRole('heading')).toContainText(past.replaceAll('-', '/'))
   await expect(page.getByLabel('体重（kg）')).toHaveValue('70')
   await page.getByLabel('体重（kg）').fill('71')
@@ -1291,6 +1294,7 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   await expect(weightDots).toHaveCount(2)
   // Deleting asks once more before removing the day.
   await tapPoint(0)
+  await page.getByRole('button', { name: `${past.slice(5).replace('-', '/')}の記録を編集` }).click()
   await expect(form.getByRole('heading')).toContainText(past.replaceAll('-', '/'))
   await form.getByRole('button', { name: `${past} の記録を削除` }).click()
   expect(data.bodyweights.some((b) => b.recorded_on === past)).toBe(true)

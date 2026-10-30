@@ -19,7 +19,7 @@ vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) => children,
   LineChart: ({ data, onClick }: { data: { date: string; weight: number | null }[]; onClick?: (state: { activeLabel: string }) => void }) => <>
     <div data-testid="trend-points">{JSON.stringify(data)}</div>
-    {data.map((point) => <button key={point.date} type="button" aria-label={`${point.date} の記録を修正`}
+    {data.map((point) => <button key={point.date} type="button" aria-label={`${point.date} の記録を選択`}
       onClick={() => onClick?.({ activeLabel: point.date })}>{point.weight}</button>)}
   </>,
   Line: () => null, Tooltip: () => null, XAxis: () => null, YAxis: () => null,
@@ -109,10 +109,12 @@ describe('BodyPage', () => {
     expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(16)
   })
 
-  it('edits a past day tapped on the chart', async () => {
+  it('selects a chart day before explicitly opening its editor', async () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
-    await userEvent.click(await screen.findByRole('button', { name: pastDate + ' の記録を修正' }))
+    await userEvent.click(await screen.findByRole('button', { name: pastDate + ' の記録を選択' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: pastDate.slice(5).replace('-', '/') + 'の記録を編集' }))
     expect(screen.getByRole('dialog')).toHaveTextContent(pastDate.replaceAll('-', '/'))
 
     const weight = screen.getByLabelText('体重（kg）')
@@ -161,7 +163,8 @@ describe('BodyPage', () => {
   it('dismisses a past entry without saving and opens today from the floating action', async () => {
     fetchBodyweightLogs.mockResolvedValue([{ recorded_on: pastDate, bodyweight_kg: 69.8, body_fat_pct: 16 }])
     await renderPage()
-    await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
+    await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を選択' }))
+    await userEvent.click(screen.getByRole('button', { name: pastDate.slice(5).replace('-', '/') + 'の記録を編集' }))
     await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
     await openToday()
     expect(screen.getByRole('dialog')).toHaveTextContent(today.replaceAll('-', '/'))
@@ -193,14 +196,16 @@ describe('BodyPage', () => {
       { recorded_on: today, bodyweight_kg: 71, body_fat_pct: 17 },
     ])
     await renderPage()
-    const past = await screen.findByRole('button', { name: pastDate + ' の記録を修正' })
+    const past = await screen.findByRole('button', { name: pastDate + ' の記録を選択' })
     await userEvent.click(past)
+    await userEvent.click(screen.getByRole('button', { name: pastDate.slice(5).replace('-', '/') + 'の記録を編集' }))
     await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
     await openToday()
     expect(screen.getByLabelText('体重（kg）')).toHaveValue(71)
     expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(17)
     await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
     await userEvent.click(past)
+    await userEvent.click(screen.getByRole('button', { name: pastDate.slice(5).replace('-', '/') + 'の記録を編集' }))
     await userEvent.click(screen.getByRole('button', { name: '記録する' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await openToday()
@@ -224,9 +229,9 @@ describe('BodyPage', () => {
     await renderPage()
     const chart = await screen.findByTestId('trend-points')
     expect(JSON.parse(chart.textContent!)).toEqual([{ date, weight: 72, weightAverage: 71, fat: 18, fatAverage: 18 }])
-    expect(screen.queryByRole('button', { name: earlier + ' の記録を修正' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: earlier + ' の記録を選択' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '3ヶ月' }))
-    expect(screen.getByRole('button', { name: earlier + ' の記録を修正' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: earlier + ' の記録を選択' })).toBeInTheDocument()
   })
 
   it('keeps the latest values above the chart and axis descriptions accessible', async () => {
@@ -271,10 +276,10 @@ describe('BodyPage', () => {
     const confirm = screen.getByRole('button', { name: '削除する' })
     await userEvent.click(confirm)
     expect(await screen.findByRole('alert')).toHaveTextContent('エラーが発生しました')
-    expect(screen.getByRole('button', { name: today + ' の記録を修正' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: today + ' の記録を選択' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '再試行' })).not.toBeInTheDocument()
     await userEvent.click(confirm)
-    await waitFor(() => expect(screen.queryByRole('button', { name: today + ' の記録を修正' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('button', { name: today + ' の記録を選択' })).not.toBeInTheDocument())
     expect(deleteBodyLog).toHaveBeenCalledWith('u1', today)
   })
 
@@ -302,7 +307,7 @@ it('reloads externally synced records and exposes ancient graph and list', async
   await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
   await userEvent.click(screen.getByRole('button', { name: '全期間' }))
   expect(JSON.parse(screen.getByTestId('trend-points').textContent!)).toEqual([{ date:'2015-01-02', weight:65, weightAverage:65, fat:14, fatAverage:14 }])
-  expect(screen.getByRole('button', { name: '2015-01-02 の記録を修正' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '2015-01-02 の記録を選択' })).toBeInTheDocument()
 })
 it('removes the record list; past days are reached from the chart', async () => {
   fetchBodyweightLogs.mockResolvedValue([
@@ -311,10 +316,11 @@ it('removes the record list; past days are reached from the chart', async () => 
   ])
   await renderPage()
   expect(screen.queryByRole('region', { name: '最近の記録' })).not.toBeInTheDocument()
-  expect(screen.getByText('グラフをタップすると、その日の記録を修正・削除できます。')).not.toBeVisible()
+  expect(screen.getByText('グラフをタップすると数値を確認できます。修正・削除は表示される編集ボタンから行えます。')).not.toBeVisible()
   await userEvent.click(screen.getByText('グラフの見方', { exact: true }))
-  expect(screen.getByText('グラフをタップすると、その日の記録を修正・削除できます。')).toBeVisible()
-  await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
+  expect(screen.getByText('グラフをタップすると数値を確認できます。修正・削除は表示される編集ボタンから行えます。')).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を選択' }))
+  await userEvent.click(screen.getByRole('button', { name: pastDate.slice(5).replace('-', '/') + 'の記録を編集' }))
   const form = screen.getByRole('dialog')
   expect(within(form).getByRole('heading')).toHaveTextContent(pastDate.replaceAll('-', '/'))
   expect(screen.getByLabelText('体重（kg）')).toHaveValue(70)
@@ -324,7 +330,7 @@ it('removes the record list; past days are reached from the chart', async () => 
   await userEvent.click(within(form).getByRole('button', { name: pastDate + ' の記録を削除' }))
   await userEvent.click(within(form).getByRole('button', { name: '削除する' }))
   await waitFor(() => expect(deleteBodyLog).toHaveBeenCalledWith('u1', pastDate))
-  await waitFor(() => expect(screen.queryByRole('button', { name: pastDate + ' の記録を修正' })).not.toBeInTheDocument())
+  await waitFor(() => expect(screen.queryByRole('button', { name: pastDate + ' の記録を選択' })).not.toBeInTheDocument())
   await openToday()
   expect(screen.getByLabelText('体重（kg）')).toHaveValue(71)
 })
@@ -351,14 +357,15 @@ describe('BodyPage account changes', () => {
     await openToday()
     await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(70))
     await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
-    await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を修正' }))
+    await userEvent.click(screen.getByRole('button', { name: pastDate + ' の記録を選択' }))
+    await userEvent.click(screen.getByRole('button', { name: pastDate.slice(5).replace('-', '/') + 'の記録を編集' }))
 
     session.userId = 'u2'
     view.rerender(page())
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('体重（kg）')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('体脂肪率（%）')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: pastDate + ' の記録を修正' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: pastDate + ' の記録を選択' })).not.toBeInTheDocument()
     expect(fetchBodyweightLogs).toHaveBeenLastCalledWith('u2')
 
     await act(async () => pending.reject(new Error('owner B fetch failed')))
@@ -387,7 +394,7 @@ describe('BodyPage account changes', () => {
     expect(screen.getByLabelText('体重（kg）')).toHaveValue(81)
     expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(22)
     expect(JSON.parse(screen.getByTestId('trend-points').textContent!)).toEqual([{ date: today, weight: 81, weightAverage: 81, fat: 22, fatAverage: 22 }])
-    expect(screen.queryByRole('button', { name: pastDate + ' の記録を修正' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: pastDate + ' の記録を選択' })).not.toBeInTheDocument()
     expect(screen.queryByText('記録しました')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '記録する' })).toBeEnabled()
   })
@@ -411,8 +418,8 @@ describe('BodyPage account changes', () => {
     expect(screen.getByLabelText('体重（kg）')).toHaveValue(81)
     expect(screen.getByLabelText('体脂肪率（%）')).toHaveValue(22)
     expect(JSON.parse(screen.getByTestId('trend-points').textContent!)).toEqual([{ date: today, weight: 81, weightAverage: 81, fat: 22, fatAverage: 22 }])
-    expect(screen.getByRole('button', { name: today + ' の記録を修正' })).toHaveTextContent('81')
-    expect(screen.queryByRole('button', { name: pastDate + ' の記録を修正' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: today + ' の記録を選択' })).toHaveTextContent('81')
+    expect(screen.queryByRole('button', { name: pastDate + ' の記録を選択' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '記録する' })).toBeEnabled()
   })
 })
