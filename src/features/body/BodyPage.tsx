@@ -35,7 +35,6 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [entryOpen, setEntryOpen] = useState(false)
-  const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   // null は今日。編集ボタンを押すか、シートの見出しの日付を変えるとその日を入力・修正する
   const [editing, setEditing] = useState<string | null>(null)
@@ -49,7 +48,6 @@ function OwnedBodyPage({ userId }: { userId: string }) {
 
   function finishEntry() {
     setEntryOpen(false)
-    setSelectedDay(null)
     setConfirming(false)
     requestAnimationFrame(() => entryTrigger.current?.focus({ preventScroll: true }))
   }
@@ -69,7 +67,6 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     setEditing(null)
     setNotice(null)
     setEntryOpen(false)
-    setSelectedDay(null)
     setConfirming(false)
     fetchBodyweightLogs(userId)
       .then((rows) => {
@@ -139,14 +136,8 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   const targetExists = logs.some((l) => l.recorded_on === target)
   const locked = busy || loading || loadError !== null || deleting !== null
 
-  // A chart tap only selects a day and leaves its tooltip visible. Editing requires the
-  // explicit button below the chart so a value check does not unexpectedly open the form.
-  const selectDay = useRef<(date: string) => void>(() => {})
-  selectDay.current = (date: string) => {
-    if (logs.some((row) => row.recorded_on === date)) setSelectedDay(date)
-  }
-  const onSelectDay = useCallback((date: string) => selectDay.current(date), [])
-
+  // A chart tap only selects a day and leaves its tooltip visible (inside the chart). Editing
+  // requires the explicit button so a value check does not unexpectedly open the form.
   function openDayEntry(date: string) {
     const row = logs.find((l) => l.recorded_on === date)
     if (!row || locked) return
@@ -159,6 +150,11 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     setCalendarMonth(null)
     setEntryOpen(true)
   }
+
+  // The ref keeps the callback stable for the memoized chart while reading the latest logs.
+  const editDay = useRef(openDayEntry)
+  editDay.current = openDayEntry
+  const onEditDay = useCallback((date: string) => editDay.current(date), [])
 
   // シートの見出しの日付を変えたら、その日の記録があれば読み込み、なければ打った値のまま残す
   function changeDate(date: string) {
@@ -234,11 +230,11 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       <div className="flex rounded-full bg-surface p-1" role="group" aria-label="表示期間">
         {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
           className={`min-h-14 min-w-0 flex-1 rounded-full text-sm transition-colors ${months === p.months ? 'bg-border font-semibold text-fg' : 'text-muted'}`}
-          onClick={() => { setMonths(p.months); setSelectedDay(null) }}>{p.label}</button>)}
+          onClick={() => setMonths(p.months)}>{p.label}</button>)}
       </div>
       {loading ? <Spinner /> : loadError ? null : points.length === 0
         ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
-        : <BodyTrendChart points={points} showYear={months === null} onSelectDay={onSelectDay} onEditDay={openDayEntry} />}
+        : <BodyTrendChart points={points} showYear={months === null} onEditDay={onEditDay} />}
       <details className="border-t border-border">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between text-xs text-muted [&::-webkit-details-marker]:hidden">
           グラフの見方

@@ -112,7 +112,7 @@ function DemoBody() {
         <div key={v.label}><p className="flex items-center gap-1.5 text-xs text-muted"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: v.color }} />{v.label}</p>
           <p className="mt-1 text-3xl font-semibold tabular-nums">{v.value}<span className="ml-1 text-sm font-normal text-muted">{v.unit}</span></p></div>)}
     </div>
-    <BodyTrendChart points={points} showYear={false} onSelectDay={() => undefined} />
+    <BodyTrendChart points={points} showYear={false} />
     <p className="text-xs leading-relaxed text-muted">iPhoneのヘルスケアとの連携は準備中です。</p>
   </div>
 }

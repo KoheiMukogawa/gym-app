@@ -195,9 +195,11 @@ test('Health history reads more than 1000 rows and charts the earliest year',asy
   const dots=trend.locator('.recharts-line-dots circle[fill="#E8412F"]')
   await expect(dots).toHaveCount(1001)
   await expect(trend.locator('.recharts-xAxis-tick-labels')).toContainText('2010/')
-  // The earliest day stays reachable: a tap on its dot opens it in the form.
+  // The earliest day stays reachable: a tap on its dot selects it, and its edit button opens it in the form.
   const first=dots.first();await first.scrollIntoViewIfNeeded();const box=(await first.boundingBox())!
   await page.mouse.click(box.x+box.width/2,box.y+box.height/2)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.getByRole('button',{name:/01\/01の記録を編集$/}).click()
   await expect(page.getByRole('dialog').getByRole('heading')).toContainText('/01/01')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
   expect(errors).toEqual([])
