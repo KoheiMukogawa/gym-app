@@ -4,6 +4,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { FEEDBACK_MAX, feedbackMessage, fetchMyFeedback, formatSentAt, hasUnseenReply, markRepliesSeen, sendFeedback, STATUS_LABELS, type MyFeedback } from './queries'
 import { notifyRepliesSeen } from './useFeedbackReplies'
+import { PageHeader } from '../../components/PageHeader'
 
 export function FeedbackPage() {
   const { show } = useToast()
@@ -40,7 +41,7 @@ export function FeedbackPage() {
   }
 
   return <section className="space-y-5 p-4">
-    <h1 className="text-2xl font-semibold">ご意見・不具合の報告</h1>
+    <PageHeader title="ご意見・不具合の報告" />
     <p className="text-sm leading-relaxed">気になる点や、こうしてほしいという要望を運営に送れます。内容は運営だけが読み、ほかの利用者には表示されません。運営から返信や対応状況をお知らせすることがあります。</p>
     <form onSubmit={(event) => void submit(event)} className="space-y-3">
       <label className="block text-sm text-muted">内容

@@ -12,6 +12,7 @@ import { deleteBodyLog, fetchBodyweightLogs, parseBodyweight, saveBodyCompositio
 
 import { HealthSyncEntry } from './HealthSyncPanel'
 import { BodyTrendChart, FAT_COLOR, WEIGHT_COLOR } from './BodyTrendChart'
+import { PageHeader } from '../../components/PageHeader'
 
 const field = 'min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg tabular-nums'
 const PERIODS: { months: number | null; label: string }[] = [
@@ -201,8 +202,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   }
 
   return <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 pb-20">
-    <header className="flex items-center justify-between gap-3">
-      <h1 className="text-2xl font-semibold">体組成</h1>
+    <PageHeader title="体組成" action={
       <button type="button" aria-label="記録を再読み込み" title="記録を再読み込み"
         disabled={loading || busy || deleting !== null || healthBusy}
         onClick={() => setAttempt((value) => value + 1)}
@@ -211,8 +211,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
           className={`h-5 w-5 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" />
         </svg>
-      </button>
-    </header>
+      </button>} />
 
     <section className="flex flex-col gap-3" aria-label="推移">
       {/* The legend carries the latest values, so no separate card repeats the two metrics. */}

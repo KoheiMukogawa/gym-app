@@ -22,7 +22,7 @@ vi.mock('recharts', () => ({
     {data.map((point) => <button key={point.date} type="button" aria-label={`${point.date} の記録を選択`}
       onClick={() => onClick?.({ activeLabel: point.date })}>{point.weight}</button>)}
   </>,
-  Line: () => null, Tooltip: () => null, XAxis: () => null, YAxis: () => null,
+  Line: () => null, Tooltip: () => null, ReferenceLine: () => null, XAxis: () => null, YAxis: () => null,
 }))
 
 const today = new Date().toLocaleDateString('sv-SE')

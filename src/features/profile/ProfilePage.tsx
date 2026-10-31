@@ -10,6 +10,7 @@ import { PhotoCropper } from './PhotoCropper'
 import { toMessage } from '../../lib/errors'
 import { Link } from 'react-router-dom'
 import { useLogInputMode } from '../workout-log/inputMode'
+import { PageHeader } from '../../components/PageHeader'
 export function ProfilePage() {
   const { userId,profile:account,refreshProfile }=useSession()
   const inputMode=useLogInputMode(userId)
@@ -24,7 +25,7 @@ export function ProfilePage() {
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[saved,setSaved]=useState(false),[attempt,setAttempt]=useState(0)
   useEffect(()=>{let active=true;setLoading(true);setError(null);if(userId)profile(userId).then(p=>{if(active){setName(p?.display_name??account?.display_name??'');setIcon(p?.icon??'initials');setSavedIcon(p?.icon??'initials');setBio(p?.bio??'');setPublicRank(p?.global_ranking??false);setDotsOptIn(p?.dots_opt_in??false);setDotsFormula(p?.dots_formula??null);setStoredDots({optIn:p?.dots_opt_in??false,formula:p?.dots_formula??null})}}).catch(e=>{if(active)setError(communityMessage(e))}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[userId,attempt])
   if(loading)return <Spinner/>
-  return <section className="space-y-6 p-4"><header><h1 className="text-2xl font-semibold">プロフィール</h1></header>
+  return <section className="space-y-6 p-4"><PageHeader title="プロフィール" />
     {error&&<div><p role="alert" className="text-sm text-accent">{error}</p><button className="min-h-14 text-sm" onClick={()=>setAttempt(n=>n+1)}>再読み込み</button></div>}
     <form className="space-y-4" onSubmit={async e=>{e.preventDefault();if(busy||!userId)return;setBusy(true);setError(null);setSaved(false);let uploaded:string|null=null;try{
       // 写真は保存のときに上げる。プロフィールの保存に失敗したら、上げた写真は消す

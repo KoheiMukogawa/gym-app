@@ -1208,7 +1208,8 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   const fatDots = trend.locator('.recharts-line-dots circle[fill="#3B82F6"]')
   const weightAverage = trend.locator('path.recharts-line-curve[stroke="#E8412F"]')
   const fatAverage = trend.locator('path.recharts-line-curve[stroke="#3B82F6"]')
-  const tooltip = trend.locator('.recharts-tooltip-wrapper')
+  // A tap opens one card for that day: its values and the edit button.
+  const card = trend.getByRole('region', { name: /^\d+\/\d+(\/\d+)?の記録$/ })
   // Viewport intersection alone can leave a point behind the fixed mobile nav.
   const pointCenter = async (index: number) => {
     const dot = weightDots.nth(index)
@@ -1221,14 +1222,15 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
     const box = (await dot.boundingBox())!
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
   }
-  const inspectPoint = async (index: number, ...texts: string[]) => {
-    const { x, y } = await pointCenter(index)
-    await page.mouse.move(x, y)
-    for (const text of texts) await expect(tooltip).toContainText(text)
-  }
   const tapPoint = async (index: number) => {
+    // A card from an earlier tap can cover the next dot.
+    if (await card.count()) await card.getByRole('button', { name: '閉じる' }).click()
     const { x, y } = await pointCenter(index)
     await page.mouse.click(x, y)
+  }
+  const inspectPoint = async (index: number, ...texts: string[]) => {
+    await tapPoint(index)
+    for (const text of texts) await expect(card).toContainText(text)
   }
   await expect(page.getByRole('region', { name: '最近の記録' })).toHaveCount(0)
   await expect(trend.getByRole('button', { name: '体脂肪率', exact: true })).toHaveCount(0)
@@ -1248,8 +1250,11 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   await expect(fatDots).toHaveCount(2)
   await expect(weightAverage).toHaveCount(1)
   await expect(fatAverage).toHaveCount(1)
-  // Hovering a day shows both metrics and both averages through Recharts' tooltip.
-  await inspectPoint(1, '70.2 kg', '70.1 kg', '15.4 %', '15.7 %')
+  // Tapping a day shows that day's own values (the 7-day averages stay as the lines).
+  await inspectPoint(1, '70.2 kg', '15.4 %')
+  await expect(card).not.toContainText('70.1')
+  await expect(card).not.toContainText('15.7')
+  await page.screenshot({ path: 'test-results/body-chart-card.png' })
   // Both Y axes must keep their labels inside the SVG on the 390px mobile viewport.
   const axisLabelsFit = () => trend.locator('svg.recharts-surface').evaluate((svg) => {
     const bounds = svg.getBoundingClientRect()
@@ -1274,8 +1279,8 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   // Tapping only inspects the day; editing requires the explicit button.
   await tapPoint(0)
   await expect(form).toHaveCount(0)
-  await expect(tooltip).toContainText('70 kg')
-  await page.getByRole('button', { name: `${past.slice(5).replace('-', '/')}の記録を編集` }).click()
+  await expect(card).toContainText('70 kg')
+  await card.getByRole('button', { name: `${past.slice(5).replace('-', '/')}の記録を編集` }).click()
   await expect(form.getByRole('heading')).toContainText(past.replaceAll('-', '/'))
   await expect(page.getByLabel('体重（kg）')).toHaveValue('70')
   await page.getByLabel('体重（kg）').fill('71')
@@ -1294,7 +1299,7 @@ test('body composition roundtrip plots both metrics on one chart, edits and dele
   await expect(weightDots).toHaveCount(2)
   // Deleting asks once more before removing the day.
   await tapPoint(0)
-  await page.getByRole('button', { name: `${past.slice(5).replace('-', '/')}の記録を編集` }).click()
+  await card.getByRole('button', { name: `${past.slice(5).replace('-', '/')}の記録を編集` }).click()
   await expect(form.getByRole('heading')).toContainText(past.replaceAll('-', '/'))
   await form.getByRole('button', { name: `${past} の記録を削除` }).click()
   expect(data.bodyweights.some((b) => b.recorded_on === past)).toBe(true)

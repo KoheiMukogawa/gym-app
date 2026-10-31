@@ -10,6 +10,7 @@ import { useMonthWorkouts } from './useMonthWorkouts'
 import { MonthCalendar } from './MonthCalendar'
 import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
+import { PageHeader } from '../../components/PageHeader'
 
 export function HistoryPage() {
   const { userId } = useSession()
@@ -83,9 +84,7 @@ export function HistoryPage() {
     else setDragX(0)
   }
   return <div className={`flex flex-col gap-6 p-4 ${selected ? 'pb-20' : ''}`}>
-    <header>
-      <h1 className="text-2xl font-semibold">トレーニング履歴</h1>
-    </header>
+    <PageHeader title="トレーニング履歴" />
     <div className="flex items-center justify-between">
       <button aria-label="前の月" className="min-h-14 min-w-14 text-muted" onClick={() => move(-1)}>←</button>
       <h2 className="text-sm text-muted">{year}年{number}月</h2>

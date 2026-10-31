@@ -15,6 +15,7 @@ import {
   type StrengthSnapshot,
 } from './queries'
 import { LiftCard } from './LiftCard'
+import { PageHeader } from '../../components/PageHeader'
 
 type LiftKey = 'squat' | 'bench' | 'deadlift'
 const LIFT_FIELDS: [LiftKey, string][] = [['squat', 'スクワット'], ['bench', 'ベンチ'], ['deadlift', 'デッド']]
@@ -75,7 +76,7 @@ export function StrengthPage() {
     <Button variant="ghost" onClick={load}>再試行</Button>
   </div>
   return <div className="flex flex-col gap-6 p-4">
-    <header><h1 className="text-2xl font-bold">BIG3</h1></header>
+    <PageHeader title="BIG3" />
     {editing ? <section className="rounded-3xl border border-border bg-surface p-5">
       <h2 className="mb-5 text-lg font-semibold">{goal ? '目標を変更' : '目標を設定'}</h2>
       <form onSubmit={(event) => void save(event)} className="space-y-5">

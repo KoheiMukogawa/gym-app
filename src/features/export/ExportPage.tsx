@@ -7,6 +7,7 @@ import { buildWorkoutMarkdown } from '../../lib/exportMarkdown'
 import { useSession } from '../auth/SessionProvider'
 import { fetchWorkoutsInRange } from '../history/queries'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
+import { PageHeader } from '../../components/PageHeader'
 
 function monthsAgo(count: number): string {
   const now = new Date()
@@ -62,12 +63,11 @@ export function ExportPage() {
   }
 
   return <section className="flex flex-col gap-5 p-4" aria-label="データのエクスポート">
-    <header>
-      <h1 className="text-2xl font-semibold">データをエクスポート</h1>
+    <PageHeader title="データをエクスポート">
       <p className="mt-2 text-sm leading-relaxed text-muted">
         期間を選ぶと、その間の全セットとメモをMarkdownにまとめます。AIに貼って相談するのに使えます。
       </p>
-    </header>
+    </PageHeader>
 
     <div className="grid grid-cols-2 gap-3">
       <DateField label="開始日" value={from} max={today} disabled={busy} onChange={setFrom} />

@@ -92,20 +92,22 @@ test('Health connection, historical sync, keep/overwrite and revoke use real mob
   await page.getByRole('button',{name:'全期間',exact:true}).click()
   const trend=page.getByRole('region',{name:'推移'})
   const dots=trend.locator('.recharts-line-dots circle[fill="#E8412F"]'),fatDots=trend.locator('.recharts-line-dots circle[fill="#3B82F6"]')
-  const curves=trend.locator('path.recharts-line-curve[stroke="#E8412F"]'),tooltip=trend.locator('.recharts-tooltip-wrapper')
+  const curves=trend.locator('path.recharts-line-curve[stroke="#E8412F"]'),card=trend.getByRole('region',{name:/^\d+\/\d+(\/\d+)?の記録$/})
   await expect(dots).toHaveCount(2);await expect(fatDots).toHaveCount(1);await expect(curves).toHaveCount(1)
   await expect(trend.locator('.recharts-xAxis-tick-labels')).toContainText('2015/')
   // A reload redraws the chart and replaces its dots, so a dot found mid-redraw can detach.
-  // Retry the whole hover until the tooltip shows the expected values.
+  // Retry the whole tap until the day's card shows the expected values.
   const inspect=async (index:number,...texts:string[]) => {
     await expect(async () => {
+      if(await card.count())await card.getByRole('button',{name:'閉じる'}).click({timeout:2000})
       const dot=dots.nth(index);await dot.scrollIntoViewIfNeeded({timeout:2000});const box=(await dot.boundingBox())!
-      await page.mouse.move(box.x+box.width/2,box.y+box.height/2)
-      for(const text of texts) await expect(tooltip).toContainText(text,{timeout:1000})
+      await page.mouse.click(box.x+box.width/2,box.y+box.height/2)
+      for(const text of texts) await expect(card).toContainText(text,{timeout:1000})
     }).toPass({timeout:15000})
   }
   await inspect(0,'60 kg','14 %')
-  await inspect(1,'62 kg','61 kg')
+  // The card shows the day's own value; the 7-day average (61 kg) is the line.
+  await inspect(1,'62 kg')
   expect(await data.sync(credential,[{date:'2015-01-02',weight_kg:99}], 'keep')).toEqual({status:200,body:{inserted:0,updated:0,skipped:1}})
   await page.getByRole('button',{name:'記録を再読み込み',exact:true}).click()
   await expect(page.getByRole('button',{name:'記録を再読み込み',exact:true})).toBeEnabled()
@@ -115,7 +117,7 @@ test('Health connection, historical sync, keep/overwrite and revoke use real mob
   await page.getByRole('button',{name:'記録を再読み込み',exact:true}).click()
   await expect(page.getByRole('button',{name:'体重を記録',exact:true})).toBeEnabled()
   await inspect(0,'64 kg','14 %')
-  await inspect(1,'62 kg','63 kg')
+  await inspect(1,'62 kg')
   await expect(page.getByText(/書き込み 1件/)).toBeVisible()
 
   // This artifact contains only synthetic mock records and a mock token.

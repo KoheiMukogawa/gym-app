@@ -1,5 +1,5 @@
 import { memo, useMemo, useRef, useState } from 'react'
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Line, LineChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import type { CombinedPoint } from '../../lib/bodyComposition'
 
 // Validated as a pair on the dark surface (scripts/validate_palette.js of the dataviz skill).
@@ -8,7 +8,6 @@ export const FAT_COLOR = '#3B82F6'
 const WEIGHT = WEIGHT_COLOR
 const FAT = FAT_COLOR
 const tick = { fill: '#8A8A93', fontSize: 11 }
-const SERIES_ORDER = ['体重', '体重 7日平均', '体脂肪率', '体脂肪率 7日平均']
 const oneDecimal = (value: number) => String(Math.round(value * 10) / 10)
 
 /**
@@ -26,6 +25,11 @@ export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, o
   const box = useRef<HTMLDivElement>(null)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const weightDays = useMemo(() => points.filter((p) => p.weight !== null).map((p) => p.date), [points])
+  // 期間を変えて選んだ日が見えなくなったら、カードも出さない
+  const selectedIndex = selectedDate === null ? -1 : points.findIndex((p) => p.date === selectedDate)
+  const selected = selectedIndex < 0 ? null : points[selectedIndex]
+  // カードは選んだ点にかぶらない側に出す
+  const onLeft = selectedIndex >= points.length / 2
   // Recharts reports the day its tooltip last activated, which can lag behind a quick tap.
   // Pick the weight dot nearest to the tap instead, and fall back to Recharts' label.
   const pick = (activeLabel: string | number | undefined, clientX: number) => {
@@ -52,15 +56,10 @@ export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, o
             domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={oneDecimal} />
           <YAxis yAxisId="fat" orientation="right" hide={!hasFat} tick={tick} axisLine={false} tickLine={false} width={36}
             domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={oneDecimal} />
-          <Tooltip contentStyle={{ background: '#17171A', border: '1px solid #2A2A2F', borderRadius: 12, color: '#F5F5F5', fontSize: 12, padding: '6px 10px' }}
-            itemStyle={{ color: '#F5F5F5', padding: 0 }} labelFormatter={(d) => date(String(d))}
-            itemSorter={(item) => SERIES_ORDER.indexOf(String(item.name))}
-            formatter={(v, name) => [`${v} ${String(name).startsWith('体重') ? 'kg' : '%'}`, name]}
-            // Recharts draws the tooltip with pointer-events: none, so it only shows values; editing uses the button below.
-            content={({ active, label, payload }) => active && payload?.length ? <div className="rounded-xl border border-border bg-surface p-3 text-sm shadow-xl">
-              <p className="mb-2 font-semibold">{date(String(label))}</p>
-              <div className="space-y-1">{payload.map((item) => <p key={String(item.name)}>{String(item.name)}：{item.value} {String(item.name).startsWith('体重') ? 'kg' : '%'}</p>)}</div>
-            </div> : null} />
+          {/* The tapped day gets a line; its values and the edit button live in one card below.
+              (A Recharts tooltip follows the pointer and is drawn with pointer-events: none, so it
+              could show another day than the one being edited and could not hold a button.) */}
+          {selected && <ReferenceLine yAxisId="weight" x={selected.date} stroke="#8A8A93" strokeDasharray="3 3" />}
           {/* Daily records are dots only; the 7-day averages are the two lines. */}
           <Line yAxisId="weight" name="体重" dataKey="weight" stroke="none" dot={{ r: 2.5, fill: WEIGHT, stroke: 'none' }}
             activeDot={{ r: 4, fill: WEIGHT, stroke: '#17171A', strokeWidth: 2 }} isAnimationActive={false} />
@@ -72,7 +71,28 @@ export const BodyTrendChart = memo(function BodyTrendChart({ points, showYear, o
             connectNulls isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
-      {selectedDate && onEditDay && <button type="button" className="absolute bottom-1 right-1 z-10 min-h-11 rounded-lg bg-surface px-3 text-xs font-semibold shadow"
-        onClick={() => onEditDay(selectedDate)}>{date(selectedDate)}の記録を編集</button>}
+      {selected && <section aria-label={`${date(selected.date)}の記録`}
+        className={`absolute top-5 z-10 w-48 rounded-2xl border border-border bg-surface p-4 shadow-xl ${onLeft ? 'left-10' : 'right-9'}`}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-base font-semibold tabular-nums">{date(selected.date)}</p>
+          <button type="button" aria-label="閉じる" onClick={() => setSelectedDate(null)}
+            className="-mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted active:bg-border">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="m6 6 12 12M6 18 18 6" /></svg>
+          </button>
+        </div>
+        {/* その日の実際の値だけを大きく出す（7日平均は線で見る） */}
+        <dl className={`mt-2 grid gap-3 ${hasFat ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <div>
+            <dt className="flex items-center gap-1 text-xs text-muted"><span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: WEIGHT }} />体重</dt>
+            <dd className="text-xl font-semibold tabular-nums">{selected.weight === null ? '—' : <>{selected.weight}<span className="text-xs font-normal text-muted"> kg</span></>}</dd>
+          </div>
+          {hasFat && <div>
+            <dt className="flex items-center gap-1 text-xs text-muted"><span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: FAT }} />体脂肪率</dt>
+            <dd className="text-xl font-semibold tabular-nums">{selected.fat === null ? '—' : <>{selected.fat}<span className="text-xs font-normal text-muted"> %</span></>}</dd>
+          </div>}
+        </dl>
+        {onEditDay && <button type="button" aria-label={`${date(selected.date)}の記録を編集`} onClick={() => onEditDay(selected.date)}
+          className="mt-3 min-h-10 w-full rounded-lg border border-accent/70 text-sm font-semibold text-accent active:bg-accent/10">編集</button>}
+      </section>}
   </div>
 })
