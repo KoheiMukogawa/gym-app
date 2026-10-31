@@ -17,6 +17,7 @@ import { ScreenErrorBoundary } from './ScreenErrorBoundary'
 import { loadShowScreenIds, saveShowScreenIds, screenIdFor, type LogScreen } from '../features/admin/screenIds'
 import { ButtonIdOverlay } from '../features/admin/ButtonIdOverlay'
 import { copyId } from '../features/admin/copyId'
+import { shareApp } from '../features/share/shareApp'
 import { useToast } from './ui/Toast'
 import { BottomDockContext } from './ui/BottomDockContext'
 // 記録画面へはホームのボタンから入る。過去分は履歴から追加できるのでタブには出さない。
@@ -61,6 +62,7 @@ export function AppShell(){
           <section aria-labelledby="menu-settings"><h2 id="menu-settings" className={MENU_HEADING}>データとアプリ</h2>
             <Link to="/export" className={MENU_ITEM}>データをエクスポート</Link>
             {installable&&<button type="button" className={MENU_ITEM} onClick={()=>{setOpen(false);openInstallGuide()}}>ホーム画面に追加</button>}
+            <button type="button" className={MENU_ITEM} onClick={()=>{setOpen(false);void shareApp().then(r=>{if(r==='copied')show('紹介ページのリンクをコピーしました');else if(r==='failed')show('共有できませんでした')})}}>友達にGlogを教える</button>
           </section>
           <section aria-labelledby="menu-support" className="border-t border-border"><h2 id="menu-support" className={MENU_HEADING}>サポート</h2>
             <Link to="/feedback" className={`${MENU_ITEM} gap-2`}>ご意見・不具合を送る{hasReply&&<span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white">返信 {replies.length}</span>}</Link>

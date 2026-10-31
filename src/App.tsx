@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, MemoryRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { SessionProvider } from './features/auth/SessionProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { LoginPage } from './features/auth/LoginPage'
@@ -12,6 +12,8 @@ import { useSession } from './features/auth/SessionProvider'
 import { PUBLIC_PAGES } from './features/tools/pages'
 import { publicPageContent } from './features/tools/loadPublicPages'
 import { finishPrerenderHandOff } from './lib/prerendered'
+import { DEMO_READY, DEMO_USER_ID, IS_DEMO, isDemoNavigateMessage, isDemoProgressMessage } from './lib/demoMode'
+import { saveInputMode } from './features/workout-log/inputMode'
 
 // Screens other than home and recording load on first visit, so charts and
 // rankings do not slow down opening the app. The service worker precaches them.
@@ -46,9 +48,42 @@ function PublicRoute({ path }: { path: string }) {
   return <Suspense fallback={<Spinner />}><Content path={path} signedIn={userId !== null} /></Suspense>
 }
 
+// 紹介ページの見本（/demo の iframe）は、URLを変えずに画面を切り替える。最初の画面は ?path=、
+// その後は紹介ページからの postMessage で切り替える
+function DemoBridge() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    const director = () => import('./demo/director')
+    const receive = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      if (isDemoProgressMessage(event.data)) {
+        const { chapter, progress } = event.data
+        void director().then((d) => d.progress(chapter, progress))
+        return
+      }
+      if (!isDemoNavigateMessage(event.data)) return
+      const { path, mode, chapter } = event.data
+      if (mode) saveInputMode(DEMO_USER_ID, mode)
+      navigate(path)
+      void director().then((d) => { d.reset(); if (chapter) void d.play(chapter) })
+    }
+    window.addEventListener('message', receive)
+    return () => window.removeEventListener('message', receive)
+  }, [navigate])
+  // 準備ができたことは1回だけ知らせる（画面を移るたびに知らせると、紹介ページが元の画面に戻してしまう）
+  useEffect(() => { window.parent.postMessage(DEMO_READY, window.location.origin) }, [])
+  return null
+}
+
+function Router({ children }: { children: React.ReactNode }) {
+  if (!IS_DEMO) return <BrowserRouter>{children}</BrowserRouter>
+  const start = new URLSearchParams(window.location.search).get('path')
+  return <MemoryRouter initialEntries={[start?.startsWith('/') ? start : '/']}><DemoBridge />{children}</MemoryRouter>
+}
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <Router>
       <SessionProvider>
         <ToastProvider>
           <Routes>
@@ -84,6 +119,6 @@ export default function App() {
           </Routes>
         </ToastProvider>
       </SessionProvider>
-    </BrowserRouter>
+    </Router>
   )
 }

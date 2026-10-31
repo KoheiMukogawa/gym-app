@@ -64,6 +64,7 @@ export function formatSource(source: string): string {
     'calc-dots': 'DOTS計算',
     calculators: '計算ツール一覧',
     landing: '紹介ページ',
+    share: '友達からの共有',
     unknown: '不明（記録前の登録など）',
   }
   return labels[source] ?? source

@@ -71,6 +71,15 @@ describe('profile menu', () => {
     expect(screen.getByRole('link', { name: /プロフィールを編集/ })).toHaveAttribute('href', '/profile')
     expect(screen.queryByText('記録の入れ方')).not.toBeInTheDocument()
   })
+  it('copies the landing page link for a friend where there is no share sheet', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    await userEvent.click(screen.getByRole('button', { name: '友達にGlogを教える' }))
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\/\?utm_source=share$/))
+    expect(await screen.findByText('紹介ページのリンクをコピーしました')).toBeInTheDocument()
+  })
   it('links to the terms and the privacy policy', async () => {
     renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))

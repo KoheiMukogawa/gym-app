@@ -25,7 +25,7 @@ vi.mock('recharts', () => ({
   LineChart: ({ children, data, onClick }: { children: React.ReactNode; data: { date: string }[]; onClick?: (state: { activeLabel: string }) => void }) =>
     <div>{children}<button type="button" onClick={() => onClick?.({ activeLabel: data[0].date })}>e1RMグラフ</button></div>,
   Line: ({ dot }: { dot: unknown }) => <span data-testid="e1rm-line-dot">{JSON.stringify(dot)}</span>,
-  XAxis: () => null, YAxis: () => null, Tooltip: () => null, ReferenceLine: () => null,
+  XAxis: () => null, YAxis: () => null, Tooltip: () => null, ReferenceLine: () => null, CartesianGrid: () => null,
 }))
 
 const exercises = [

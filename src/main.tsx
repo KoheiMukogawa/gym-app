@@ -1,3 +1,5 @@
+// 紹介ページの見本（/demo）では、ほかのモジュールより先に時計を止める
+import './lib/demoMode'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'

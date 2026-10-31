@@ -1,144 +1,107 @@
-import { useMemo, useState, type MouseEvent } from 'react'
-import { combineTrends } from '../../lib/bodyComposition'
-import { localDate } from '../../lib/dates'
-import { FAT_COLOR, WEIGHT_COLOR, BodyTrendChart } from '../body/BodyTrendChart'
-import { MetricTabs } from '../community/RankingParts'
-import { formatMetric, rankMembers, type RankMetric } from '../community/queries'
-import { WorkoutCard } from '../feed/WorkoutCard'
-import { WorkoutSetDetails } from '../feed/WorkoutSetDetails'
-import { MonthCalendar } from '../history/MonthCalendar'
-import { Big3Column } from '../home/HomePage'
-import { Avatar } from '../profile/Avatar'
-import { LiftCard } from '../strength/LiftCard'
-import { StrengthScore } from '../strength/StrengthScore'
-import { DEMO_ME, DEMO_TODAY, demoBodyLogs, demoMembers, demoWorkouts } from './landingDemoData'
-import { landingStrengthGoal, landingStrengthSnapshot } from './landingStrengthSample'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { DEMO_PATH, isDemoReadyMessage, type DemoNavigateMessage, type DemoProgressMessage } from '../../lib/demoMode'
 
-export const PHONE_TABS = [
-  { id: 'home', label: 'ホーム' }, { id: 'history', label: '履歴' }, { id: 'big3', label: 'BIG3' },
-  { id: 'ranking', label: 'ランキング' }, { id: 'body', label: '体組成' },
-] as const
-export type PhoneTab = typeof PHONE_TABS[number]['id']
+// 開発中のスマホのウインドウ（scripts/dev-phone.mjs）と同じ iPhone 16 Pro の大きさで描き、
+// 紹介ページの高さに合わせて縮める
+const SCREEN = { width: 402, height: 874 }
+const STATUS_BAR = 59
+const BEZEL = 15
+const DEVICE = { width: SCREEN.width + BEZEL * 2, height: SCREEN.height + BEZEL * 2 }
 
-const dayOf = (iso: string) => localDate(iso)
-const [todayYear, todayMonth] = DEMO_TODAY.split('-').map(Number)
+/** スマホに出す画面。mode は記録画面の入れ方（ダイヤル・一覧）、chapter は紹介ページの説明（見本で流す操作） */
+export type PhoneScreen = { path: string; mode?: 'dial' | 'list'; chapter?: string }
+// 画面を移るときは、いったん暗くしてから切り替え、読み込みを待って明るく戻す
+const DIM_MS = 260
+const SETTLE_MS = 420
 
-function DemoHome() {
-  const trained = demoWorkouts.filter((w) => dayOf(w.performed_at).startsWith(DEMO_TODAY.slice(0, 7))).map((w) => dayOf(w.performed_at))
-  const today = demoWorkouts.filter((w) => dayOf(w.performed_at) === DEMO_TODAY)
-  return <div className="flex flex-col gap-4 p-4">
-    <div className="grid grid-cols-[3fr_2fr] gap-3">
-      <section aria-label="今月のトレーニング">
-        <h2 className="mb-2 text-xl font-semibold tabular-nums">{todayYear}年{todayMonth}月</h2>
-        <MonthCalendar compact year={todayYear} month={todayMonth} activeDates={trained} selectedDate={DEMO_TODAY} maxDate={DEMO_TODAY} />
-      </section>
-      <section aria-label="BIG3" className="self-start">
-        <h2 className="mb-2 text-xl font-semibold">BIG3</h2>
-        <Big3Column snapshot={landingStrengthSnapshot} goal={landingStrengthGoal} />
-      </section>
+/**
+ * 本物のアプリを見本のデータで動かしたもの（/demo を iframe で開く、src/lib/demoMode.ts）。
+ * 画面はアプリと同じ部品なので、アプリを直せばここも次のデプロイで同じになる。
+ * screen が変わるたびに（スクロールで次の説明に移ったとき）、少し暗くしてからその画面に切り替える。
+ * progress はその説明の中でどこまでスクロールしたか（0〜1）で、スマホの中の画面も合わせて動く。
+ */
+export function LandingPhone({ screen, progress, splash, showSplash = false }: {
+  screen: PhoneScreen; progress: number
+  /** アプリを開いたときのような起動画面（アイコン・名前・ひとこと）。showSplash の間と、見本の準備ができるまで重ねる */
+  splash?: ReactNode; showSplash?: boolean
+}) {
+  const box = useRef<HTMLDivElement>(null)
+  const frame = useRef<HTMLIFrameElement>(null)
+  const [scale, setScale] = useState(0.8)
+  // 最初の画面は URL で渡し、その後の切り替えはメッセージで送る（iframe を読み直さない）
+  const [src] = useState(() => `${DEMO_PATH}?path=${encodeURIComponent(screen.path)}`)
+  const loaded = useRef(false)
+  const latest = useRef(screen)
+  const [dim, setDim] = useState(false)
+  const [ready, setReady] = useState(false)
+  const shown = useRef<PhoneScreen | null>(null)
+
+  useEffect(() => {
+    const element = box.current
+    if (!element) return
+    // 拡大・縮小の途中（最初の画面）でも、もとの大きさで測る
+    const measure = () => { const height = element.offsetHeight; if (height > 0) setScale(height / DEVICE.height) }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  const post = useCallback((message: DemoNavigateMessage | DemoProgressMessage) => {
+    frame.current?.contentWindow?.postMessage(message, window.location.origin)
+  }, [])
+  const timers = useRef<number[]>([])
+  const show = useCallback((next: PhoneScreen, animate: boolean) => {
+    timers.current.forEach(clearTimeout)
+    timers.current = []
+    if (shown.current === next) return
+    shown.current = next
+    const go = () => post({ type: 'glog-demo-navigate', ...next })
+    if (!animate) { go(); return }
+    setDim(true)
+    timers.current.push(window.setTimeout(go, DIM_MS), window.setTimeout(() => setDim(false), DIM_MS + SETTLE_MS))
+  }, [post])
+  useEffect(() => {
+    latest.current = screen
+    // 見本のアプリが動き出す前の切り替えは、準備ができた知らせ（glog-demo-ready）を受けてから送る
+    if (loaded.current) show(screen, true)
+  }, [screen, show])
+  useEffect(() => {
+    if (loaded.current && screen.chapter) post({ type: 'glog-demo-progress', chapter: screen.chapter, progress })
+  }, [progress, screen, post])
+  useEffect(() => {
+    const ready = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow || !isDemoReadyMessage(event.data)) return
+      loaded.current = true
+      setReady(true)
+      shown.current = null
+      show(latest.current, false)
+    }
+    window.addEventListener('message', ready)
+    const pending = timers.current
+    return () => { window.removeEventListener('message', ready); pending.forEach(clearTimeout) }
+  }, [show])
+
+  return <div ref={box} className="landing-phone" style={{ aspectRatio: `${DEVICE.width} / ${DEVICE.height}` }}>
+    <div className="landing-device" style={{ width: DEVICE.width, height: DEVICE.height, transform: `scale(${scale})` }}>
+      <div className="landing-device-screen" style={{ width: SCREEN.width, height: SCREEN.height }}>
+        <div className="landing-status-bar" aria-hidden="true" style={{ height: STATUS_BAR }}>
+          <span>9:41</span>
+          <span className="landing-island" />
+          <span className="landing-status-icons">
+            <svg width="18" height="12" viewBox="0 0 18 12"><rect x="1" y="8" width="3" height="4" rx="1"/><rect x="5.5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="14.5" width="3" height="12" rx="1"/></svg>
+            <svg width="17" height="12" viewBox="0 0 17 12"><path d="M8.5 12a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8Zm4.3-4.1a6.1 6.1 0 0 0-8.6 0L5.8 9.5a3.8 3.8 0 0 1 5.4 0l1.6-1.6Zm3-3a10.3 10.3 0 0 0-14.6 0l1.6 1.6a8 8 0 0 1 11.4 0l1.6-1.6Z"/></svg>
+            <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".75" y=".75" width="22" height="11.5" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5"/><rect x="2.5" y="2.5" width="18.5" height="8" rx="1.5"/><path d="M24 4.2c1.2.4 2 1.5 2 2.8s-.8 2.4-2 2.8V4.2Z"/></svg>
+          </span>
+        </div>
+        <iframe ref={frame} src={src} title="Glogのアプリの画面（見本）" style={{ width: SCREEN.width, height: SCREEN.height - STATUS_BAR }} />
+        <div className="landing-device-dim" data-dim={dim || undefined} aria-hidden="true" />
+        {/* 起動画面は中身から暗くなって消え、その後ろからホーム画面が出る */}
+        {splash && <div className="landing-splash" data-hidden={(!showSplash && ready) || undefined} style={{ top: STATUS_BAR }}>
+          <div className="landing-splash-content">{splash}</div>
+        </div>}
+      </div>
     </div>
-    <section aria-label="今日のトレーニング" className="space-y-2">
-      <h2 className="text-sm font-semibold">今日のトレーニング</h2>
-      {today.map((item) => <WorkoutSetDetails key={item.workout_id} item={item} bodyweight={null} />)}
-    </section>
-  </div>
-}
-
-const FIRST_MONTH = demoWorkouts[0].performed_at.slice(0, 7)
-function DemoHistory() {
-  const [month, setMonth] = useState(DEMO_TODAY.slice(0, 7))
-  const inMonth = demoWorkouts.filter((w) => dayOf(w.performed_at).startsWith(month))
-  const [selected, setSelected] = useState(() => dayOf(inMonth[inMonth.length - 1].performed_at))
-  const [year, number] = month.split('-').map(Number)
-  const visible = demoWorkouts.filter((w) => dayOf(w.performed_at) === selected)
-  function move(direction: number) {
-    const next = new Date(Date.UTC(year, number - 1 + direction, 1)).toISOString().slice(0, 7)
-    const days = demoWorkouts.map((w) => dayOf(w.performed_at)).filter((d) => d.startsWith(next))
-    setMonth(next); setSelected(days[days.length - 1] ?? '')
-  }
-  return <div className="flex flex-col gap-6 p-4">
-    <h1 className="text-2xl font-semibold">トレーニング履歴</h1>
-    <div className="flex items-center justify-between">
-      <button type="button" aria-label="前の月" disabled={month <= FIRST_MONTH} className="min-h-14 min-w-14 text-muted disabled:opacity-30" onClick={() => move(-1)}>←</button>
-      <h2 className="text-sm text-muted">{year}年{number}月</h2>
-      <button type="button" aria-label="次の月" disabled={month >= DEMO_TODAY.slice(0, 7)} className="min-h-14 min-w-14 text-muted disabled:opacity-30" onClick={() => move(1)}>→</button>
-    </div>
-    <MonthCalendar year={year} month={number} activeDates={inMonth.map((w) => dayOf(w.performed_at))} selectedDate={selected} maxDate={DEMO_TODAY} onSelect={setSelected} />
-    <section className="flex flex-col gap-3">
-      <h2 className="text-sm text-muted">{selected} の記録</h2>
-      {visible.length ? visible.map((item) => <WorkoutCard key={item.workout_id} item={item} detailed />)
-        : <p className="py-4 text-center text-sm text-muted">この日の記録はありません</p>}
-    </section>
-  </div>
-}
-
-function DemoBig3() {
-  return <div className="flex flex-col gap-6 p-4">
-    <h1 className="text-2xl font-bold">BIG3</h1>
-    <StrengthScore snapshot={landingStrengthSnapshot} goal={landingStrengthGoal} />
-    <section className="flex flex-col gap-3" aria-label="種目ごとの記録">
-      <h2 className="text-sm font-semibold">種目ごとの記録</h2>
-      {(['squat', 'bench', 'deadlift'] as const).map((key) => <LiftCard key={key} lift={landingStrengthSnapshot.lifts[key]} />)}
-    </section>
-  </div>
-}
-
-function DemoRanking() {
-  const [metric, setMetric] = useState<RankMetric>('total')
-  return <div className="flex flex-col gap-4 p-4">
-    <h1 className="text-2xl font-semibold">ランキング</h1>
-    <div className="flex gap-2" role="group" aria-label="ランキングの範囲">
-      <span className="flex min-h-11 items-center rounded-full border border-border px-4 text-sm text-muted">全体</span>
-      <span className="flex min-h-11 items-center rounded-full bg-fg px-4 text-sm font-semibold text-bg">いつものジム仲間</span>
-    </div>
-    <MetricTabs value={metric} onChange={setMetric} />
-    <ol className="divide-y divide-border">{rankMembers(demoMembers, metric).map((m) => <li key={m.user_id} className={`flex min-h-20 items-center gap-3 px-2 ${m.user_id === DEMO_ME ? 'bg-surface' : ''}`}>
-      <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span>
-      <Avatar icon={m.icon} name={m.display_name} />
-      <span className="min-w-0 flex-1 break-words text-sm">{m.display_name}{m.user_id === DEMO_ME && <span className="ml-2 text-xs text-muted">自分</span>}</span>
-      <strong className="shrink-0 tabular-nums">{formatMetric(m[metric], metric)}</strong>
-    </li>)}</ol>
-    <p className="text-xs leading-relaxed text-muted">招待コードで仲間を招いて、自分たちだけのランキングを作れます。</p>
-  </div>
-}
-
-function DemoBody() {
-  const points = useMemo(() => combineTrends(demoBodyLogs), [])
-  const latest = demoBodyLogs[demoBodyLogs.length - 1]
-  return <div className="flex flex-col gap-4 p-4">
-    <h1 className="text-2xl font-semibold">体組成</h1>
-    <div className="grid grid-cols-2 gap-4">
-      {[{ label: '体重', unit: 'kg', value: latest.bodyweight_kg, color: WEIGHT_COLOR }, { label: '体脂肪率', unit: '%', value: latest.body_fat_pct, color: FAT_COLOR }].map((v) =>
-        <div key={v.label}><p className="flex items-center gap-1.5 text-xs text-muted"><span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: v.color }} />{v.label}</p>
-          <p className="mt-1 text-3xl font-semibold tabular-nums">{v.value}<span className="ml-1 text-sm font-normal text-muted">{v.unit}</span></p></div>)}
-    </div>
-    <BodyTrendChart points={points} showYear={false} />
-    <p className="text-xs leading-relaxed text-muted">iPhoneのヘルスケアとの連携は準備中です。</p>
-  </div>
-}
-
-const SCREENS: Record<PhoneTab, () => React.JSX.Element> = { home: DemoHome, history: DemoHistory, big3: DemoBig3, ranking: DemoRanking, body: DemoBody }
-
-/** The app as a member sees it, inside a phone. The bottom tabs work; links inside stay in the phone. */
-export function LandingPhone({ tab, onTab }: { tab: PhoneTab; onTab: (tab: PhoneTab) => void }) {
-  const Screen = SCREENS[tab]
-  const [touched, setTouched] = useState(false)
-  // Screens link to pages that need an account. Keep visitors here: exercise and BIG3 links open the BIG3 tab.
-  function stayInPhone(event: MouseEvent) {
-    const link = (event.target as HTMLElement).closest('a')
-    if (!link) return
-    event.preventDefault()
-    const path = link.getAttribute('href') ?? ''
-    if (path.startsWith('/big3') || path.startsWith('/exercises/')) onTab('big3')
-  }
-  return <div className="landing-phone">
-    <div className="landing-phone-header" aria-hidden="true"><span>Glog</span><span className="landing-demo-avatar">G</span></div>
-    <div key={tab} className="landing-phone-screen" role="region" aria-label={`${PHONE_TABS.find((t) => t.id === tab)!.label}の画面`} tabIndex={0} onClickCapture={stayInPhone}>
-      <Screen />
-    </div>
-    <nav className="landing-phone-nav" aria-label="アプリの画面">
-      {PHONE_TABS.map((t) => <button key={t.id} type="button" aria-pressed={tab === t.id} onClick={() => { setTouched(true); onTab(t.id) }}>{t.label}</button>)}
-      {!touched && <span className="landing-phone-hint" aria-hidden="true">タップして切り替え</span>}
-    </nav>
   </div>
 }

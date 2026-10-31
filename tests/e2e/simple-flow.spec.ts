@@ -59,7 +59,8 @@ test('dial steps, scroll and direct entry save the displayed values', async ({ p
   // The exercise's chart is one tap away, and returning keeps the dial values.
   await page.getByRole('link', { name: 'ベンチプレスのグラフ', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'ベンチプレス', exact: true })).toBeVisible()
-  await page.getByRole('link', { name: '← 記録に戻る', exact: true }).click()
+  // 戻るボタンは置かず、端末の戻る操作で記録画面に戻る
+  await page.goBack()
   await expect(page.getByRole('spinbutton', { name: '重量', exact: true })).toHaveAttribute('aria-valuenow', '82.5')
   await expect(page.getByRole('spinbutton', { name: '回数', exact: true })).toHaveAttribute('aria-valuenow', '6')
   await page.getByRole('button', { name: 'セット完了', exact: true }).click()

@@ -806,7 +806,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
       {!listMode && <header ref={recordingHeader} className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-bg px-4 py-2">
         <p className="min-w-0 flex-1 break-words text-lg font-semibold">{currentName}</p>
         {/* 記録の途中でも、この種目の推移を見に行ける。記録画面は裏で保持されるので入力は消えない */}
-        {state.currentExerciseId && <Link to={`/exercises/${state.currentExerciseId}`} state={{ from: '/log' }} aria-label={`${currentName}のグラフ`} data-button-key="exercise-graph"
+        {state.currentExerciseId && <Link to={`/exercises/${state.currentExerciseId}`} aria-label={`${currentName}のグラフ`} data-button-key="exercise-graph"
           className="flex min-h-14 shrink-0 items-center gap-1 px-2 text-sm text-muted active:text-fg">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 19h16M5 15l4-5 4 3 6-7" />

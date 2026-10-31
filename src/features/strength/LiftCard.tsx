@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useSeenOnce } from '../../lib/motion'
 import { e1rmTicks, type LiftSnapshot } from './strengthSnapshot'
 
@@ -23,9 +23,9 @@ export function LiftCard({ lift }: { lift: LiftSnapshot }) {
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2 text-center">
-        <Metric label="1回の最高重量" value={formatKg(lift.pr1rm)} />
-        <Metric label="最近の推定MAX" value={formatKg(lift.currentE1rm)} />
-        <Metric label="推定MAXの最高" value={formatKg(lift.allTimeE1rm)} />
+        <Metric label="1RM" value={formatKg(lift.pr1rm)} />
+        <Metric label="最近のe1RM" value={formatKg(lift.currentE1rm)} />
+        <Metric label="e1RM" value={formatKg(lift.allTimeE1rm)} />
       </div>
 
       {lift.e1rmPoints.length >= 2 && (
@@ -37,6 +37,8 @@ export function LiftCard({ lift }: { lift: LiftSnapshot }) {
               <LineChart data={lift.e1rmPoints} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
                 style={lift.exerciseId ? { cursor: 'pointer' } : undefined}
                 onClick={() => { if (lift.exerciseId) navigate(`/exercises/${lift.exerciseId}`) }}>
+                {/* 目盛りの位置に薄い横線だけを引く（縦線・枠線はなし） */}
+                <CartesianGrid vertical={false} stroke="#2A2A2F" />
                 <XAxis
                   dataKey="date"
                   tick={{ fill: '#8A8A93', fontSize: 10 }}

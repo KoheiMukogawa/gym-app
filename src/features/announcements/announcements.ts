@@ -13,6 +13,12 @@ export type Announcement = {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: 'share-app',
+    publishedAt: '2026-10-31T11:40:00+09:00',
+    title: '友達にGlogを教えられます',
+    body: '右上のアイコンのメニューにある「友達にGlogを教える」から、LINEやメッセージでGlogの紹介ページを送れます。',
+  },
+  {
     id: 'profile-photo',
     publishedAt: '2026-10-31T08:00:00+09:00',
     title: 'アイコンに写真を使えます',

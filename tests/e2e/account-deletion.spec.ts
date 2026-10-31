@@ -4,8 +4,9 @@ test('a user deletes their account from the profile and lands on the introductio
   const uid = '33333333-3333-4333-8333-333333333333', now = Date.now()
   const user = { id: uid, aud: 'authenticated', role: 'authenticated', email: 'leave@example.com', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' }
   const session = { access_token: 'a', refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(now / 1000) + 3600, user }
-  await page.addInitScript(value => localStorage.setItem('sb-example-auth-token', JSON.stringify(value)), session)
-  await page.addInitScript(id => localStorage.setItem(`gym-app.draft.${id}`, '{}'), uid)
+  // Only in the page itself: the introduction's phone is an iframe of the app, and init scripts run in every frame
+  await page.addInitScript(value => { if (window.top === window) localStorage.setItem('sb-example-auth-token', JSON.stringify(value)) }, session)
+  await page.addInitScript(id => { if (window.top === window) localStorage.setItem(`gym-app.draft.${id}`, '{}') }, uid)
   const deletions: unknown[] = []
   await page.route('https://example.supabase.co/**', async route => {
     const req = route.request(), path = new URL(req.url()).pathname
@@ -29,7 +30,7 @@ test('a user deletes their account from the profile and lands on the introductio
   await page.getByLabel('確認のため「退会する」と入力してください').fill('退会する')
   await button.click()
   await expect(page.getByText('退会しました')).toBeVisible()
-  await expect(page.getByRole('heading', { name: /その記録、\s*もっと活かせる/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /必要十分な機能を、\s*直感的な操作で。/ })).toBeVisible()
   expect(deletions).toEqual([{ p_confirm: '退会する' }])
   expect(await page.evaluate(id => [localStorage.getItem('sb-example-auth-token'), localStorage.getItem(`gym-app.draft.${id}`)], uid)).toEqual([null, null])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

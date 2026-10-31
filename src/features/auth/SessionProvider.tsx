@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '../../lib/supabase'
+import { IS_DEMO } from '../../lib/demoMode'
 import type { Profile } from '../../lib/types'
 
 type SessionValue = {
@@ -70,6 +71,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [loadProfile])
 
   const signOut = useCallback(async () => {
+    // 紹介ページの見本ではログアウトしない（iframe の中に紹介ページが出てしまうため）
+    if (IS_DEMO) return
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }, [])

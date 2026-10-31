@@ -97,10 +97,14 @@ export function buildStrengthSnapshot(
   }
 }
 
-// At least 5 kg of headroom on each side, split into at most 4 even steps.
+// The axis hugs the data (no fixed headroom) so small gains still show as a slope:
+// the nearest round numbers around the lowest and highest point, in at most 5 even steps.
+const TICK_STEPS = [1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500]
 export function e1rmTicks(values: number[]): number[] {
-  const min = Math.min(...values) - 5, max = Math.max(...values) + 5
-  const step = [5, 10, 20, 25, 50, 100, 200].find((size) => Math.ceil(max / size) - Math.floor(min / size) <= 4) ?? 500
+  let min = Math.min(...values), max = Math.max(...values)
+  // A flat line still gets a little room above and below
+  if (max - min < 2) { min -= 1; max += 1 }
+  const step = TICK_STEPS.find((size) => Math.ceil(max / size) - Math.floor(min / size) <= 5) ?? 1000
   const low = Math.floor(min / step) * step, count = Math.ceil(max / step) - Math.floor(min / step)
   return Array.from({ length: count + 1 }, (_, i) => low + i * step)
 }

@@ -40,7 +40,7 @@ export function ListPreviousRecord({ exerciseId, previous, isBodyweight, unit, o
   return <section aria-label="前回の記録" className="rounded-t-xl bg-border/70 px-4 py-2">
     <div className="flex items-center gap-3">
       <h2 className="text-sm font-semibold">前回の記録{date && <span className="ml-1 tabular-nums">: {date}</span>}</h2>
-      <Link to={`/exercises/${exerciseId}`} state={{ from: '/log' }} className="flex min-h-10 items-center text-sm font-semibold text-sky-400">グラフ</Link>
+      <Link to={`/exercises/${exerciseId}`} className="flex min-h-10 items-center text-sm font-semibold text-sky-400">グラフ</Link>
     </div>
     {loading ? <p role="status" className="text-xs text-muted">読み込み中…</p>
       : error ? <p role="alert" className="text-xs text-accent">前回の記録を読み込めませんでした。<button type="button" className="min-h-11 underline" onClick={retry}>再試行</button></p>

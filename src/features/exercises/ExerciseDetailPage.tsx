@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { e1rmByDate, personalBest, totalVolume } from '../../lib/calc'
 import { toMessage } from '../../lib/errors'
 import { MUSCLE_GROUP_LABELS, type Exercise, type SetWithDate } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { Spinner } from '../../components/ui/Spinner'
+import { PageHeader } from '../../components/PageHeader'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from '../auth/SessionProvider'
 import { fetchExercise, fetchExerciseSets } from './queries'
@@ -37,8 +38,6 @@ export function withTotalLoad(sets: SetWithDate[], logs: BodyweightLog[]): SetWi
 
 export function ExerciseDetailPage() {
   const { exerciseId } = useParams<{ exerciseId: string }>()
-  // 記録画面のグラフボタンから来たときは、記録へ戻る
-  const fromLog = (useLocation().state as { from?: string } | null)?.from === '/log'
   const { userId } = useSession()
   const { show } = useToast()
   const [exercise, setExercise] = useState<Exercise | null>(null)
@@ -94,13 +93,10 @@ export function ExerciseDetailPage() {
 
   return (
     <div className="flex flex-col gap-6 p-4">
-      <header>
-        <Link to={fromLog ? '/log' : '/'} className="flex min-h-14 w-fit items-center text-xs text-muted">
-          {fromLog ? '← 記録に戻る' : '← ホーム'}
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold">{exercise.name}</h1>
+      {/* 戻るボタンは置かない。BIG3・履歴・記録画面など来た画面へは、端末の戻る操作（iPhoneは左端からのスワイプ）で戻る */}
+      <PageHeader title={exercise.name}>
         <p className="text-xs text-muted">{MUSCLE_GROUP_LABELS[exercise.muscle_group]}{exercise.is_bodyweight && ' · 体重＋加重の総重量で表示'}</p>
-      </header>
+      </PageHeader>
 
       <section className="grid grid-cols-3 gap-2">
         <Stat label="自己ベスト" value={summary.best === null ? '—' : `${summary.best}`} unit="kg" />

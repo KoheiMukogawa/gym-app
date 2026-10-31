@@ -1,3 +1,4 @@
+import { IS_DEMO } from '../../lib/demoMode'
 // Where the app is running, to explain "add to home screen" in the right words.
 // iPhone has no install API: people add the page from the share menu, and pages
 // opened inside LINE or Instagram cannot be added until they are opened in a browser.
@@ -22,7 +23,8 @@ export function detectInstallEnv(userAgent: string, standalone: boolean, maxTouc
 }
 
 export function currentInstallEnv(): InstallEnv {
-  if (typeof window === 'undefined') return 'desktop'
+  // 紹介ページの見本では「ホーム画面に追加」を出さない
+  if (typeof window === 'undefined' || IS_DEMO) return 'desktop'
   const standalone = window.matchMedia?.('(display-mode: standalone)').matches
     || (navigator as Navigator & { standalone?: boolean }).standalone === true
   return detectInstallEnv(navigator.userAgent, standalone, navigator.maxTouchPoints)

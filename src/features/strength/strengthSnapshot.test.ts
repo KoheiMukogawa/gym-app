@@ -97,11 +97,21 @@ describe('buildStrengthSnapshot', () => {
 })
 
 describe('e1rmTicks', () => {
-  it('pads the range by 5 kg and splits it into even steps', () => {
-    expect(e1rmTicks([100.6, 110])).toEqual([95, 100, 105, 110, 115])
-    expect(e1rmTicks([180, 260])).toEqual([175, 200, 225, 250, 275])
+  it('fits the range to the nearest round numbers around the data', () => {
+    // Bench around 84–103 kg: 80–105 instead of 70–110, so the climb fills the chart
+    expect(e1rmTicks([84.2, 90, 102.9])).toEqual([80, 85, 90, 95, 100, 105])
+    expect(e1rmTicks([155, 185.8])).toEqual([150, 160, 170, 180, 190])
+    expect(e1rmTicks([180, 260])).toEqual([180, 200, 220, 240, 260])
+  })
+  it('never uses more than 5 steps', () => {
+    for (const values of [[61, 99], [100.6, 110], [20, 300], [42.5, 47.5]]) {
+      const ticks = e1rmTicks(values)
+      expect(ticks.length).toBeLessThanOrEqual(6)
+      expect(ticks[0]).toBeLessThanOrEqual(Math.min(...values))
+      expect(ticks.at(-1)).toBeGreaterThanOrEqual(Math.max(...values))
+    }
   })
   it('still gives a range when every point is the same', () => {
-    expect(e1rmTicks([60, 60])).toEqual([55, 60, 65])
+    expect(e1rmTicks([60, 60])).toEqual([59, 60, 61])
   })
 })

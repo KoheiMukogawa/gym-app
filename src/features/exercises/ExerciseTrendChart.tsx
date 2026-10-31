@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { IS_DEMO } from '../../lib/demoMode'
 import { DOT_LIMIT, initialRange, isZoomed, panRange, spansYears, trendDate, visiblePoints, zoomRange, type TrendPoint, type TrendRange } from './trend'
 
 const ACCENT = '#E8412F'
@@ -22,7 +23,8 @@ export function ExerciseTrendChart({ points, selectedDate, onSelectDate }: {
   points: TrendPoint[]; selectedDate: string; onSelectDate: (date: string) => void
 }) {
   const count = points.length
-  const [range, setRange] = useState(() => initialRange(points))
+  // 紹介ページの見本では、成長曲線を見せるため最初から全期間（直近6ヶ月から切り替えると、別のグラフが一瞬見える）
+  const [range, setRange] = useState(() => IS_DEMO ? { start: 0, end: Math.max(0, points.length - 1) } : initialRange(points))
   // 線を描くアニメーションは開いたときだけ。拡大・移動のたびに描き直すと線が消えて見える。
   const [drawn, setDrawn] = useState(false)
   const box = useRef<HTMLDivElement>(null)
