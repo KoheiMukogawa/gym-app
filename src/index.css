@@ -104,3 +104,12 @@ input, textarea, select {
 @media (prefers-reduced-motion: reduce) {
   .bottom-sheet[open] { animation: none; }
 }
+
+/* 浮かせたボタン（ホームの「記録する」、一覧入力の赤い＋など）。暗い背景では黒い影だけでは見えないので、
+   ボタンの色の光を下ににじませ、上辺に細い光を入れて、画面から浮いて見せる。押している間は沈める。 */
+@utility shadow-float {
+  box-shadow: 0 14px 28px -8px rgb(232 65 47 / 0.45), 0 8px 18px rgb(0 0 0 / 0.7), inset 0 1px 0 rgb(255 255 255 / 0.35), inset 0 -2px 4px rgb(0 0 0 / 0.18);
+}
+@utility shadow-float-pressed {
+  box-shadow: 0 6px 14px -6px rgb(232 65 47 / 0.35), 0 2px 6px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.2), inset 0 -1px 2px rgb(0 0 0 / 0.2);
+}

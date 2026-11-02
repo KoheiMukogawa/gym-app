@@ -34,7 +34,7 @@ export function FloatingRecordAction(props: Props) {
   }, [])
 
   if (editing) return null
-  const className = 'pointer-events-auto inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-accent px-5 text-base font-semibold text-white shadow-[0_4px_16px_rgba(0,0,0,0.28)] active:brightness-90 disabled:cursor-not-allowed disabled:opacity-40'
+  const className = 'pointer-events-auto inline-flex min-h-14 items-center justify-center gap-2 rounded-full bg-accent px-5 text-base font-semibold text-white shadow-float transition-[box-shadow,transform,filter] duration-150 active:translate-y-0.5 active:shadow-float-pressed active:brightness-90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none'
   const content = <>
     <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <path d="M12 5v14M5 12h14" />
