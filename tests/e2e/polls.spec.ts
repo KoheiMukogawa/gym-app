@@ -5,7 +5,7 @@ test('a user votes from the launch sheet, sees the results and finds them again 
   const user = { id: uid, aud: 'authenticated', role: 'authenticated', email: 'member@example.com', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' }
   const session = { access_token: 'a', refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(now / 1000) + 3600, user }
   await page.addInitScript(value => localStorage.setItem('sb-example-auth-token', JSON.stringify(value)), session)
-  const votes: Record<string, number> = { glog: 2, 'barbell-club': 1 }
+  const votes: Record<string, number> = { glog: 1, 'barbell-club': 2 }
   let mine: string | null = null
   const poll = () => ({
     id: 'b0110000-0000-4000-8000-000000000001', question: 'アプリの名前はどちらがいいですか？',
@@ -45,8 +45,8 @@ test('a user votes from the launch sheet, sees the results and finds them again 
   })
   await sheet.getByRole('button', { name: '投票する' }).click()
   const results = sheet.getByRole('list', { name: '結果' })
-  await expect(results).toContainText('BARBELL CLUBあなたの投票50%')
-  await expect(results).toContainText('Glog50%')
+  await expect(results).toHaveText('Glog25%BARBELL CLUB75%あなたの投票')
+  await page.waitForTimeout(900)
   await page.screenshot({ path: 'test-results/poll-results-390.png' })
   await sheet.getByRole('button', { name: '閉じる' }).click()
   await expect(sheet).toBeHidden()
@@ -54,7 +54,7 @@ test('a user votes from the launch sheet, sees the results and finds them again 
   await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
   await page.getByRole('link', { name: '投票', exact: true }).click()
   await expect(page.getByRole('heading', { name: '投票', level: 1 })).toBeVisible()
-  await expect(page.getByRole('list', { name: '結果' })).toContainText('BARBELL CLUBあなたの投票50%')
+  await expect(page.getByRole('list', { name: '結果' })).toContainText('BARBELL CLUB75%あなたの投票')
   await expect(page.getByText('票', { exact: false }).filter({ hasText: /\d票/ })).toHaveCount(0)
   await page.reload()
   await expect(page.getByRole('heading', { name: '投票', level: 1 })).toBeVisible()

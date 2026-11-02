@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '../../components/ui/Button'
 import { deadlineLabel, isOpen, pollMessage, showsResults, votePoll, type Poll } from './queries'
 import { notifyPollsChanged } from './usePolls'
@@ -60,26 +60,82 @@ export function PollCard({ poll, onVoted }: { poll: Poll; onVoted?: (optionId: s
   </article>
 }
 
-function Results({ poll }: { poll: Poll }) {
+const MINE = <span className="ml-2 inline-block rounded-full bg-accent/15 px-2 py-0.5 align-middle text-xs font-semibold text-accent">あなたの投票</span>
+
+/** 選択肢ごとの割合（合計がちょうど100%になるよう、最後の選択肢で端数を合わせる） */
+function shares(poll: Poll): number[] {
   const total = poll.total_votes ?? 0
-  const top = Math.max(0, ...poll.options.map((o) => o.votes ?? 0))
-  return <div className="space-y-3">
-    <ul aria-label="結果" className="space-y-3">
-      {poll.options.map((o) => {
-        const votes = o.votes ?? 0
-        const share = total ? Math.round((votes / total) * 100) : 0
-        const mine = poll.my_option === o.id
-        return <li key={o.id} className="space-y-1.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0 font-semibold">{o.label}{mine && <span className="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">あなたの投票</span>}</span>
-            <span className="shrink-0 font-semibold tabular-nums">{share}%</span>
-          </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-border" aria-hidden="true">
-            <div className={`h-full rounded-full ${votes > 0 && votes === top ? 'bg-accent' : 'bg-muted'}`} style={{ width: `${share}%` }} />
-          </div>
-        </li>
-      })}
+  if (!total) return poll.options.map(() => 0)
+  const rounded = poll.options.map((o) => Math.round(((o.votes ?? 0) / total) * 100))
+  rounded[rounded.length - 1] = 100 - rounded.slice(0, -1).reduce((a, b) => a + b, 0)
+  return rounded
+}
+
+function Results({ poll }: { poll: Poll }) {
+  return poll.options.length === 2 ? <TugOfWar poll={poll} /> : <Bars poll={poll} />
+}
+
+/**
+ * 2択の結果。1本のゲージを左右の選択肢が引き合う形で出し、割合はゲージの中の両端に書く。
+ * 自分が選んだ側を赤くして「あなたの投票」を表す（投票せずに締め切った人には、どちらも赤くしない）。
+ * 開いたときは真ん中から動かし、真ん中の印でどちらが優勢かを分かるようにする。票がまだ無いときは五分五分の灰色。
+ */
+function TugOfWar({ poll }: { poll: Poll }) {
+  const [left, right] = poll.options
+  const [leftShare, rightShare] = shares(poll)
+  const empty = !poll.total_votes
+  const [pulled, setPulled] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setPulled(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  const width = empty || !pulled ? 50 : leftShare
+  const leftRed = !empty && poll.my_option === left.id
+  const rightRed = !empty && poll.my_option === right.id
+  const leftColor = empty ? 'bg-muted/40' : leftRed ? 'bg-accent' : poll.my_option ? 'bg-fg/85' : 'bg-muted'
+  const rightColor = empty ? 'bg-muted/25' : rightRed ? 'bg-accent' : 'bg-fg/85'
+  // 端の数字が反対側の色に乗るほど片方が細いときは、乗った側の色で読める文字色にする
+  const FITS = 18
+  const leftOn = width >= FITS ? leftRed : rightRed
+  const rightOn = 100 - width >= FITS ? rightRed : leftRed
+  const textOn = (red: boolean) => (empty ? 'text-fg/70' : red ? 'text-white' : 'text-bg')
+  const mine = <span className="sr-only">あなたの投票</span>
+  return <div className="space-y-2">
+    {/* 割合と自分の投票はゲージで見せるので、読み上げ用にだけ選択肢の横にも置く */}
+    <ul aria-label="結果" className="grid grid-cols-2 gap-3">
+      <li className="min-w-0 font-semibold">
+        {left.label}<span className="sr-only">{leftShare}%</span>{poll.my_option === left.id && mine}
+      </li>
+      <li className="min-w-0 text-right font-semibold">
+        {right.label}<span className="sr-only">{rightShare}%</span>{poll.my_option === right.id && mine}
+      </li>
     </ul>
-    <p className="text-xs text-muted">割合だけを表示し、票数と誰がどれを選んだかは表示しません。</p>
+    <div aria-hidden="true" className="relative flex h-10 overflow-hidden rounded-full bg-border">
+      <div className={`h-full transition-[width] duration-700 ease-out motion-reduce:transition-none ${leftColor}`} style={{ width: `${width}%` }} />
+      <div className={`h-full flex-1 ${rightColor}`} />
+      <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-bg/70" />
+      <span className={`absolute inset-y-0 left-4 flex items-center text-lg font-bold tabular-nums transition-colors duration-700 ${textOn(leftOn)}`}>{leftShare}%</span>
+      <span className={`absolute inset-y-0 right-4 flex items-center text-lg font-bold tabular-nums transition-colors duration-700 ${textOn(rightOn)}`}>{rightShare}%</span>
+    </div>
   </div>
+}
+
+/** 3択以上の結果。選択肢ごとに横棒を並べ、いちばん多いものを赤くする */
+function Bars({ poll }: { poll: Poll }) {
+  const values = shares(poll)
+  const top = Math.max(0, ...poll.options.map((o) => o.votes ?? 0))
+  return <ul aria-label="結果" className="space-y-3">
+    {poll.options.map((o, i) => {
+      const votes = o.votes ?? 0
+      return <li key={o.id} className="space-y-1.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 font-semibold">{o.label}{poll.my_option === o.id && MINE}</span>
+          <span className="shrink-0 font-semibold tabular-nums">{values[i]}%</span>
+        </div>
+        <div className="h-2.5 overflow-hidden rounded-full bg-border" aria-hidden="true">
+          <div className={`h-full rounded-full ${votes > 0 && votes === top ? 'bg-accent' : 'bg-muted'}`} style={{ width: `${values[i]}%` }} />
+        </div>
+      </li>
+    })}
+  </ul>
 }

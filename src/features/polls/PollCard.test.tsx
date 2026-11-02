@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PollCard } from './PollCard'
 import type { Poll } from './queries'
@@ -51,11 +51,45 @@ describe('PollCard', () => {
     render(<PollCard poll={{ ...POLL, my_option: 'glog', total_votes: 4,
       options: [{ id: 'glog', label: 'Glog', votes: 3 }, { id: 'barbell-club', label: 'BARBELL CLUB', votes: 1 }] }} />)
     const results = screen.getByRole('list', { name: '結果' })
-    expect(results).toHaveTextContent('Glogあなたの投票75%')
+    expect(results).toHaveTextContent('Glog75%あなたの投票')
     expect(results).toHaveTextContent('BARBELL CLUB25%')
     expect(results).not.toHaveTextContent(/\d票/)
     expect(screen.queryByText(/4人/)).toBeNull()
     expect(screen.queryByRole('button', { name: '投票する' })).toBeNull()
+  })
+
+  it('splits one gauge between the two options, and lists three or more as bars', () => {
+    const { container, unmount } = render(<PollCard poll={{ ...POLL, my_option: 'glog', total_votes: 3,
+      options: [{ id: 'glog', label: 'Glog', votes: 1 }, { id: 'barbell-club', label: 'BARBELL CLUB', votes: 2 }] }} />)
+    // Shares add up to 100 even when they do not divide evenly.
+    expect(screen.getByRole('list', { name: '結果' })).toHaveTextContent('Glog33%あなたの投票BARBELL CLUB67%')
+    expect(container.querySelectorAll('[aria-hidden="true"].relative')).toHaveLength(1)
+    unmount()
+    render(<PollCard poll={{ ...POLL, my_option: 'a', total_votes: 4, options: [
+      { id: 'a', label: 'A', votes: 2 }, { id: 'b', label: 'B', votes: 1 }, { id: 'c', label: 'C', votes: 1 }] }} />)
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getByRole('list', { name: '結果' })).toHaveTextContent('Aあなたの投票50%B25%C25%')
+  })
+
+  it('keeps the shares readable inside the gauge when one side is thin', async () => {
+    render(<PollCard poll={{ ...POLL, my_option: 'glog', total_votes: 10,
+      options: [{ id: 'glog', label: 'Glog', votes: 1 }, { id: 'barbell-club', label: 'BARBELL CLUB', votes: 9 }] }} />)
+    // The gauge starts even and is pulled to the result on the next frame.
+    // The user's side (Glog, 10%) is red; its share sits on the light side, so it is drawn dark.
+    await waitFor(() => expect(screen.getByText('10%', { selector: '[aria-hidden] span' })).toHaveClass('text-bg'))
+    expect(screen.getByText('90%', { selector: '[aria-hidden] span' })).toHaveClass('text-bg')
+    expect(document.querySelector('[aria-hidden] > div')).toHaveClass('bg-accent')
+    expect(document.querySelectorAll('[aria-hidden] > div')[1]).not.toHaveClass('bg-accent')
+  })
+
+  it('turns the side the user chose red', async () => {
+    render(<PollCard poll={{ ...POLL, my_option: 'barbell-club', total_votes: 4,
+      options: [{ id: 'glog', label: 'Glog', votes: 1 }, { id: 'barbell-club', label: 'BARBELL CLUB', votes: 3 }] }} />)
+    const [glog, club] = document.querySelectorAll('[aria-hidden] > div')
+    expect(club).toHaveClass('bg-accent')
+    expect(glog).not.toHaveClass('bg-accent')
+    await waitFor(() => expect(screen.getByText('75%', { selector: '[aria-hidden] span' })).toHaveClass('text-white'))
+    expect(screen.queryByText('あなたの投票', { selector: ':not(.sr-only)' })).toBeNull()
   })
 
   it('shows the results to everyone once closed', () => {
