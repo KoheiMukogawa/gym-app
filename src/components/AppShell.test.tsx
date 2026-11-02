@@ -115,7 +115,7 @@ describe('polls in the profile menu', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'Glog' }))
     await userEvent.click(screen.getByRole('button', { name: '投票する' }))
     expect(votePoll).toHaveBeenCalledWith('p1', 'a')
-    expect(await screen.findByRole('list', { name: '結果' })).toHaveTextContent('Glogあなたの投票100%1票')
+    expect(await screen.findByRole('list', { name: '結果' })).toHaveTextContent('Glogあなたの投票100%')
     expect(sheet).toBeInTheDocument()
     confirm.mockRestore()
   })

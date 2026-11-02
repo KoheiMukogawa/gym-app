@@ -5,7 +5,7 @@ import { notifyPollsChanged } from './usePolls'
 
 /**
  * 1つの投票。まだなら選択肢を選んで投票し、投票した後（と締め切った後）は結果を出す。
- * 結果は票数と割合だけで、誰がどれを選んだかは出さない。
+ * 結果は割合だけで、票数と誰がどれを選んだかは出さない。
  */
 export function PollCard({ poll, onVoted }: { poll: Poll; onVoted?: (optionId: string) => void }) {
   const [selected, setSelected] = useState<string | null>(null)
@@ -72,7 +72,7 @@ function Results({ poll }: { poll: Poll }) {
         return <li key={o.id} className="space-y-1.5">
           <div className="flex items-baseline justify-between gap-3">
             <span className="min-w-0 font-semibold">{o.label}{mine && <span className="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">あなたの投票</span>}</span>
-            <span className="shrink-0 tabular-nums"><span className="font-semibold">{share}%</span><span className="ml-1.5 text-xs text-muted">{votes}票</span></span>
+            <span className="shrink-0 font-semibold tabular-nums">{share}%</span>
           </div>
           <div className="h-2.5 overflow-hidden rounded-full bg-border" aria-hidden="true">
             <div className={`h-full rounded-full ${votes > 0 && votes === top ? 'bg-accent' : 'bg-muted'}`} style={{ width: `${share}%` }} />
@@ -80,6 +80,6 @@ function Results({ poll }: { poll: Poll }) {
         </li>
       })}
     </ul>
-    <p className="text-xs text-muted">{total}人のマッチョが投票。誰がどれを選んだかは表示しません。</p>
+    <p className="text-xs text-muted">割合だけを表示し、票数と誰がどれを選んだかは表示しません。</p>
   </div>
 }

@@ -17,7 +17,7 @@ describe('PollsPage', () => {
     ])
     render(<PollsPage />)
     expect(await screen.findByRole('article', { name: '受付中の質問' })).toHaveTextContent('投票する')
-    expect(screen.getByRole('article', { name: '締め切った質問' })).toHaveTextContent('2人のマッチョが投票')
+    expect(screen.getByRole('article', { name: '締め切った質問' })).toHaveTextContent('A100%')
   })
 
   it('keeps a failed load on screen with a retry, not as an empty list', async () => {

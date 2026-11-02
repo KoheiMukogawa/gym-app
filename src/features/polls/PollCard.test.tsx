@@ -47,20 +47,21 @@ describe('PollCard', () => {
     confirm.mockRestore()
   })
 
-  it('shows shares, counts and the user\'s choice after voting, without names', () => {
+  it('shows shares and the user\'s choice after voting, without counts or names', () => {
     render(<PollCard poll={{ ...POLL, my_option: 'glog', total_votes: 4,
       options: [{ id: 'glog', label: 'Glog', votes: 3 }, { id: 'barbell-club', label: 'BARBELL CLUB', votes: 1 }] }} />)
     const results = screen.getByRole('list', { name: '結果' })
-    expect(results).toHaveTextContent('Glogあなたの投票75%3票')
-    expect(results).toHaveTextContent('BARBELL CLUB25%1票')
-    expect(screen.getByText('4人のマッチョが投票。誰がどれを選んだかは表示しません。')).toBeInTheDocument()
+    expect(results).toHaveTextContent('Glogあなたの投票75%')
+    expect(results).toHaveTextContent('BARBELL CLUB25%')
+    expect(results).not.toHaveTextContent(/\d票/)
+    expect(screen.queryByText(/4人/)).toBeNull()
     expect(screen.queryByRole('button', { name: '投票する' })).toBeNull()
   })
 
   it('shows the results to everyone once closed', () => {
     render(<PollCard poll={{ ...POLL, ends_at: '2020-01-01T00:00:00Z', total_votes: 0, options: POLL.options.map((o) => ({ ...o, votes: 0 })) }} />)
     expect(screen.getByText('締め切りました')).toBeInTheDocument()
-    expect(screen.getByRole('list', { name: '結果' })).toHaveTextContent('Glog0%0票')
+    expect(screen.getByRole('list', { name: '結果' })).toHaveTextContent('Glog0%')
   })
 
   it('shows the last minute of the period as the deadline', () => {
