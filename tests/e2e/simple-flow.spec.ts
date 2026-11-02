@@ -1344,7 +1344,7 @@ test('a new user starts from BIG3 bests entered on home and sees them in BIG3', 
   await expect(page.getByRole('heading', { name: '前のアプリから乗り換え？' })).toHaveCount(0)
 })
 
-test('list input saves typed rows when the exercise is changed', async ({ page }) => {
+test('list input saves typed rows when a set is added and when the exercise is changed', async ({ page }) => {
   const data = await mockApi(page, true)
   await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
   await page.getByRole('link', { name: 'プロフィールを編集' }).click()
@@ -1361,7 +1361,8 @@ test('list input saves typed rows when the exercise is changed', async ({ page }
   await expect(page.getByLabel('2セット目の重さ', { exact: true })).toHaveValue('100')
   await page.getByLabel('2セット目の回数', { exact: true }).fill('3')
   await page.getByLabel('2セット目のメモ', { exact: true }).fill('最後は補助あり')
-  expect(data.sets.filter((s) => s.workout_id !== 'previous')).toHaveLength(0)
+  // The first set was saved when the second row was added; the second waits until it is left.
+  expect(data.sets.filter((s) => s.workout_id !== 'previous').map((s) => [s.set_index, s.weight_kg, s.reps])).toEqual([[1, 100, 5]])
   for (const width of [320, 375, 390]) {
     await page.setViewportSize({ width, height: 844 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
@@ -1383,6 +1384,20 @@ test('list input saves typed rows when the exercise is changed', async ({ page }
   // Coming back to the exercise lists the saved rows for correction.
   await page.getByRole('button', { name: 'ベンチプレスの記録を開く' }).click()
   await expect(page.getByLabel('2セット目の回数', { exact: true })).toHaveValue('3')
+
+  // Editing the day from history uses the same table instead of the dials.
+  await page.goto('/history/' + data.workouts.at(-1)!.id)
+  await expect(page.getByLabel('2セット目の回数', { exact: true })).toHaveValue('3')
+  await expect(page.getByRole('spinbutton')).toHaveCount(0)
+  await page.getByLabel('2セット目の回数', { exact: true }).fill('4')
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
+    await page.screenshot({ path: `test-results/list-history-${width}.png` })
+  }
+  await page.getByRole('button', { name: '保存して履歴に戻る' }).click()
+  await expect(page).toHaveURL(/\/history\?date=/)
+  expect(data.sets.find((s) => s.set_index === 2 && s.workout_id !== 'previous')?.reps).toBe(4)
 })
 
 test('list input screens have their own screen IDs', async ({ page }) => {

@@ -32,9 +32,13 @@ input, textarea, select {
   font-size: max(16px, 1em);
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
+/* base レイヤーに置き、部品側の outline-none（Tailwindのユーティリティ）で消せるようにする。
+   レイヤーの外に書くと、詳細度に関係なくユーティリティより優先され、一覧入力の欄に赤い枠が出ていた。 */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
 }
 
 /* Recharts makes its chart surface focusable, so a tap left the browser's blue focus ring around the chart. */

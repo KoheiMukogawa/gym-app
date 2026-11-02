@@ -120,22 +120,26 @@ describe('LogPage list input', () => {
     saveInputMode(USER, 'list')
   })
 
-  it('saves the typed rows only when leaving the exercise, then lists them in today\'s summary', async () => {
+  it('saves the typed rows when the next set is added, then lists them in today\'s summary', async () => {
     seedDraftWithExercise()
     const user = userEvent.setup()
     renderLogPage()
     await user.type(await screen.findByLabelText('1セット目の重さ'), '100')
     await user.type(screen.getByLabelText('1セット目の回数'), '5')
     await user.click(screen.getByRole('button', { name: 'セットを追加' }))
-    await user.click(screen.getByRole('button', { name: '2セット目の重さを上の行から写す' }))
+    // Adding the next row saves the finished set right away.
+    await waitFor(() => expect(saveEditableSet).toHaveBeenCalledTimes(1))
+    await user.click(await screen.findByRole('button', { name: '2セット目の重さを上の行から写す' }))
     expect(screen.getByLabelText('2セット目の重さ')).toHaveValue('100')
     await user.type(screen.getByLabelText('2セット目の回数'), '3')
     await user.type(screen.getByLabelText('2セット目のメモ'), '補助あり')
     await user.click(screen.getByRole('button', { name: 'セットを追加' }))
-    expect(saveEditableSet).not.toHaveBeenCalled()
+    await waitFor(() => expect(saveEditableSet).toHaveBeenCalledTimes(2))
+    expect(await screen.findByLabelText('3セット目の重さ')).toHaveValue('')
 
     await user.click(screen.getByRole('button', { name: '今日の記録に戻る' }))
-    await waitFor(() => expect(saveEditableSet).toHaveBeenCalledTimes(2))
+    await screen.findByRole('region', { name: '今日の記録' })
+    expect(saveEditableSet).toHaveBeenCalledTimes(2)
     // The untouched third row is empty, so it is not saved.
     expect(saveEditableSet.mock.calls.map(([wid, set]) => [wid, set.set_index, set.weight_kg, set.reps, set.note ?? null]))
       .toEqual([['w1', 1, 100, 5, null], ['w1', 2, 100, 3, '補助あり']])
@@ -210,15 +214,61 @@ describe('LogPage list input', () => {
     expect(localStorage.getItem(`glog:weight-unit:${USER}`)).toBe('lbs')
   })
 
-  it('keeps the user on the exercise when a row has only one value', async () => {
+  it('keeps a row with only the weight when leaving, and brings it back on reopening', async () => {
+    seedDraftWithExercise()
+    const user = userEvent.setup()
+    renderLogPage()
+    await user.type(await screen.findByLabelText('1セット目の重さ'), '100')
+    await user.type(screen.getByLabelText('1セット目の回数'), '5')
+    await user.click(screen.getByRole('button', { name: 'セットを追加' }))
+    await user.type(await screen.findByLabelText('2セット目の重さ'), '110')
+    await user.click(screen.getByRole('button', { name: '今日の記録に戻る' }))
+    const summary = await screen.findByRole('region', { name: '今日の記録' })
+    expect(summary).toHaveTextContent('入力途中')
+    expect(saveEditableSet).toHaveBeenCalledTimes(1)
+    // The held row survives a reload through the draft.
+    expect(loadDraft(USER)?.heldRows?.bench).toMatchObject([{ weight: '110', reps: '' }])
+
+    await user.click(screen.getByRole('button', { name: 'ベンチプレスの記録を開く' }))
+    expect(await screen.findByLabelText('2セット目の重さ')).toHaveValue('110')
+    await user.type(screen.getByLabelText('2セット目の回数'), '3')
+    await user.click(screen.getByRole('button', { name: '今日の記録に戻る' }))
+    await waitFor(() => expect(saveEditableSet).toHaveBeenCalledTimes(2))
+    expect(saveEditableSet.mock.calls[1][1]).toMatchObject({ set_index: 2, weight_kg: 110, reps: 3 })
+    expect(await screen.findByRole('region', { name: '今日の記録' })).not.toHaveTextContent('入力途中')
+  })
+
+  it('asks before finishing with a row that has only the weight', async () => {
     seedDraftWithExercise()
     const user = userEvent.setup()
     renderLogPage()
     await user.type(await screen.findByLabelText('1セット目の重さ'), '100')
     await user.click(screen.getByRole('button', { name: '今日の記録に戻る' }))
-    expect(await screen.findAllByText('重量と回数の両方を入れてください')).not.toHaveLength(0)
-    expect(saveEditableSet).not.toHaveBeenCalled()
+    expect(await screen.findByRole('region', { name: '今日の記録' })).toHaveTextContent('入力途中')
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await user.click(screen.getByRole('button', { name: 'ホームに戻る' }))
+    expect(confirm).toHaveBeenCalledWith('重量か回数が入っていないセットが1件あります。記録せずに終了しますか？')
     expect(navigate).not.toHaveBeenCalled()
+    confirm.mockRestore()
+  })
+
+  it('does not add a row while a value is out of range', async () => {
+    seedDraftWithExercise()
+    const user = userEvent.setup()
+    renderLogPage()
+    await user.type(await screen.findByLabelText('1セット目の重さ'), '100')
+    await user.type(screen.getByLabelText('1セット目の回数'), '2.5')
+    await user.click(screen.getByRole('button', { name: 'セットを追加' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByLabelText('4セット目の重さ')).toBeNull()
+    expect(saveEditableSet).not.toHaveBeenCalled()
+  })
+
+  it('opens a new exercise with three empty rows', async () => {
+    seedDraftWithExercise()
+    renderLogPage()
+    expect(await screen.findByLabelText('3セット目の重さ')).toHaveValue('')
+    expect(screen.queryByLabelText('4セット目の重さ')).toBeNull()
   })
 
   it('updates only changed sets and deletes removed rows of today\'s workout', async () => {

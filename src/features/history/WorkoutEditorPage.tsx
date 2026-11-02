@@ -23,6 +23,8 @@ import { SlidingDial } from '../../components/ui/SlidingDial'
 import { FloatingRecordAction } from '../../components/ui/FloatingRecordAction'
 import { bodyweightOn, formatAddedLoad, totalLoad, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
+import { useLogInputMode } from '../workout-log/inputMode'
+import { ListWorkoutEditor } from './ListWorkoutEditor'
 import { createDatedWorkout, fetchEditableWorkout, findWorkoutOnDate, removeWorkout, removeWorkoutSet, saveEditableSet, updateWorkoutSet } from './editorQueries'
 
 type Entry = { id: string; exercise_id: string; weight: string; reps: string; note: string; existing: boolean }
@@ -34,6 +36,8 @@ export function WorkoutEditorPage() {
   const navigate = useNavigate()
   const { show } = useToast()
   const setBottomDockOpen = useContext(BottomDockContext)
+  // 記録画面と同じ入力方法（ダイヤル／一覧）で直す
+  const { mode } = useLogInputMode(userId)
   const newId = useRef(crypto.randomUUID())
   const [savedId, setSavedId] = useState<string | null>(workoutId ?? null)
   const [date, setDate] = useState(() => {
@@ -230,6 +234,15 @@ export function WorkoutEditorPage() {
   if (loading) return <Spinner />
   if (loadError) return <div className="space-y-4 p-4"><p role="alert">{loadError}</p><Button onClick={() => void load()}>再試行</Button></div>
   if (notFound) return <div className="p-4"><p role="alert">この記録は見つからないか、編集できません。</p><Link className="flex min-h-14 items-center text-accent" to="/history">履歴へ戻る</Link></div>
+  if (mode === 'list' && userId) {
+    return <ListWorkoutEditor userId={userId} workoutId={savedId} newWorkoutId={newId.current} date={date} initialSets={sets}
+      exercises={exercises} bodyweightLogs={bodyweightLogs} onSaved={(id) => { if (loadDraft(userId)?.workoutId === id) clearDraft(userId) }}
+      onCreateExercise={async (name, group) => {
+        const exercise = await createExercise({ name, muscle_group: group, userId })
+        setExercises((old) => [...old, exercise])
+        return exercise
+      }} />
+  }
   const names = Object.fromEntries(exercises.map((e) => [e.id, exerciseLabel(e)]))
   const groups = [...new Set(sets.map((s) => s.exercise_id))].map((id) => ({ id, sets: sets.filter((s) => s.exercise_id === id) }))
   const entryIsBodyweight = !!entry && isBodyweightExercise(entry.exercise_id)

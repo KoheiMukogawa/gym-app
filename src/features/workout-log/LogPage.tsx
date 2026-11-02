@@ -42,7 +42,7 @@ import { GroupedExercisePicker } from './GroupedExercisePicker'
 import { TodaySummary } from './TodaySummary'
 import { AddFab } from './AddFab'
 import { logScreenFor, type LogScreen } from '../admin/screenIds'
-import { newRow, planListSave, rowsFromPrevious, rowsFromSets, type ListRow, type ListRows } from './listRows'
+import { isIncompleteRow, newRow, planListSave, rowsFromPrevious, rowsFromSets, type ListRow, type ListRows } from './listRows'
 import { shouldAskInputMode, useLogInputMode, type LogInputMode } from './inputMode'
 import { convertWeightText, useWeightUnit, type WeightUnit } from './weightUnit'
 
@@ -117,6 +117,13 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // 一覧入力の種目選択で「種目を追加」を押したときに開く部位（今までの種目選択の画面を出す）
   const [managingGroup, setManagingGroup] = useState<MuscleGroup | null>(null)
   // 一覧入力の今日の記録（REC-03）で、右下の＋から種目選択（REC-04）を開いているか
+  // 回数などを打つ前に閉じた行。種目ごとに重さはkgの文字で持ち、次にその種目を開いたときに戻す
+  const [heldRows, setHeldRowsState] = useState<Record<string, ListRow[]>>(draft?.heldRows ?? {})
+  function setHeldRows(update: (prev: Record<string, ListRow[]>) => Record<string, ListRow[]>) {
+    touchedRef.current = true
+    setHeldRowsState(update)
+  }
+  const heldCount = Object.values(heldRows).reduce((n, rows) => n + rows.length, 0)
   const [choosingExercise, setChoosingExercise] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -125,7 +132,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // 種目を選んでいる間はタブを出す（AppShell）
   useEffect(() => { onPickingChange?.(picking) }, [picking, onPickingChange])
   // まだ記録が無い日は、今日の記録を飛ばして種目選択から始める
-  const listChoosing = choosingExercise || managingGroup !== null || state.sets.length === 0
+  const listChoosing = choosingExercise || managingGroup !== null || (state.sets.length === 0 && heldCount === 0)
   // 管理者向けの画面ID。ダイヤルと一覧で別の画面として数える
   const logScreen = logScreenFor(mode, picking, listChoosing)
   useEffect(() => { onScreenChange?.(logScreen) }, [logScreen, onScreenChange])
@@ -138,7 +145,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   const [editingBodyweight, setEditingBodyweight] = useState(false)
   const [savingBodyweight, setSavingBodyweight] = useState(false)
   const [editingSetId, setEditingSetId] = useState<string | null>(null)
-  // 一覧入力の行。保存は記録画面を抜けるとき（flushList）にまとめて行う
+  // 一覧入力の行。保存は次のセットを足すときと、記録画面を抜けるとき（flushList）に行う
   const [listRows, setListRowsState] = useState<ListRows | null>(draft?.listRows ?? null)
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
   const [savingList, setSavingList] = useState(false)
@@ -195,8 +202,8 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // workoutId は state 化したので、作成直後の値も取りこぼさずに書き込まれる。
   useEffect(() => {
     if (!userId || !touchedRef.current) return
-    saveDraft(userId, { state, workoutId, status: statusById, routine, listRows })
-  }, [state, workoutId, statusById, userId, routine, listRows])
+    saveDraft(userId, { state, workoutId, status: statusById, routine, listRows, heldRows })
+  }, [state, workoutId, statusById, userId, routine, listRows, heldRows])
 
   useEffect(() => {
     const update = () => setOffline(isOffline())
@@ -276,7 +283,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     if (index < 0 || index >= routine.exerciseIds.length) return
     const id = routine.exerciseIds[index]
     if (!exercises.some((e) => e.id === id)) { show('この種目は見つかりません。ルーティンを編集してください。'); return }
-    if ((await flushList()) === null) return
+    if (!(await leaveList())) return
     setRoutine({ ...routine, index })
     selectExercise(id)
   }
@@ -420,18 +427,22 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
 
   // 一覧入力では、種目を選んだら（今日の記録の読み込みが済んでから）その種目の行を用意する
   useEffect(() => {
-    if (loading || picking || mode !== 'list' || !state.currentExerciseId || listRows?.exerciseId === state.currentExerciseId) return
-    setListRowsState(rowsFromSets(state.sets, state.currentExerciseId, unit))
+    const id = state.currentExerciseId
+    if (loading || picking || mode !== 'list' || !id || listRows?.exerciseId === id) return
+    const held = (heldRows[id] ?? []).map((r) => ({ ...r, weight: convertWeightText(r.weight, 'kg', unit) }))
+    setListRowsState(rowsFromSets(state.sets, id, unit, held))
+    if (heldRows[id]) setHeldRowsState(({ [id]: _, ...rest }) => rest)
     setRowErrors({})
-  }, [loading, picking, mode, state, listRows, unit])
+  }, [loading, picking, mode, state, listRows, unit, heldRows])
 
   const flushingRef = useRef<Promise<number | null> | null>(null)
   /**
-   * 一覧の行をまとめて保存する。記録画面を抜けるとき（種目を変える・記録を終了・ルーティンの移動・
-   * 入力方法の切り替え・アプリが裏に回ったとき）に呼ぶ。保存後のセット数を返し、保存できなければ null。
+   * 一覧の行をまとめて保存する。次のセットを足すときと、記録画面を抜けるとき（種目を変える・記録を終了・
+   * ルーティンの移動・入力方法の切り替え・アプリが裏に回ったとき）に呼ぶ。保存後のセット数を返し、保存できなければ null。
    * background のときは画面を止められないので、打ちかけの行は下書きに残し、保存できる行だけ保存する。
+   * allowIncomplete のときは、重量か回数の片方だけの行があっても止めず、ほかの行を保存する（範囲外の値では止める）。
    */
-  function flushList(background = false): Promise<number | null> {
+  function flushList({ background = false, allowIncomplete = false }: { background?: boolean; allowIncomplete?: boolean } = {}): Promise<number | null> {
     if (!listRows || !userId) return Promise.resolve(state.sets.length)
     if (flushingRef.current) return flushingRef.current
     const { exerciseId, rows } = listRows
@@ -440,10 +451,11 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     const saved = own.filter((s) => (statusById[s.id] ?? 'saved') === 'saved')
     const plan = planListSave(rows, saved, exerciseId, minWeight, unit)
     if (!background) {
-      const errors: Record<string, string> = Object.fromEntries(plan.incomplete.map((id) => [id, '重量と回数の両方を入れてください']))
+      const blockIncomplete = !allowIncomplete && plan.incomplete.length > 0
+      const errors: Record<string, string> = blockIncomplete ? Object.fromEntries(plan.incomplete.map((id) => [id, '重量と回数の両方を入れてください'])) : {}
       if (plan.invalid) errors[plan.invalid.id] = plan.invalid.message
       setRowErrors(errors)
-      if (plan.invalid || plan.incomplete.length) {
+      if (plan.invalid || blockIncomplete) {
         show(plan.invalid?.message ?? '重量と回数の両方を入れてください')
         return Promise.resolve(null)
       }
@@ -503,7 +515,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   const flushRef = useRef(flushList)
   flushRef.current = flushList
   useEffect(() => {
-    const hide = () => { if (document.visibilityState === 'hidden') void flushRef.current(true) }
+    const hide = () => { if (document.visibilityState === 'hidden') void flushRef.current({ background: true }) }
     document.addEventListener('visibilitychange', hide)
     return () => document.removeEventListener('visibilitychange', hide)
   }, [])
@@ -511,13 +523,44 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // プロフィールでダイヤルに戻されたときも、一覧の行を保存してから外す
   useEffect(() => {
     if (mode !== 'dial' || !listRows) return
-    void flushRef.current(true).then((total) => { if (total !== null) setListRowsState(null) })
+    void flushRef.current({ background: true }).then((total) => { if (total !== null) setListRowsState(null) })
   }, [mode, listRows])
 
-  async function changeExercise() {
-    if ((await flushList()) === null) return
+  /**
+   * 一覧の行を保存して閉じる。回数を打つ前に別の画面へ移りたいこともあるので、
+   * 重量か回数の片方だけの行は止めずに取っておき、次にその種目を開いたときに戻す。
+   */
+  async function leaveList(): Promise<boolean> {
+    const current = listRows
+    if ((await flushList({ allowIncomplete: true })) === null) return false
+    if (current) {
+      const held = current.rows.filter(isIncompleteRow).map((r) => ({ ...r, weight: convertWeightText(r.weight, unit, 'kg') }))
+      setHeldRows(({ [current.exerciseId]: _, ...rest }) => (held.length ? { ...rest, [current.exerciseId]: held } : rest))
+    }
     // 今日の記録の画面でセットを消すことがあるので、次に開くときは保存済みのセットから行を作り直す
     setListRowsState(null)
+    return true
+  }
+
+  /** 次のセットの行を足す。打ち終えたセットはこの時点で保存し、今日の記録に反映する */
+  async function addListRow() {
+    if (!listRows) return
+    const { exerciseId, rows } = listRows
+    // 範囲外の値があれば、行を足す前に直してもらう
+    const { invalid } = planListSave(rows, [], exerciseId, minWeightFor(exerciseId), unit)
+    if (invalid) {
+      setRowErrors({ [invalid.id]: invalid.message })
+      show(invalid.message)
+      return
+    }
+    // 通信できずに保存できなかったときも、行は足して記録を続けられるようにする（行は下書きに残り、次の保存で送る）
+    await flushList({ allowIncomplete: true })
+    touchedRef.current = true
+    setListRowsState((prev) => (prev?.exerciseId === exerciseId ? { ...prev, rows: [...prev.rows, newRow()] } : prev))
+  }
+
+  async function changeExercise() {
+    if (!(await leaveList())) return
     setManagingGroup(null)
     setChoosingExercise(false)
     setPicking(true)
@@ -609,8 +652,11 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
 
   async function handleFinish() {
     if (!userId) return
-    const total = await flushList()
+    const total = await flushList({ allowIncomplete: true })
     if (total === null) return
+    // 回数などを打たずに閉じた行は保存されないので、終える前に確かめる
+    const incompleteCount = heldCount + (listRows?.rows.filter(isIncompleteRow).length ?? 0)
+    if (incompleteCount > 0 && !window.confirm(`重量か回数が入っていないセットが${incompleteCount}件あります。記録せずに終了しますか？`)) return
 
     // 未保存（保存に失敗した、または保存が確定していない）セットを残したまま
     // 下書きを消してしまうと、その場に立ち会っていない限り気づく手段が無い。
@@ -698,11 +744,11 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
         {listChoosing ? <>
           {/* 見出しは左に寄せ、操作の説明は右端にそろえて小さく出す */}
           <header className="flex items-center gap-2 px-4 py-1">
-            {state.sets.length > 0 && <button type="button" aria-label="戻る" onClick={() => { setChoosingExercise(false); setManagingGroup(null) }}
+            {(state.sets.length > 0 || heldCount > 0) && <button type="button" aria-label="戻る" onClick={() => { setChoosingExercise(false); setManagingGroup(null) }}
               className="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center text-fg active:opacity-60">
               <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
             </button>}
-            <h1 className={`shrink-0 text-lg font-semibold ${state.sets.length > 0 ? '' : 'py-2'}`}>種目を選択</h1>
+            <h1 className={`shrink-0 text-lg font-semibold ${(state.sets.length > 0 || heldCount > 0) ? '' : 'py-2'}`}>種目を選択</h1>
             {!managingGroup && <p className="ml-auto min-w-0 text-right text-[10px] leading-tight text-muted">
               <span className="block">← スワイプで非表示</span>
               <span className="block">⠿ 長押しで並び替え</span>
@@ -721,7 +767,12 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
             <span />
           </header>
           <TodaySummary sets={state.sets} exerciseNames={exerciseNames} bodyweightIds={bodyweightIds} bodyweight={bodyweight}
-            onOpen={(id) => { setRoutine(null); selectExercise(id) }} onDelete={handleDelete} deletingId={deletingId} />
+            onOpen={(id) => { setRoutine(null); selectExercise(id) }} onDelete={handleDelete} deletingId={deletingId}
+            held={heldRows} onDeleteHeld={(exerciseId, rowId) => setHeldRows((prev) => {
+              const { [exerciseId]: rows = [], ...rest } = prev
+              const left = rows.filter((r) => r.id !== rowId)
+              return left.length ? { ...rest, [exerciseId]: left } : rest
+            })} />
           <AddFab label="種目を追加" onClick={() => setChoosingExercise(true)} disabled={finishing} aboveNavigation />
         </>}
       </div>
@@ -847,7 +898,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
         <ListSetTable exerciseName={currentName} rows={listRows.rows} onChange={updateRows} errors={rowErrors}
           previousFirst={previous.workout ? rowsFromPrevious(previous.workout.sets.slice(0, 1), unit)[0] : null} unit={unit}
           bodyweight={isBodyweight ? { value: bodyweight } : null} disabled={savingList || finishing || needsBodyweight} />
-        <AddFab label="セットを追加" disabled={savingList || finishing || needsBodyweight} onClick={() => updateRows([...listRows.rows, newRow()])} />
+        <AddFab label="セットを追加" disabled={savingList || finishing || needsBodyweight} onClick={() => void addListRow()} />
       </div>}
       {/* 一覧入力では、ほかの種目のセットは今日の記録（REC-03）に出す */}
       {!listMode && <section aria-label="記録済みセット" className="px-4 pb-4 pt-3">

@@ -1,6 +1,6 @@
 import type { LogState } from './logReducer'
 import type { ActiveRoutine } from '../routines/queries'
-import type { ListRows } from './listRows'
+import type { ListRow, ListRows } from './listRows'
 
 const KEY_PREFIX = 'gym-app.draft.'
 // ユーザー単位の名前空間化（Important 5）より前に使っていたキー。
@@ -16,6 +16,8 @@ export type Draft = {
   routine?: ActiveRoutine | null
   /** 一覧入力で、まだ保存していない行 */
   listRows?: ListRows | null
+  /** 一覧入力で、回数などを打つ前に閉じた行（種目ごと、重さはkg） */
+  heldRows?: Record<string, ListRow[]>
 }
 
 type StoredDraft = Draft & {
@@ -56,9 +58,14 @@ function isLogState(value: unknown): value is LogState {
   )
 }
 
+function isRowList(rows: unknown): rows is ListRow[] {
+  return Array.isArray(rows) && rows.every((r: Partial<ListRow> | null) =>
+    typeof r?.id === 'string' && typeof r.weight === 'string' && typeof r.reps === 'string' && typeof r.note === 'string')
+}
+
 export function saveDraft(userId: string, draft: Draft): void {
   // 何も始まっていない状態を保存すると、次回起動時に空の下書きを復元してしまう
-  if (draft.state.currentExerciseId === null && draft.state.sets.length === 0) {
+  if (draft.state.currentExerciseId === null && draft.state.sets.length === 0 && !Object.keys(draft.heldRows ?? {}).length) {
     clearDraft(userId)
     return
   }
@@ -97,9 +104,13 @@ export function loadDraft(userId: string): Draft | null {
       routine.exerciseIds.length > 0 && routine.exerciseIds.every((id) => typeof id === 'string') &&
       Number.isInteger(routine.index) && routine.index >= 0 && routine.index < routine.exerciseIds.length
     const listRows = parsed.listRows as ListRows | null | undefined
-    const validRows = listRows && typeof listRows.exerciseId === 'string' && Array.isArray(listRows.rows) &&
-      listRows.rows.every((r) => typeof r?.id === 'string' && typeof r.weight === 'string' && typeof r.reps === 'string' && typeof r.note === 'string')
-    return { state: parsed.state, workoutId, status: parsed.status, ...(validRoutine ? { routine } : {}), ...(validRows ? { listRows } : {}) }
+    const validRows = listRows && typeof listRows.exerciseId === 'string' && isRowList(listRows.rows)
+    const heldRows = parsed.heldRows as Record<string, ListRow[]> | undefined
+    const validHeld = typeof heldRows === 'object' && heldRows !== null && Object.values(heldRows).every(isRowList)
+    return {
+      state: parsed.state, workoutId, status: parsed.status, ...(validRoutine ? { routine } : {}), ...(validRows ? { listRows } : {}),
+      ...(validHeld ? { heldRows } : {}),
+    }
   } catch {
     return null
   }

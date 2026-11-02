@@ -16,10 +16,16 @@ describe('rowsFromSets', () => {
     expect(rows[0].weight).toBe('220.5')
   })
 
-  it('starts with one empty row, so opening an exercise saves nothing', () => {
+  it('starts with three empty rows, so opening an exercise saves nothing', () => {
     const { rows } = rowsFromSets([], 'bench')
-    expect(rows.map((r) => [r.weight, r.reps])).toEqual([['', '']])
+    expect(rows.map((r) => [r.weight, r.reps])).toEqual([['', ''], ['', ''], ['', '']])
     expect(planListSave(rows, [], 'bench', 0).upserts).toEqual([])
+  })
+  it('fills held rows up to three rows, but adds none to saved sets', () => {
+    const held = [{ id: 'h1', weight: '60', reps: '', note: '' }]
+    expect(rowsFromSets([], 'bench', 'kg', held).rows.map((r) => r.weight)).toEqual(['60', '', ''])
+    const saved = [{ id: 's1', exercise_id: 'bench', set_index: 1, weight_kg: 60, reps: 10 }]
+    expect(rowsFromSets(saved, 'bench').rows).toHaveLength(1)
   })
 })
 

@@ -26,16 +26,31 @@ export function newRow(weight = '', reps = '', note = ''): ListRow {
   return { id: crypto.randomUUID(), weight, reps, note }
 }
 
+/** まだ記録の無い種目を開いたときに並べておく空の行の数 */
+export const DEFAULT_ROW_COUNT = 3
+
+/** 空の行を DEFAULT_ROW_COUNT 行まで足す（空の行は保存しないので、使わなかった行は残らない） */
+export function withDefaultRows(rows: ListRow[] = []): ListRow[] {
+  return [...rows, ...Array.from({ length: Math.max(0, DEFAULT_ROW_COUNT - rows.length) }, () => newRow())]
+}
+
+/** 重量か回数の片方だけが入った行（保存できないが、打った値は残したい行） */
+export function isIncompleteRow(row: ListRow): boolean {
+  return (row.weight.trim() === '') !== (row.reps.trim() === '')
+}
+
 /**
- * この種目の保存済みのセットを行にする。まだ無ければ空の1行から始める。
+ * この種目の保存済みのセットを行にする。まだ無ければ空の3行（DEFAULT_ROW_COUNT）から始める。
  * 初期値を入れておくと、種目を開いただけで行っていないセットが保存されてしまうため、空にする。
+ * held は前に開いたとき打ちかけのまま閉じた行で、保存済みのセットと同じIDならその位置に、ほかは末尾に戻す。
  */
-export function rowsFromSets(sets: LoggedSet[], exerciseId: string, unit: WeightUnit = 'kg'): ListRows {
+export function rowsFromSets(sets: LoggedSet[], exerciseId: string, unit: WeightUnit = 'kg', held: ListRow[] = []): ListRows {
   const own = sets.filter((s) => s.exercise_id === exerciseId).sort((a, b) => a.set_index - b.set_index)
-  const rows = own.length
-    ? own.map((s) => ({ id: s.id, weight: kgToUnitText(s.weight_kg, unit), reps: String(s.reps), note: s.note ?? '' }))
-    : [newRow()]
-  return { exerciseId, rows }
+  const heldById = new Map(held.map((r) => [r.id, r]))
+  const rows: ListRow[] = own.map((s) => heldById.get(s.id) ?? { id: s.id, weight: kgToUnitText(s.weight_kg, unit), reps: String(s.reps), note: s.note ?? '' })
+  rows.push(...held.filter((r) => !own.some((s) => s.id === r.id)))
+  // 保存済みのセットが無ければ、打ちかけの行に空の行を足して3行にする
+  return { exerciseId, rows: own.length ? rows : withDefaultRows(rows) }
 }
 
 /** 前回の記録をそのまま行にする（「前回の記録を写す」） */
