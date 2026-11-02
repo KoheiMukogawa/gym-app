@@ -214,7 +214,7 @@ describe('BodyPage', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent(today.replaceAll('-', '/'))
   })
 
-  it('includes preceding records in the seven-day average at the period boundary', async () => {
+  it('keeps preceding records in the seven-day average', async () => {
     const now = new Date(today + 'T12:00:00')
     const priorMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
     const boundary = new Date(now.getFullYear(), now.getMonth() - 1, Math.min(now.getDate(), priorMonthDays), 12)
@@ -228,9 +228,10 @@ describe('BodyPage', () => {
     ])
     await renderPage()
     const chart = await screen.findByTestId('trend-points')
-    expect(JSON.parse(chart.textContent!)).toEqual([{ date, weight: 72, weightAverage: 71, fat: 18, fatAverage: 18 }])
-    expect(screen.queryByRole('button', { name: earlier + ' の記録を選択' })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '3ヶ月' }))
+    expect(JSON.parse(chart.textContent!)).toEqual([
+      { date: earlier, weight: 70, weightAverage: 70, fat: null, fatAverage: null },
+      { date, weight: 72, weightAverage: 71, fat: 18, fatAverage: 18 },
+    ])
     expect(screen.getByRole('button', { name: earlier + ' の記録を選択' })).toBeInTheDocument()
   })
 
@@ -255,7 +256,7 @@ describe('BodyPage', () => {
     const latest = screen.getByRole('region', { name: '最新の記録' })
     expect(within(latest).getByLabelText('体重 70.2kg、前回比 +0.2kg')).toBeInTheDocument()
     expect(within(latest).getByLabelText('体脂肪率 15.4%、前回比 -0.6%')).toBeInTheDocument()
-    expect(within(latest).getByText(today.slice(5).replace('-', '/'))).toBeInTheDocument()
+    expect(within(latest).getByText(`${today.slice(5).replace('-', '/')}時点`)).toBeInTheDocument()
   })
 
   it('marks a missing body fat and a first record without inventing a change', async () => {
@@ -305,7 +306,6 @@ it('reloads externally synced records and exposes ancient graph and list', async
   await openToday()
   await waitFor(() => expect(screen.getByLabelText('体重（kg）')).toHaveValue(65))
   await userEvent.click(screen.getByRole('button', { name: '入力を閉じる' }))
-  await userEvent.click(screen.getByRole('button', { name: '全期間' }))
   expect(JSON.parse(screen.getByTestId('trend-points').textContent!)).toEqual([{ date:'2015-01-02', weight:65, weightAverage:65, fat:14, fatAverage:14 }])
   expect(screen.getByRole('button', { name: '2015-01-02 の記録を選択' })).toBeInTheDocument()
 })

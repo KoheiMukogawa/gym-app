@@ -205,9 +205,9 @@ it('shows "coming soon" instead of the setup to people who never connected', asy
   expect(screen.queryByRole('button', { name: /ヘルスケア連携/ })).not.toBeInTheDocument()
 })
 
-it('keeps the settings for people who already connected, so they can still manage the key', async () => {
+it('keeps showing "coming soon" to people who already connected', async () => {
   status.mockResolvedValue({ enabled:true, issued_at:time, last_synced_at:time, last_synced_count:2 })
   render(<HealthSyncEntry userId="u1" refreshVersion={0}/>)
-  expect(await screen.findByRole('button', { name: /ヘルスケア連携/ })).toBeInTheDocument()
-  expect(screen.queryByText('近日公開')).not.toBeInTheDocument()
+  expect(await screen.findByText('近日公開')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /ヘルスケア連携/ })).not.toBeInTheDocument()
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initialRange, isZoomed, panRange, pointsInPeriod, spansYears, trendDate, visiblePoints, zoomRange } from './trend'
+import { initialRange, initialRangeForMonths, isZoomed, panRange, pointsInPeriod, spansYears, trendDate, visiblePoints, zoomRange } from './trend'
 
 const point = (date: string) => ({ date, e1rm: 100 })
 
@@ -21,6 +21,13 @@ describe('initialRange', () => {
   it('opens on the whole history when six months would show fewer than two days', () => {
     const points = ['2025-01-01', '2025-02-01', '2026-09-01'].map(point)
     expect(initialRange(points, '2026-10-05')).toEqual({ start: 0, end: 2 })
+  })
+})
+
+describe('initialRangeForMonths', () => {
+  it('supports the three-month initial range used by body composition', () => {
+    const points = ['2026-06-01', '2026-08-01', '2026-10-01'].map(point)
+    expect(initialRangeForMonths(points, 3, '2026-11-01')).toEqual({ start: 1, end: 2 })
   })
 })
 

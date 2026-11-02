@@ -157,10 +157,10 @@ export function ExerciseTrendChart({ points, selectedDate, onSelectDate }: {
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-xs text-muted">
-        {zoomable && '2本指で拡大・縮小、拡大中は左右になぞって前後へ移動できます（ダブルタップで全期間）。'}
-        グラフをタップすると、その日の記録を表示します。
-      </p>
+      {zoomable && <p className="text-xs leading-relaxed text-muted">
+        <span className="block">2本指で拡大・縮小、拡大中は左右になぞって前後へ移動できます。</span>
+        <span className="block">ダブルタップで全期間に戻ります。</span>
+      </p>}
     </div>
   )
 }

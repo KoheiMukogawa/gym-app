@@ -127,7 +127,7 @@ describe('ExerciseDetailPage chart wiring', () => {
     expect(captured.lineChartData).toEqual([{ date: '2026-08-08', e1rm: 99.3 }])
     // Days are picked by tapping the chart only; there is no separate date list.
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
-    expect(screen.getByText('グラフをタップすると、その日の記録を表示します。')).toBeInTheDocument()
+    expect(screen.queryByText('グラフをタップすると、その日の記録を表示します。')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '記録点' }))
     expect(screen.getByText('選択日: 2026-08-08')).toBeInTheDocument()
   })
@@ -143,6 +143,7 @@ describe('ExerciseDetailPage chart wiring', () => {
     await screen.findByRole('heading', { name: 'ベンチプレス' })
     expect((captured.lineChartData as { date: string }[]).map((p) => p.date)).toEqual([older, recent])
     expect(screen.getByText(/2本指で拡大・縮小/)).toBeInTheDocument()
+    expect(screen.getByText('ダブルタップで全期間に戻ります。')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '全期間' }))
     expect((captured.lineChartData as { date: string }[]).map((p) => p.date)).toEqual(['2020-01-01', older, recent])
     expect(screen.queryByRole('button', { name: '全期間' })).not.toBeInTheDocument()

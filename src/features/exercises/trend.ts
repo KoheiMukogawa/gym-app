@@ -12,11 +12,16 @@ export function pointsInPeriod(points: TrendPoint[], months: number, today = loc
   return points.filter((p) => p.date >= from)
 }
 
-/** 最初は直近6ヶ月を表示する。6ヶ月に2日未満しかなければ線にならないので全期間を表示する。 */
-export function initialRange(points: TrendPoint[], today = localDate()): TrendRange {
-  const recent = pointsInPeriod(points, 6, today).length
+/** 指定期間に2日未満しかなければ線にならないので、全期間を表示する。 */
+export function initialRangeForMonths(points: TrendPoint[], months: number, today = localDate()): TrendRange {
+  const recent = pointsInPeriod(points, months, today).length
   const end = points.length - 1
   return { start: recent >= 2 ? points.length - recent : 0, end }
+}
+
+/** 種目グラフは最初に直近6ヶ月を表示する。 */
+export function initialRange(points: TrendPoint[], today = localDate()): TrendRange {
+  return initialRangeForMonths(points, 6, today)
 }
 
 /** 拡大の上限。これ以上拡大しても点の間隔が広がるだけになる。 */
@@ -43,7 +48,7 @@ export function panRange(range: TrendRange, count: number, delta: number): Trend
   return place(range.start + delta, range.end - range.start, count)
 }
 
-export function visiblePoints(points: TrendPoint[], range: TrendRange): TrendPoint[] {
+export function visiblePoints<T>(points: T[], range: TrendRange): T[] {
   return points.slice(Math.round(range.start), Math.round(range.end) + 1)
 }
 
@@ -51,7 +56,7 @@ export function isZoomed(range: TrendRange, count: number): boolean {
   return Math.round(range.start) > 0 || Math.round(range.end) < count - 1
 }
 
-export function spansYears(points: TrendPoint[]): boolean {
+export function spansYears(points: { date: string }[]): boolean {
   return points.length > 0 && points[0].date.slice(0, 4) !== points[points.length - 1].date.slice(0, 4)
 }
 

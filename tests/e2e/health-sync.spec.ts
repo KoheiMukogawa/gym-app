@@ -89,7 +89,6 @@ test('Health connection, historical sync, keep/overwrite and revoke use real mob
   await expect(page.getByRole('button',{name:'体重を記録',exact:true})).toBeEnabled()
   await expect(page.getByText(/書き込み 2件/)).toBeVisible()
   await expect(page.getByText('連携中',{exact:true})).toBeVisible()
-  await page.getByRole('button',{name:'全期間',exact:true}).click()
   const trend=page.getByRole('region',{name:'推移'})
   const dots=trend.locator('.recharts-line-dots circle[fill="#E8412F"]'),fatDots=trend.locator('.recharts-line-dots circle[fill="#3B82F6"]')
   const curves=trend.locator('path.recharts-line-curve[stroke="#E8412F"]'),card=trend.getByRole('region',{name:/^\d+\/\d+(\/\d+)?の記録$/})
@@ -192,7 +191,6 @@ test('Health history reads more than 1000 rows and charts the earliest year',asy
   await page.getByRole('button',{name:'記録を再読み込み',exact:true}).click()
   await expect(page.getByRole('button',{name:'記録を再読み込み',exact:true})).toBeEnabled()
   await expect.poll(() => data.offsets).toEqual([0,1000])
-  await page.getByRole('button',{name:'全期間',exact:true}).click()
   const trend=page.getByRole('region',{name:'推移'})
   const dots=trend.locator('.recharts-line-dots circle[fill="#E8412F"]')
   await expect(dots).toHaveCount(1001)
@@ -260,10 +258,8 @@ test('Body overview prioritizes measurements and trend on a narrow phone', async
   for (const width of [320,375,390]) {
     await page.setViewportSize({width,height:812})
     const latestBox = (await overview.boundingBox())!
-    const periodBox = (await page.getByRole('group',{name:'表示期間'}).boundingBox())!
     const graphBox = (await trend.locator('svg.recharts-surface').boundingBox())!
-    expect(latestBox.y + latestBox.height).toBeLessThanOrEqual(periodBox.y)
-    expect(periodBox.y + periodBox.height).toBeLessThanOrEqual(graphBox.y)
+    expect(latestBox.y + latestBox.height).toBeLessThanOrEqual(graphBox.y)
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
     await page.screenshot({path:`test-results/body-simple-${width}.png`,fullPage:true})
   }

@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { BottomSheet } from '../../components/ui/BottomSheet'
 import { FloatingRecordAction } from '../../components/ui/FloatingRecordAction'
 import { Spinner } from '../../components/ui/Spinner'
-import { combineTrends, latestSummary, parseBodyFat, withinPeriod } from '../../lib/bodyComposition'
+import { combineTrends, latestSummary, parseBodyFat } from '../../lib/bodyComposition'
 import type { BodyweightLog } from '../../lib/bodyweight'
 import { toMessage } from '../../lib/errors'
 import { useSession } from '../auth/SessionProvider'
@@ -15,10 +15,6 @@ import { BodyTrendChart, FAT_COLOR, WEIGHT_COLOR } from './BodyTrendChart'
 import { PageHeader } from '../../components/PageHeader'
 
 const field = 'min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg tabular-nums'
-const PERIODS: { months: number | null; label: string }[] = [
-  { months: 1, label: '1ヶ月' }, { months: 3, label: '3ヶ月' }, { months: 12, label: '1年' }, { months: null, label: '全期間' },
-]
-
 export function BodyPage() {
   const { userId } = useSession()
   // アカウントが変わったら入力・履歴・進行中の操作を新しい画面に引き継がない。
@@ -29,7 +25,6 @@ function OwnedBodyPage({ userId }: { userId: string }) {
   const [logs, setLogs] = useState<BodyweightLog[]>([])
   const [weight, setWeight] = useState('')
   const [fat, setFat] = useState('')
-  const [months, setMonths] = useState<number | null>(1)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -125,12 +120,7 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     finally { setDeleting(null) }
   }
 
-  const visible = useMemo(() => months === null ? logs : withinPeriod(logs, months), [logs, months])
-  // 表示期間より前の記録も、境界日の7日平均に含める。
-  const points = useMemo(() => {
-    const visibleDates = new Set(visible.map((row) => row.recorded_on))
-    return combineTrends(logs).filter((point) => visibleDates.has(point.date))
-  }, [logs, visible])
+  const points = useMemo(() => combineTrends(logs), [logs])
   const latest = useMemo(() => latestSummary(logs), [logs])
   const today = new Date().toLocaleDateString('sv-SE')
   const target = editing ?? today
@@ -206,19 +196,22 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       <button type="button" aria-label="記録を再読み込み" title="記録を再読み込み"
         disabled={loading || busy || deleting !== null || healthBusy}
         onClick={() => setAttempt((value) => value + 1)}
-        className="flex min-h-14 min-w-14 items-center justify-center rounded-full text-muted hover:bg-surface hover:text-fg disabled:opacity-40">
+        className="flex h-14 w-14 items-center justify-center text-muted transition-colors hover:text-fg active:text-fg disabled:opacity-40">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"
-          className={`h-5 w-5 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9" />
+          className={`h-6 w-6 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 6v5h-5M19.1 11a7.5 7.5 0 1 0 .2 4" />
         </svg>
       </button>} />
 
     <section className="flex flex-col gap-3" aria-label="推移">
       {/* The legend carries the latest values, so no separate card repeats the two metrics. */}
-      <section aria-label="最新の記録" className="flex flex-col gap-3 pb-2">
-        {!loading && !loadError && latest && <time dateTime={latest.date} className="text-right text-xs text-muted tabular-nums">
-          {latest.date.slice(5).replace('-', '/')}
-        </time>}
+      <section aria-label="最新の記録" className="flex flex-col gap-5 pb-2">
+        {!loading && !loadError && latest && <p className="text-sm font-semibold text-fg">
+          最新の記録
+          <time dateTime={latest.date} className="ml-2 text-xs font-normal text-muted tabular-nums">
+            {latest.date.slice(5).replace('-', '/')}時点
+          </time>
+        </p>}
         <div className="grid grid-cols-2 gap-4">
           <LatestValue label="体重" unit="kg" axis="左の目盛り" color={WEIGHT_COLOR} value={loading || loadError ? null : latest?.weight ?? null}
             change={latest?.weightChange ?? null} pending={loading} />
@@ -226,14 +219,9 @@ function OwnedBodyPage({ userId }: { userId: string }) {
             change={latest?.fatChange ?? null} pending={loading} />
         </div>
       </section>
-      <div className="flex rounded-full bg-surface p-1" role="group" aria-label="表示期間">
-        {PERIODS.map((p) => <button key={p.months ?? 'all'} type="button" aria-pressed={months === p.months}
-          className={`min-h-14 min-w-0 flex-1 rounded-full text-sm transition-colors ${months === p.months ? 'bg-border font-semibold text-fg' : 'text-muted'}`}
-          onClick={() => setMonths(p.months)}>{p.label}</button>)}
-      </div>
       {loading ? <Spinner /> : loadError ? null : points.length === 0
         ? <p className="py-8 text-center text-sm text-muted">この期間の記録はありません</p>
-        : <BodyTrendChart points={points} showYear={months === null} onEditDay={onEditDay} />}
+        : <BodyTrendChart points={points} onEditDay={onEditDay} />}
       <details className="border-t border-border">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between text-xs text-muted [&::-webkit-details-marker]:hidden">
           グラフの見方
@@ -244,6 +232,10 @@ function OwnedBodyPage({ userId }: { userId: string }) {
         <div className="space-y-2 pb-4 text-xs leading-relaxed text-muted">
           <p>体重は左の目盛り（kg）、体脂肪率は右の目盛り（%）です。</p>
           <p>点はその日の記録、線は7日平均。</p>
+          {points.length > 2 && <>
+            <p>2本指で拡大・縮小、拡大中は左右になぞって前後へ移動できます。</p>
+            <p>ダブルタップで全期間に戻ります。</p>
+          </>}
           <p>グラフをタップすると数値を確認できます。修正・削除は表示される編集ボタンから行えます。</p>
         </div>
       </details>
@@ -327,13 +319,15 @@ function LatestValue({ label, unit, axis, color, value, change, pending }: {
   label: string; unit: string; axis: string; color: string; value: number | null; change: number | null; pending: boolean
 }) {
   const spoken = value === null ? `${label} 未記録` : `${label} ${value}${unit}、前回比${change === null ? 'なし' : ` ${signed(change)}${unit}`}`
-  return <div role="group" aria-label={pending ? `${label} 読み込み中` : spoken} className="min-w-0">
-    <p className="flex items-center gap-1.5 text-xs text-muted">
-      <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} /><span>{label}</span><span className="sr-only">・{axis}</span>
-    </p>
-    <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
-      {pending ? '…' : value === null ? <span className="text-muted">—</span> : <>{value}<span className="ml-0.5 text-xs font-normal text-muted">{unit}</span></>}
-    </p>
-    {!pending && value !== null && change !== null && <p className="mt-1 text-xs text-muted tabular-nums">前回比 {signed(change)}{unit}</p>}
+  return <div role="group" aria-label={pending ? `${label} 読み込み中` : spoken} className="flex min-w-0 justify-center">
+    <div className="min-w-0 text-left">
+      <p className="flex items-center gap-1.5 text-xs text-muted">
+        <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} /><span>{label}</span><span className="sr-only">・{axis}</span>
+      </p>
+      <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
+        {pending ? '…' : value === null ? <span className="text-muted">—</span> : <>{value}<span className="ml-0.5 text-xs font-normal text-muted">{unit}</span></>}
+      </p>
+      {!pending && value !== null && change !== null && <p className="mt-1 text-xs text-muted tabular-nums">前回比 {signed(change)}{unit}</p>}
+    </div>
   </div>
 }
