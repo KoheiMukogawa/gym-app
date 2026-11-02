@@ -198,8 +198,8 @@ export function progress(chapter: string, value: number) {
   last = { chapter, value }
   const eased = value < 0.5 ? 2 * value * value : 1 - (-2 * value + 2) ** 2 / 2
   if (chapter === 'ranking') {
-    // 並べ方を順に切り替える（BIG3合計 → 今月の伸び → DOTS）
-    const tab = value < 0.4 ? 'BIG3合計' : value < 0.7 ? '今月の伸び' : 'DOTS'
+    // 並べ方を順に切り替える（BIG3 TOTAL → 今月の伸び → DOTS）
+    const tab = value < 0.4 ? 'BIG3 TOTAL' : value < 0.7 ? '今月の伸び' : 'DOTS'
     const target = button(tab)
     if (target && target.getAttribute('aria-pressed') !== 'true') target.click()
     return

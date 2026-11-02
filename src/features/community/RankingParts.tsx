@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import type { Member, RankLift, RankMetric } from './queries'
 import { DOTS_LEVELS } from '../../lib/dots'
 
-const LABELS: Record<RankMetric, string> = { total: 'BIG3合計', growth: '今月の伸び', dots: 'DOTS' }
+const LABELS: Record<RankMetric, string> = { total: 'BIG3 TOTAL', growth: '今月の伸び', dots: 'DOTS' }
 
 export function MetricTabs({ value, onChange }: { value: RankMetric; onChange: (metric: RankMetric) => void }) {
   return <div className="flex border-b border-border">{(Object.keys(LABELS) as RankMetric[]).map((m) =>
