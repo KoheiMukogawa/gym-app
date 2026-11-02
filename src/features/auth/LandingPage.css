@@ -16,7 +16,7 @@
 .landing-tour-text { flex: 1; min-width: 0; }
 /* スマホは画面の縦の真ん中に固定し、説明だけがスクロールする */
 .landing-tour-phone { position: sticky; top: max(16px, calc((100svh - var(--landing-phone-height)) / 2 - 24px)); align-self: flex-start; width: 360px; --landing-phone-height: clamp(560px, calc(100svh - 120px), 740px); }
-.landing-tour-phone::before { content: ""; position: absolute; inset: 10% -30% 20%; z-index: -1; background: radial-gradient(closest-side, #e8412f26, transparent); filter: blur(30px); pointer-events: none; }
+.landing-tour-phone::before { content: ""; position: absolute; inset: 0 -50% 5%; z-index: -1; background: radial-gradient(closest-side, #e8412f40, transparent); filter: blur(42px); pointer-events: none; }
 /* 説明は画面より高くし、文章は画面の真ん中に止めたまま、スクロール分だけスマホの中を動かす */
 .landing-chapter { min-height: 190svh; }
 .landing-chapter-body { position: sticky; top: 0; display: flex; min-height: 100svh; flex-direction: column; justify-content: center; padding-block: 48px; opacity: .18; transform: translateY(18px); transition: opacity 700ms cubic-bezier(.2, .7, .2, 1), transform 700ms cubic-bezier(.2, .7, .2, 1); }
@@ -28,7 +28,7 @@
 .landing-cta:hover { background: #cf3627; }
 .landing-chapter-label { font-size: 15px; font-weight: 600; letter-spacing: .02em; color: var(--color-accent); }
 .landing-chapter h2 { margin-top: 14px; font-size: clamp(30px, 3.6vw, 48px); line-height: 1.3; font-weight: 700; letter-spacing: -.03em; }
-.landing-chapter-text { max-width: 24em; margin-top: 20px; font-size: 18px; line-height: 1.8; color: var(--landing-muted); text-wrap: pretty; }
+.landing-chapter-text { max-width: 24em; margin-top: 20px; font-size: 18px; line-height: 1.8; color: var(--landing-muted); text-align: left; text-indent: 0; text-wrap: wrap; }
 /* 開発用のスマホ（scripts/dev-phone.mjs）と同じ iPhone 16 Pro。高さは画面に収まるように縮める */
 .landing-phone { position: relative; height: var(--landing-phone-height); max-width: 100%; margin-inline: auto; }
 .landing-device { position: absolute; top: 0; left: 0; padding: 15px; border-radius: 70px; background: #000; box-shadow: inset 0 0 0 3px #77767a, inset 0 0 0 4px #2b2b2e, 0 50px 120px #000c, 0 0 0 1px #ffffff0d; transform-origin: top left; box-sizing: border-box; }
@@ -95,7 +95,7 @@
   /* スマホ幅では、スマホを画面の上に固定し、説明はその下を流れる */
   .landing-tour { flex-direction: column; gap: 0; }
   .landing-tour-phone { --landing-phone-height: 58svh; top: 0; z-index: 2; width: calc(100% + 40px); margin-inline: -20px; padding: 8px 20px 12px; background: linear-gradient(var(--color-bg) 92%, transparent); }
-  .landing-tour-phone::before { content: ""; position: absolute; inset: 10% -30% 20%; z-index: -1; background: radial-gradient(closest-side, #e8412f26, transparent); filter: blur(30px); pointer-events: none; }
+  .landing-tour-phone::before { inset: 4% -12% 8%; background: radial-gradient(closest-side, #e8412f38, transparent); filter: blur(28px); }
   /* 指でなぞるとページがスクロールするように、スマホの中は触れないようにする */
   .landing-device iframe { pointer-events: none; }
   .landing-chapter { min-height: 150svh; }
@@ -112,7 +112,6 @@
     .landing-narrow-break { display: inline; }
   .landing-cta { width: 100%; margin-top: 24px; }
   .landing-chapter h2 { font-size: clamp(22px, 6.4vw, 28px); margin-top: 8px; }
-  .landing-tour-phone::before { display: none; }
   .landing-chapter-text { font-size: 15px; margin-top: 10px; }
   .landing-section { padding-block: 48px; }
   .landing-faq { grid-template-columns: minmax(0, 1fr); gap: 24px; }

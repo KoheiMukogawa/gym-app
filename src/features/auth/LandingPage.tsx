@@ -12,19 +12,19 @@ import './LandingPage.css'
 // title の \n は、語の途中で折り返さないよう決めた改行の位置
 type Chapter = { id: string; label: string; title: string; text: string; screen: PhoneScreen }
 const chapters: Chapter[] = [
-  { id: 'big3', label: 'BIG3', title: 'BIG3の合計と、目標までの残り。', screen: { chapter: 'big3', path: '/big3' },
+  { id: 'big3', label: 'BIG3', title: 'BIG3の合計と目標までの残り', screen: { chapter: 'big3', path: '/big3' },
     text: '推定1RMの合計を、目標と並べて見られます。' },
-  { id: 'graph', label: 'グラフ', title: '種目ごとの伸びが、グラフでわかる。', screen: { chapter: 'graph', path: `/exercises/${DEMO_EXERCISES.bench}` },
+  { id: 'graph', label: 'グラフ', title: '種目ごとの伸びがグラフでわかる', screen: { chapter: 'graph', path: `/exercises/${DEMO_EXERCISES.bench}` },
     text: 'どんな種目でも。2本指で拡大でき、点を押せばその日の記録が出ます。' },
-  { id: 'ranking', label: 'ランキング', title: 'ジム仲間だけのランキングを作れる。', screen: { chapter: 'ranking', path: '/ranking' },
+  { id: 'ranking', label: 'ランキング', title: 'ジム仲間だけの\nランキングを作れる', screen: { chapter: 'ranking', path: '/ranking' },
     text: '招待コードを送るだけ。合計・伸び・DOTSで並べられます。' },
-  { id: 'dial', label: 'ダイヤル入力', title: '直感的なダイヤル操作。', screen: { chapter: 'dial', path: '/log', mode: 'dial' },
+  { id: 'dial', label: 'ダイヤル入力', title: '直感的なダイヤル操作', screen: { chapter: 'dial', path: '/log', mode: 'dial' },
     text: '重量を回すと、過去の記録から挙がる回数が自動で入ります。' },
-  { id: 'list', label: '一覧入力', title: '既存の入力方法にも\n変更可能。', screen: { chapter: 'list', path: '/log', mode: 'list' },
+  { id: 'list', label: '一覧入力', title: '既存の入力方法にも\n変更可能', screen: { chapter: 'list', path: '/log', mode: 'list' },
     text: '表に数字を打ち込む入れ方も選べます。' },
-  { id: 'export', label: 'エクスポート', title: '記録をAIに渡して、相談する。', screen: { chapter: 'export', path: '/export' },
+  { id: 'export', label: 'エクスポート', title: '記録をAIに渡して相談する', screen: { chapter: 'export', path: '/export' },
     text: '期間を選んでテキストに。ChatGPTなどに貼って相談できます。' },
-  { id: 'body', label: '体組成', title: '体重と体脂肪率も、同じアプリで。', screen: { chapter: 'body', path: '/body' },
+  { id: 'body', label: '体組成', title: '体重と体脂肪率も同じアプリで', screen: { chapter: 'body', path: '/body' },
     text: 'トレーニングと一緒に、体の変化も振り返れます。' },
 ]
 const HOME: PhoneScreen = { path: '/', chapter: 'hero' }
@@ -131,7 +131,7 @@ export function LandingPage() {
         <div className="landing-tour-stage"><LandingPhone screen={screen} progress={progress} showSplash={splash} splash={<>
           <img src="/glog-icon-512.png" alt="" width={112} height={112} className="landing-splash-icon" />
           <p className="landing-splash-name">Glog</p>
-          <h1 id="landing-title">必要十分な機能を、<br />直感的な操作で。</h1>
+          <h1 id="landing-title">必要十分な機能を<br />直感的な操作で</h1>
         </>} /></div>
       </figure>
       <div className="landing-tour-text">

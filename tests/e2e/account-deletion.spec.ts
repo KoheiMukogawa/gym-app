@@ -30,7 +30,7 @@ test('a user deletes their account from the profile and lands on the introductio
   await page.getByLabel('確認のため「退会する」と入力してください').fill('退会する')
   await button.click()
   await expect(page.getByText('退会しました')).toBeVisible()
-  await expect(page.getByRole('heading', { name: /必要十分な機能を、\s*直感的な操作で。/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /必要十分な機能を\s*直感的な操作で/ })).toBeVisible()
   expect(deletions).toEqual([{ p_confirm: '退会する' }])
   expect(await page.evaluate(id => [localStorage.getItem('sb-example-auth-token'), localStorage.getItem(`gym-app.draft.${id}`)], uid)).toEqual([null, null])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)

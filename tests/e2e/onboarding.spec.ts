@@ -8,7 +8,7 @@ test('public introduction and signup save name and icon in registration metadata
   return route.fulfill({contentType:'application/json',body:JSON.stringify([])})
  })
  await page.goto('/')
- await expect(page.getByRole('heading',{name:/必要十分な機能を、\s*直感的な操作で。/})).toBeVisible()
+ await expect(page.getByRole('heading',{name:/必要十分な機能を\s*直感的な操作で/})).toBeVisible()
  await page.getByRole('link',{name:'無料で始める'}).first().click()
  await page.getByLabel('名前',{exact:true}).fill('新人')
  await page.getByRole('button',{name:'バーベル',exact:true}).click()
@@ -32,7 +32,7 @@ test('landing showcases graphs, AI export and personal rankings on phones and de
     return method === 'OPTIONS' ? route.fulfill({ status: 204 }) : route.fulfill({ contentType: 'application/json', body: '[]' })
   })
   await page.goto('/')
-  await expect(page.getByRole('heading', { level: 1, name: /必要十分な機能を、\s*直感的な操作で。/ })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: /必要十分な機能を\s*直感的な操作で/ })).toBeVisible()
   // The phone runs the real app on sample data (/demo in an iframe), so it always matches the app.
   const app = page.frameLocator('iframe[title="Glogのアプリの画面（見本）"]')
   const tabs = app.getByRole('navigation', { name: 'メイン' })
