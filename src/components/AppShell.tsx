@@ -10,6 +10,9 @@ import { useFeedbackInbox } from '../features/feedback/useFeedbackInbox'
 import { useFeedbackReplies } from '../features/feedback/useFeedbackReplies'
 import { FeedbackReplyGate } from '../features/feedback/FeedbackReplyGate'
 import { AnnouncementsGate } from '../features/announcements/AnnouncementsGate'
+import { PollGate } from '../features/polls/PollGate'
+import { usePolls } from '../features/polls/usePolls'
+import { awaitsVote } from '../features/polls/queries'
 import { InstallGate } from '../features/install/InstallGate'
 import { canGuideInstall, currentInstallEnv } from '../features/install/installEnv'
 import { openInstallGuide } from '../features/install/installGuide'
@@ -41,6 +44,8 @@ export function AppShell(){
   const unreadFeedback=useFeedbackInbox(),hasUnread=(unreadFeedback??0)>0
   // 送った意見に運営の返信があれば、同じ赤い輪で知らせる（管理者以外も）
   const replies=useFeedbackReplies(),hasReply=replies.length>0,marked=hasUnread||hasReply
+  // 受付中でまだ投票していない投票があれば、メニューの「投票」に印を出す
+  const {polls}=usePolls(),openPolls=(polls??[]).filter(p=>awaitsVote(p)).length
   // 管理者だけ、要望を伝えやすいよう画面ID（docs/screens.md）をヘッダーに出せる
   const isAdmin=unreadFeedback!==null,[showScreenIds,setShowScreenIds]=useState(loadShowScreenIds),[pickingExercise,setPickingExercise]=useState(true),[logScreen,setLogScreen]=useState<LogScreen>('REC-01')
   const currentScreenId=isAdmin?screenIdFor(location.pathname,logScreen):null
@@ -65,6 +70,7 @@ export function AppShell(){
             <button type="button" className={MENU_ITEM} onClick={()=>{setOpen(false);void shareApp().then(r=>{if(r==='copied')show('紹介ページのリンクをコピーしました');else if(r==='failed')show('共有できませんでした')})}}>友達にGlogを教える</button>
           </section>
           <section aria-labelledby="menu-support" className="border-t border-border"><h2 id="menu-support" className={MENU_HEADING}>サポート</h2>
+            <Link to="/polls" className={`${MENU_ITEM} gap-2`}>投票{openPolls>0&&<span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white">受付中 {openPolls}</span>}</Link>
             <Link to="/feedback" className={`${MENU_ITEM} gap-2`}>ご意見・不具合を送る{hasReply&&<span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white">返信 {replies.length}</span>}</Link>
           </section>
           {unreadFeedback!==null&&<section aria-labelledby="menu-admin" className="border-t border-border"><h2 id="menu-admin" className={MENU_HEADING}>管理</h2>
@@ -87,6 +93,7 @@ export function AppShell(){
     <AnnouncementsGate/>
     <InstallGate/>
     <FeedbackReplyGate unseen={replies}/>
+    <PollGate polls={polls}/>
     {/* LINEなどと同じく、ホームインジケーターの領域に少し重ねて下端に寄せる */}
     {!fullHeightDock&&<nav aria-label="メイン" className="glass-navigation fixed inset-x-5 bottom-[max(0.25rem,calc(env(safe-area-inset-bottom)-0.75rem))] z-40 mx-auto flex max-w-[calc(32rem-2.5rem)] rounded-full">{TABS.map(t=><NavLink key={t.to} to={t.to} end={t.to==='/'} className="flex h-14 min-h-14 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-xs">{({isActive})=><span className={`flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-full transition-colors ${isActive?'bg-white/10 font-semibold text-accent':'text-fg/75 hover:bg-white/5'}`}>{t.label}</span>}</NavLink>)}</nav>}
   </div>

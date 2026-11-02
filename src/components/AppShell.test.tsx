@@ -1,18 +1,22 @@
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { ToastProvider } from './ui/Toast'
 import { saveShowScreenIds } from '../features/admin/screenIds'
 import { buttonIdFor } from '../features/admin/buttonIds'
+import { fetchSeenUntil, markAnnouncementsSeen } from '../features/announcements/queries'
 
 const { mounted, loadDraft, fetchIsAdmin, fetchUnreadFeedbackCount, fetchMyFeedback, markRepliesSeen } = vi.hoisted(() => ({ mounted: vi.fn(), loadDraft: vi.fn(), fetchIsAdmin: vi.fn(), fetchUnreadFeedbackCount: vi.fn(), fetchMyFeedback: vi.fn(), markRepliesSeen: vi.fn() }))
 vi.mock('../features/auth/SessionProvider', () => ({ useSession: () => ({ userId: 'u1', profile: null, refreshProfile: vi.fn(), signOut: vi.fn() }) }))
 vi.mock('../features/workout-log/persistence', () => ({ loadDraft }))
 vi.mock('../features/feedback/queries', async (original) => ({ ...await original<typeof import('../features/feedback/queries')>(), fetchIsAdmin, fetchUnreadFeedbackCount, fetchMyFeedback, markRepliesSeen }))
 vi.mock('../lib/supabase', () => ({ supabase: {} }))
+const { fetchPolls } = vi.hoisted(() => ({ fetchPolls: vi.fn() }))
+const { votePoll } = vi.hoisted(() => ({ votePoll: vi.fn() }))
+vi.mock('../features/polls/queries', async (original) => ({ ...await original<typeof import('../features/polls/queries')>(), fetchPolls, votePoll }))
 vi.mock('../features/announcements/queries', () => ({ fetchSeenUntil: vi.fn().mockResolvedValue(null), markAnnouncementsSeen: vi.fn() }))
 vi.mock('../features/workout-log/LogPage', () => ({ LogPage: () => {
   const [text, setText] = useState(() => { mounted(); return '' })
@@ -32,7 +36,7 @@ function renderShell(path = '/') {
     <Route path="/history" element={<Link to="/log">記録に戻る</Link>} />
   </Route></Routes></MemoryRouter></ToastProvider>)
 }
-beforeEach(() => { vi.clearAllMocks(); loadDraft.mockReturnValue(null); fetchIsAdmin.mockResolvedValue(false); fetchMyFeedback.mockResolvedValue([]); markRepliesSeen.mockResolvedValue(undefined); saveShowScreenIds(false) })
+beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); fetchPolls.mockResolvedValue([]); loadDraft.mockReturnValue(null); fetchIsAdmin.mockResolvedValue(false); fetchMyFeedback.mockResolvedValue([]); markRepliesSeen.mockResolvedValue(undefined); saveShowScreenIds(false) })
 describe('deferred recording screen', () => {
   it('does not mount on home, and keeps input after tab navigation', async () => {
     const user = userEvent.setup()
@@ -85,6 +89,55 @@ describe('profile menu', () => {
     await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
     expect(screen.getByRole('link', { name: '利用規約' })).toHaveAttribute('href', '/terms')
     expect(screen.getByRole('link', { name: 'プライバシーポリシー' })).toHaveAttribute('href', '/privacy')
+  })
+})
+
+describe('polls in the profile menu', () => {
+  const poll = { id: 'p1', question: 'アプリの名前はどちらがいいですか？', description: null, starts_at: '2020-01-01T00:00:00Z',
+    ends_at: '2999-01-01T00:00:00Z', my_option: null, total_votes: null, options: [{ id: 'a', label: 'Glog', votes: null }, { id: 'b', label: 'BARBELL CLUB', votes: null }] }
+  it('asks for an open vote at launch once, and marks it in the menu until voted', async () => {
+    fetchPolls.mockResolvedValue([poll])
+    renderShell(); await act(async () => {})
+    expect(await screen.findByRole('dialog', { name: 'マッチョ会議' })).toHaveTextContent('BARBELL CLUB')
+    await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    expect(screen.queryByRole('dialog', { name: 'マッチョ会議' })).toBeNull()
+    expect(JSON.parse(localStorage.getItem('glog:poll-sheet:u1')!)).toEqual(['p1'])
+    await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    expect(screen.getByRole('link', { name: /^投票\s*受付中 1$/ })).toHaveAttribute('href', '/polls')
+  })
+  it('turns into the results after voting in the sheet', async () => {
+    fetchPolls.mockResolvedValue([poll])
+    votePoll.mockResolvedValue(undefined)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderShell(); await act(async () => {})
+    const sheet = await screen.findByRole('dialog', { name: 'マッチョ会議' })
+    fetchPolls.mockResolvedValue([{ ...poll, my_option: 'a', total_votes: 1, options: poll.options.map((o, i) => ({ ...o, votes: i === 0 ? 1 : 0 })) }])
+    await userEvent.click(screen.getByRole('radio', { name: 'Glog' }))
+    await userEvent.click(screen.getByRole('button', { name: '投票する' }))
+    expect(votePoll).toHaveBeenCalledWith('p1', 'a')
+    expect(await screen.findByRole('list', { name: '結果' })).toHaveTextContent('Glogあなたの投票100%1票')
+    expect(sheet).toBeInTheDocument()
+    confirm.mockRestore()
+  })
+  it('waits for the new-feature sheet to be closed first', async () => {
+    vi.mocked(fetchSeenUntil).mockResolvedValueOnce('2000-01-01T00:00:00Z')
+    vi.mocked(markAnnouncementsSeen).mockResolvedValue(undefined)
+    fetchPolls.mockResolvedValue([poll])
+    renderShell(); await act(async () => {})
+    await userEvent.click(within(await screen.findByRole('dialog', { name: '新しい機能' })).getByRole('button', { name: '閉じる' }))
+    expect(await screen.findByRole('dialog', { name: 'マッチョ会議' })).toBeInTheDocument()
+  })
+  it('does not ask while recording', async () => {
+    fetchPolls.mockResolvedValue([poll])
+    renderShell('/log'); await act(async () => {})
+    expect(screen.queryByRole('dialog', { name: 'マッチョ会議' })).toBeNull()
+  })
+  it('does not mark polls already voted', async () => {
+    fetchPolls.mockResolvedValue([{ ...poll, my_option: 'a', total_votes: 1, options: poll.options.map((o, i) => ({ ...o, votes: i === 0 ? 1 : 0 })) }])
+    renderShell(); await act(async () => {})
+    expect(screen.queryByRole('dialog', { name: 'マッチョ会議' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    expect(screen.getByRole('link', { name: '投票' })).toBeInTheDocument()
   })
 })
 

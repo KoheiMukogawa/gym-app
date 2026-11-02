@@ -31,6 +31,7 @@
 | PUBLIC-01 | 紹介ページ | 未ログイン時の `/` |
 | PUBLIC-02 | 計算ツール | `/calculators` と各計算ページ |
 | FEEDBACK-01 | ご意見 | `/feedback` |
+| POLL-01 | 投票 | `/polls` 受付中の投票への投票と、投票後・締め切り後の結果。起動時のシートでも投票できる |
 | ACCOUNT-01 | 退会 | `/account/delete` |
 | LEGAL-01 | 利用規約 | `/terms` |
 | LEGAL-02 | プライバシーポリシー | `/privacy` |

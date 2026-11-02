@@ -6,6 +6,7 @@ import { useSession } from '../auth/SessionProvider'
 import { loadDraft } from '../workout-log/persistence'
 import { ANNOUNCEMENTS, unreadAnnouncements, type Announcement } from './announcements'
 import { fetchSeenUntil, markAnnouncementsSeen } from './queries'
+import { setAnnouncementSheetState } from './sheetState'
 
 /**
  * 未読のお知らせを、起動後に1枚のシートで一度だけ出す。記録中は出さず、記録を終えてから出す。
@@ -17,17 +18,22 @@ export function AnnouncementsGate({ items = ANNOUNCEMENTS }: { items?: Announcem
   const navigate = useNavigate()
   const [unread, setUnread] = useState<Announcement[]>([])
   const [closed, setClosed] = useState(false)
+  const [checked, setChecked] = useState(false)
   useEffect(() => {
     let active = true
-    setUnread([]); setClosed(false)
+    setUnread([]); setClosed(false); setChecked(!userId)
     if (userId) fetchSeenUntil()
       .then((seenUntil) => { if (active && seenUntil) setUnread(unreadAnnouncements(items, seenUntil)) })
       .catch(() => undefined)
+      .finally(() => { if (active) setChecked(true) })
     return () => { active = false }
   }, [userId, items])
 
   const recording = pathname === '/log' || (userId ? (loadDraft(userId)?.state.sets.length ?? 0) > 0 : false)
-  if (closed || unread.length === 0 || recording) return null
+  const showing = !closed && unread.length > 0 && !recording
+  // 投票などのシートは、お知らせを確かめ終えて、出していないときだけ出す
+  useEffect(() => { setAnnouncementSheetState(!checked ? 'checking' : showing ? 'showing' : 'idle') }, [checked, showing])
+  if (!showing) return null
 
   function close(to?: string) {
     setClosed(true)

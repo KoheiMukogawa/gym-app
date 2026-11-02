@@ -29,6 +29,7 @@ const TermsPage = lazy(() => import('./features/legal/LegalPages').then((m) => (
 const PrivacyPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.PrivacyPage })))
 const DeleteAccountPage = lazy(() => import('./features/account/DeleteAccountPage').then((m) => ({ default: m.DeleteAccountPage })))
 const FeedbackPage = lazy(() => import('./features/feedback/FeedbackPage').then((m) => ({ default: m.FeedbackPage })))
+const PollsPage = lazy(() => import('./features/polls/PollsPage').then((m) => ({ default: m.PollsPage })))
 const AdminFeedbackPage = lazy(() => import('./features/feedback/AdminFeedbackPage').then((m) => ({ default: m.AdminFeedbackPage })))
 const StartingBestsPage = lazy(() => import('./features/strength/StartingBestsPage').then((m) => ({ default: m.StartingBestsPage })))
 const UsagePage = lazy(() => import('./features/admin/UsagePage').then((m) => ({ default: m.UsagePage })))
@@ -111,6 +112,7 @@ export default function App() {
                 <Route path="/exercises/:exerciseId" element={<ExerciseDetailPage />} />
                 <Route path="/account/delete" element={<DeleteAccountPage />} />
                 <Route path="/feedback" element={<FeedbackPage />} />
+                <Route path="/polls" element={<PollsPage />} />
                 <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
                 <Route path="/admin/usage" element={<UsagePage />} />
               </Route>
