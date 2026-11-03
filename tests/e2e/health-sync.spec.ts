@@ -69,7 +69,10 @@ async function setup(page:Page, {connectedBefore=true}={}) {
   return {rows,state,controls,offsets,sync}
 }
 
-test('Health connection, historical sync, keep/overwrite and revoke use real mobile charts',async ({page}) => {
+// The Body screen shows Health sync as 近日公開 and no longer opens HealthSyncPanel (e7c7d4c), so the
+// panel cannot be reached here. Its unit tests still cover it. Turn these back on when BodyPage shows
+// HealthSyncPanel again.
+test.skip('Health connection, historical sync, keep/overwrite and revoke use real mobile charts',async ({page}) => {
   const errors:string[]=[];page.on('pageerror',(error)=>errors.push(error.message))
   const data=await setup(page)
   await page.getByRole('button',{name:'ヘルスケア連携',exact:true}).click()
@@ -144,7 +147,7 @@ test('Health connection, historical sync, keep/overwrite and revoke use real mob
   expect(errors).toEqual([])
 })
 
-test('Health errors retry and manual copy preserve one-time credentials across reload only',async ({page}) => {
+test.skip('Health errors retry and manual copy preserve one-time credentials across reload only',async ({page}) => {
   const errors:string[]=[];page.on('pageerror',(error)=>errors.push(error.message))
   await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw new Error('denied')}}}))
   const data=await setup(page)
@@ -194,7 +197,8 @@ test('Health history reads more than 1000 rows and charts the earliest year',asy
   const trend=page.getByRole('region',{name:'推移'})
   const dots=trend.locator('.recharts-line-dots circle[fill="#E8412F"]')
   await expect(dots).toHaveCount(1001)
-  await expect(trend.locator('.recharts-xAxis-tick-labels')).toContainText('2010/')
+  // Across years the axis reads YY/MM/DD, so the earliest label starts with 10/ (2010).
+  await expect(trend.locator('.recharts-xAxis-tick-labels')).toHaveText(/^10\/\d\d\/\d\d/)
   // The earliest day stays reachable: a tap on its dot selects it, and its edit button opens it in the form.
   const first=dots.first();await first.scrollIntoViewIfNeeded();const box=(await first.boundingBox())!
   await page.mouse.click(box.x+box.width/2,box.y+box.height/2)
