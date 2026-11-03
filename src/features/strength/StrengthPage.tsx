@@ -16,6 +16,7 @@ import {
 } from './queries'
 import { LiftCard } from './LiftCard'
 import { PageHeader } from '../../components/PageHeader'
+import { cachedStrengthGoals, cachedStrengthSnapshot } from '../../lib/cachedData'
 
 type LiftKey = 'squat' | 'bench' | 'deadlift'
 const LIFT_FIELDS: [LiftKey, string][] = [['squat', 'スクワット'], ['bench', 'ベンチ'], ['deadlift', 'デッド']]
@@ -23,9 +24,11 @@ const LIFT_FIELDS: [LiftKey, string][] = [['squat', 'スクワット'], ['bench'
 export function StrengthPage() {
   const { userId } = useSession()
   const { show } = useToast()
-  const [snapshot, setSnapshot] = useState<StrengthSnapshot | null>(null)
-  const [goal, setGoal] = useState<StrengthGoal | null>(null)
-  const [loading, setLoading] = useState(true)
+  // 前回の表示を端末から出し、読み直した結果で差し替える
+  const [cached] = useState(() => ({ snapshot: cachedStrengthSnapshot(userId), goals: cachedStrengthGoals(userId) }))
+  const [snapshot, setSnapshot] = useState<StrengthSnapshot | null>(cached.snapshot ?? null)
+  const [goal, setGoal] = useState<StrengthGoal | null>(currentGoal(cached.goals ?? []))
+  const [loading, setLoading] = useState(cached.snapshot === undefined)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -34,15 +37,16 @@ export function StrengthPage() {
   // 種目別の目標。合計はこの3つを足して出す
   const [liftTexts, setLiftTexts] = useState<Record<LiftKey, string>>({ squat: '', bench: '', deadlift: '' })
   const saveLock = useRef(false)
-  const load = useCallback(() => {
+  // quiet: 前回の分を出しているので、読み込み中の表示を出さず、失敗してもそのまま見せる
+  const load = useCallback((quiet = false) => {
     if (!userId) return
-    setLoading(true); setError(null)
+    if (!quiet) { setLoading(true); setError(null) }
     Promise.all([fetchStrengthSnapshot(userId), fetchStrengthGoals(userId)])
       .then(([nextSnapshot, goals]) => { setSnapshot(nextSnapshot); setGoal(currentGoal(goals)) })
-      .catch((e: unknown) => setError(toMessage(e)))
+      .catch((e: unknown) => { if (!quiet) setError(toMessage(e)) })
       .finally(() => setLoading(false))
   }, [userId])
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(cached.snapshot !== undefined) }, [load, cached])
   function edit() {
     setTargetDate(goal?.target_date ?? '')
     const text = (value: number | null | undefined) => (value == null ? '' : String(value))
@@ -73,7 +77,7 @@ export function StrengthPage() {
   if (loading) return <Spinner />
   if (error || !snapshot) return <div className="space-y-3 p-4 py-8">
     <p role="alert" className="text-sm text-muted">{error ?? 'Big3データを取得できませんでした'}</p>
-    <Button variant="ghost" onClick={load}>再試行</Button>
+    <Button variant="ghost" onClick={() => load()}>再試行</Button>
   </div>
   return <div className="flex flex-col gap-6 p-4">
     <PageHeader title="BIG3" />

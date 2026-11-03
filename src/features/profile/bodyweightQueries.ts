@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import { localDate } from '../../lib/dates'
 import type { BodyweightLog } from '../../lib/bodyweight'
+import { rememberBodyweightLogs } from '../../lib/cachedData'
 
 /** 本人だけが読める体重の記録（古い順）。 */
 export async function fetchBodyweightLogs(userId: string): Promise<BodyweightLog[]> {
@@ -16,7 +17,10 @@ export async function fetchBodyweightLogs(userId: string): Promise<BodyweightLog
       bodyweight_kg: Number(l.bodyweight_kg),
       body_fat_pct: l.body_fat_pct == null ? null : Number(l.body_fat_pct),
     })))
-    if (page.length < pageSize) return rows
+    if (page.length < pageSize) {
+      rememberBodyweightLogs(userId, rows)
+      return rows
+    }
   }
 }
 

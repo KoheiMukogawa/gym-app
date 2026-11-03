@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase'
+import { rememberStrengthGoals, rememberStrengthSnapshot } from '../../lib/cachedData'
 import {
   buildStrengthSnapshot,
   type Big3ExerciseMapping,
@@ -44,14 +45,16 @@ type Big3Data = {
 
 // Keep the existing caller signature; the RPC derives ownership from auth.uid(),
 // never from a caller-supplied user ID. Aggregation remains in TypeScript.
-export async function fetchStrengthSnapshot(_userId: string): Promise<StrengthSnapshot> {
+export async function fetchStrengthSnapshot(userId: string): Promise<StrengthSnapshot> {
   const { data, error } = await supabase.rpc('my_big3_data')
   if (error) throw error
   const result = data as Big3Data | null
   if (!result || !Array.isArray(result.exercises) || !Array.isArray(result.mappings) || !Array.isArray(result.sets)) {
     throw new Error('BIG3の記録を取得できませんでした')
   }
-  return buildStrengthSnapshot(result.exercises, result.mappings, result.sets)
+  const snapshot = buildStrengthSnapshot(result.exercises, result.mappings, result.sets)
+  rememberStrengthSnapshot(userId, snapshot)
+  return snapshot
 }
 
 export type StrengthGoal = {
@@ -80,7 +83,9 @@ export async function fetchStrengthGoals(userId: string): Promise<StrengthGoal[]
     .order('target_date', { ascending: true })
 
   if (error) throw error
-  return (data ?? []) as StrengthGoal[]
+  const goals = (data ?? []) as StrengthGoal[]
+  rememberStrengthGoals(userId, goals)
+  return goals
 }
 
 export async function createStrengthGoal(input: {

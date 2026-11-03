@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom'
 import { ToastProvider } from '../../components/ui/Toast'
 import { buildStrengthSnapshot } from './strengthSnapshot'
 import { StrengthPage } from './StrengthPage'
+import { rememberStrengthGoals, rememberStrengthSnapshot } from '../../lib/cachedData'
 const { saveCurrentGoal } = vi.hoisted(() => ({ saveCurrentGoal: vi.fn() }))
 vi.mock('./currentGoal', async (original) => ({
   ...await original<typeof import('./currentGoal')>(), saveCurrentGoal,
@@ -53,6 +54,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  localStorage.clear()
   fetchExercises.mockResolvedValue(exercises)
   fetchStrengthGoals.mockResolvedValue([])
   fetchStrengthSnapshot.mockResolvedValue(initial)
@@ -60,6 +62,17 @@ beforeEach(() => {
 })
 
 describe('StrengthPage', () => {
+  it('shows the BIG3 loaded last time at once and keeps it when reloading fails', async () => {
+    rememberStrengthSnapshot('u1', initial)
+    rememberStrengthGoals('u1', [])
+    fetchStrengthSnapshot.mockRejectedValue(new TypeError('Load failed'))
+    renderPage()
+    expect(screen.getByRole('region', { name: 'Big3スコア' })).toBeInTheDocument()
+    await waitFor(() => expect(fetchStrengthSnapshot).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Big3スコア' })).toBeInTheDocument()
+  })
   it('uses lifetime RM estimates for the total, breakdown and goal progress without singles', async () => {
     const multi = [
       { exercise_id: 'squat', weight_kg: 160, reps: 5 },

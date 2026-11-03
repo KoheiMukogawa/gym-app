@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { BodyPage } from './BodyPage'
+import { rememberBodyweightLogs } from '../../lib/cachedData'
 
 const { session, fetchBodyweightLogs, saveBodyComposition, deleteBodyLog } = vi.hoisted(() => ({
   session: { userId: 'u1' as string | null },
@@ -48,6 +49,7 @@ const renderPage = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   session.userId = 'u1'
   fetchBodyweightLogs.mockResolvedValue([])
   saveBodyComposition.mockImplementation(async (_u: string, i: { date?: string; bodyweightKg: number; bodyFatPct: number | null }) =>
@@ -55,6 +57,17 @@ beforeEach(() => {
 })
 
 describe('BodyPage', () => {
+  it('shows the measurements loaded last time at once and keeps them when reloading fails', async () => {
+    rememberBodyweightLogs('u1', [{ recorded_on: pastDate, bodyweight_kg: 71.3, body_fat_pct: 14.2 }])
+    fetchBodyweightLogs.mockRejectedValue(new TypeError('Load failed'))
+    render(<MemoryRouter><BodyPage /></MemoryRouter>)
+    const latest = within(screen.getByRole('region', { name: '最新の記録' }))
+    expect(latest.getByLabelText(/^体重 71\.3kg/)).toBeInTheDocument()
+    await waitFor(() => expect(fetchBodyweightLogs).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(latest.getByLabelText(/^体重 71\.3kg/)).toBeInTheDocument()
+  })
   it('records weight and body fat for today', async () => {
     await renderPage()
     await userEvent.click(screen.getByRole('button', { name: '体重を記録' }))

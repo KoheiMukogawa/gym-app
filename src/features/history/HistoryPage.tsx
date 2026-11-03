@@ -10,6 +10,7 @@ import { useMonthWorkouts } from './useMonthWorkouts'
 import { MonthCalendar } from './MonthCalendar'
 import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
 import { fetchBodyweightLogs } from '../profile/bodyweightQueries'
+import { cachedBodyweightLogs } from '../../lib/cachedData'
 import { PageHeader } from '../../components/PageHeader'
 
 export function HistoryPage() {
@@ -18,7 +19,7 @@ export function HistoryPage() {
   let selected = params.get('date') ?? ''
   try { if (selected) workoutDateISO(selected) } catch { selected = '' }
   const [month, setMonth] = useState(() => new Date((selected || localDate()).slice(0, 7) + '-01T12:00:00'))
-  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>([])
+  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>(() => cachedBodyweightLogs(userId) ?? [])
   const year = month.getFullYear()
   const number = month.getMonth() + 1
   // 月を切り替えてもカレンダーは消さず、データは裏で取得する（取得済みの月は即表示）

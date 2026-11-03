@@ -5,7 +5,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
 import { localDate } from '../../lib/dates'
 import { toMessage } from '../../lib/errors'
-import { isArray, readCache, writeCache } from '../../lib/localCache'
+import { cachedBodyweightLogs, cachedStrengthGoals, cachedStrengthSnapshot } from '../../lib/cachedData'
 import { strengthTotal } from '../../lib/strength'
 import { useSession } from '../auth/SessionProvider'
 import type { FeedItem } from '../feed/queries'
@@ -79,11 +79,6 @@ export function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goa
 function TodayWorkout({ item, bodyweight }: { item: FeedItem; bodyweight: number | null }) {
   return <WorkoutSetDetails item={item} bodyweight={bodyweight} editHref={`/history/${item.workout_id}`} />
 }
-function isSnapshot(value: unknown): value is StrengthSnapshot {
-  const lifts = (value as StrengthSnapshot | null)?.lifts
-  return typeof lifts === 'object' && lifts !== null && ['squat', 'bench', 'deadlift'].every((key) => key in lifts)
-}
-
 export function HomePage() {
   const { userId } = useSession()
   const navigate = useNavigate()
@@ -93,27 +88,20 @@ export function HomePage() {
   const month = now.getMonth() + 1
   const { items, loading, error, retry } = useMonthWorkouts(userId, year, month)
   // 前回の表示を端末から出し、読み直した結果で差し替える
-  const [snapshot, setSnapshot] = useState<StrengthSnapshot | null>(() => readCache(userId, 'big3', isSnapshot) ?? null)
-  const [goal, setGoal] = useState<StrengthGoal | null>(() => currentGoal(readCache<StrengthGoal[]>(userId, 'goals', isArray) ?? []))
+  const [snapshot, setSnapshot] = useState<StrengthSnapshot | null>(() => cachedStrengthSnapshot(userId) ?? null)
+  const [goal, setGoal] = useState<StrengthGoal | null>(() => currentGoal(cachedStrengthGoals(userId) ?? []))
   const [strengthError, setStrengthError] = useState<string | null>(null)
   const [strengthAttempt, setStrengthAttempt] = useState(0)
-  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>(() => readCache<BodyweightLog[]>(userId, 'bodyweight', isArray) ?? [])
+  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>(() => cachedBodyweightLogs(userId) ?? [])
 
   useEffect(() => {
     if (!userId) return
     let active = true
     setStrengthError(null)
     Promise.all([fetchStrengthSnapshot(userId), fetchStrengthGoals(userId)])
-      .then(([s, goals]) => {
-        writeCache(userId, 'big3', s)
-        writeCache(userId, 'goals', goals)
-        if (active) { setSnapshot(s); setGoal(currentGoal(goals)) }
-      })
+      .then(([s, goals]) => { if (active) { setSnapshot(s); setGoal(currentGoal(goals)) } })
       .catch((e) => { if (active) setStrengthError(toMessage(e)) })
-    fetchBodyweightLogs(userId).then((logs) => {
-      writeCache(userId, 'bodyweight', logs)
-      if (active) setBodyweightLogs(logs)
-    }).catch(() => {})
+    fetchBodyweightLogs(userId).then((logs) => { if (active) setBodyweightLogs(logs) }).catch(() => {})
     return () => { active = false }
   }, [userId, strengthAttempt])
 

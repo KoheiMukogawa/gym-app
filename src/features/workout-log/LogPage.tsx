@@ -4,6 +4,7 @@ import { findPrefill, weightStep } from '../../lib/calc'
 import { localDate, validateSet } from '../../lib/dates'
 import { isNetworkError, isOffline, TimeoutError, toMessage } from '../../lib/errors'
 import { isArray, readCache, writeCache } from '../../lib/localCache'
+import { cachedBodyweightLogs } from '../../lib/cachedData'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { SetRmLabel } from './SetRmLabel'
@@ -121,7 +122,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   const [cached] = useState(() => ({
     exercises: readCache<Exercise[]>(userId, 'exercises', isArray),
     history: readCache<SetHistory>(userId, 'set-history', isArray),
-    bodyweight: readCache<BodyweightLog[]>(userId, 'bodyweight', isArray),
+    bodyweight: cachedBodyweightLogs(userId),
     today: readCache(userId, 'today', isCachedToday),
   }))
 
@@ -313,7 +314,6 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
       .then(([ex, hist, logs]) => {
         writeCache(userId, 'exercises', ex)
         writeCache(userId, 'set-history', hist)
-        writeCache(userId, 'bodyweight', logs)
         if (!active) return
         setExercises(ex)
         setHistory(hist)

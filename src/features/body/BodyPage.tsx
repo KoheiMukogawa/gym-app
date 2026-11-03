@@ -13,6 +13,7 @@ import { deleteBodyLog, fetchBodyweightLogs, parseBodyweight, saveBodyCompositio
 import { HealthSyncEntry } from './HealthSyncPanel'
 import { BodyTrendChart, FAT_COLOR, WEIGHT_COLOR } from './BodyTrendChart'
 import { PageHeader } from '../../components/PageHeader'
+import { cachedBodyweightLogs } from '../../lib/cachedData'
 
 const field = 'min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg tabular-nums'
 export function BodyPage() {
@@ -22,15 +23,19 @@ export function BodyPage() {
 }
 
 function OwnedBodyPage({ userId }: { userId: string }) {
-  const [logs, setLogs] = useState<BodyweightLog[]>([])
+  // 前回の記録を端末から出し、読み直した結果で差し替える
+  const [cachedLogs] = useState(() => cachedBodyweightLogs(userId))
+  const [logs, setLogs] = useState<BodyweightLog[]>(cachedLogs ?? [])
   const [weight, setWeight] = useState('')
   const [fat, setFat] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(cachedLogs === undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [entryOpen, setEntryOpen] = useState(false)
+  const entryOpenRef = useRef(entryOpen)
+  entryOpenRef.current = entryOpen
   const [deleting, setDeleting] = useState<string | null>(null)
   // null は今日。編集ボタンを押すか、シートの見出しの日付を変えるとその日を入力・修正する
   const [editing, setEditing] = useState<string | null>(null)
@@ -54,9 +59,20 @@ function OwnedBodyPage({ userId }: { userId: string }) {
     setFat(latest?.body_fat_pct == null ? '' : String(latest.body_fat_pct))
   }
 
-  const load = useCallback(() => {
+  // quiet: 開いた直後に前回の記録を出しているときの読み直し。読み込み中の表示を出さず、失敗してもそのまま見せる
+  const load = useCallback((quiet = false) => {
     if (!userId) return
     let active = true
+    if (quiet) {
+      prefill(cachedLogs ?? [])
+      fetchBodyweightLogs(userId).then((rows) => {
+        if (!active) return
+        setLogs(rows)
+        // 入力を始めていなければ、最新の値で今日の入力を初期表示し直す
+        if (!entryOpenRef.current) prefill(rows)
+      }).catch(() => {})
+      return () => { active = false }
+    }
     setLoading(true)
     setLoadError(null)
     setError(null)
@@ -74,8 +90,8 @@ function OwnedBodyPage({ userId }: { userId: string }) {
       .catch((e) => { if (active) setLoadError(toMessage(e)) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [userId])
-  useEffect(() => load(), [load, attempt])
+  }, [userId, cachedLogs])
+  useEffect(() => load(attempt === 0 && cachedLogs !== undefined), [load, attempt, cachedLogs])
 
   async function save() {
     if (!userId || busy || loading || loadError !== null || deleting !== null || confirming) return
