@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { findPrefill, weightStep } from '../../lib/calc'
 import { localDate, validateSet } from '../../lib/dates'
 import { isNetworkError, isOffline, TimeoutError, toMessage } from '../../lib/errors'
+import { isArray, readCache, writeCache } from '../../lib/localCache'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { SetRmLabel } from './SetRmLabel'
@@ -64,6 +65,18 @@ const SAVE_DEADLINE_MS = 15_000
 /** 未送信のセットがある間、送り直しを試す間隔 */
 const RESEND_INTERVAL_MS = 15_000
 
+/** 今日の記録が届くのを待つ上限。届かなければ、前回開いたときの分（あれば）で記録を始める */
+const TODAY_WAIT_MS = 6_000
+
+type SetHistory = Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[]
+type TodayWorkout = { id: string; sets: LoggedSet[] } | null
+/** 端末に残す今日の記録。日付が変わったら使わない */
+type CachedToday = { date: string; workout: TodayWorkout }
+function isCachedToday(value: unknown): value is CachedToday {
+  const v = value as CachedToday | null
+  return typeof v?.date === 'string' && (v.workout === null || (typeof v.workout?.id === 'string' && Array.isArray(v.workout.sets)))
+}
+
 function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new TimeoutError()), ms)
@@ -104,6 +117,13 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // マウントごとに1回だけ読む。モジュールスコープに置くと、終了後に開き直した際に
   // 破棄済みの下書きを復元してしまう。
   const [draft] = useState(() => (userId ? loadDraft(userId) : null))
+  // 前回読み込んだ種目・過去のセット・体重・今日の記録。開いたらすぐにこれで出し、裏で読み直す
+  const [cached] = useState(() => ({
+    exercises: readCache<Exercise[]>(userId, 'exercises', isArray),
+    history: readCache<SetHistory>(userId, 'set-history', isArray),
+    bodyweight: readCache<BodyweightLog[]>(userId, 'bodyweight', isArray),
+    today: readCache(userId, 'today', isCachedToday),
+  }))
 
   const [state, rawDispatch] = useReducer(logReducer, draft?.state ?? initialLogState)
   // 下書きは「この画面で操作した」ときだけ保存する。今日の記録をサーバーから読み込んだだけで
@@ -128,10 +148,10 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // 送り直しはタイマーや online イベントの古いクロージャから走るので、最新の値を ref で読む
   const statusRef = useRef(statusById)
   statusRef.current = statusById
-  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [exercises, setExercises] = useState<Exercise[]>(cached.exercises ?? [])
   const [routine, setRoutine] = useState<ActiveRoutine | null>(draft?.routine ?? null)
   const [editingRoutine, setEditingRoutine] = useState(false)
-  const [history, setHistory] = useState<Pick<WorkoutSet, 'exercise_id' | 'weight_kg' | 'reps'>[]>([])
+  const [history, setHistory] = useState<SetHistory>(cached.history ?? [])
   // 一覧入力の種目選択で「種目を追加」を押したときに開く部位（今までの種目選択の画面を出す）
   const [managingGroup, setManagingGroup] = useState<MuscleGroup | null>(null)
   // 一覧入力の今日の記録（REC-03）で、右下の＋から種目選択（REC-04）を開いているか
@@ -143,7 +163,12 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   }
   const heldCount = Object.values(heldRows).reduce((n, rows) => n + rows.length, 0)
   const [choosingExercise, setChoosingExercise] = useState(false)
-  const [loading, setLoading] = useState(true)
+  // 種目を前に読んだことがあれば、待たずに出す
+  const [loading, setLoading] = useState(cached.exercises === undefined)
+  // 今日の記録を読み込み中。届くまで種目は開かない（一覧入力が今日のセットを知らずに行を作り、保存で消さないように）
+  const [todayPending, setTodayPending] = useState(false)
+  // 読み込み中に選んだ種目。届いたら開く
+  const [queuedExercise, setQueuedExercise] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [picking, setPicking] = useState(draft?.state.currentExerciseId == null)
@@ -158,7 +183,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   const [offline, setOffline] = useState(isOffline())
   const [finishing, setFinishing] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>([])
+  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>(cached.bodyweight ?? [])
   const [bodyweightDraft, setBodyweightDraft] = useState('')
   const [editingBodyweight, setEditingBodyweight] = useState(false)
   const [savingBodyweight, setSavingBodyweight] = useState(false)
@@ -242,23 +267,44 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   useEffect(() => {
     if (!userId) return
     let active = true
-    setLoading(true)
-    setLoadError(null)
+    // 前に読んだ種目を出せているときは、読み直しに失敗してもそのまま記録できる（電波の弱いジムなど）
+    const showingCache = cached.exercises !== undefined
+    if (!showingCache) {
+      setLoading(true)
+      setLoadError(null)
+    }
     // 1日の記録は1件にまとめる。下書きが無ければ、今日すでに保存したセットを読み込んで続きから記録する。
     const resumeToday = !draft?.workoutId && !draft?.state.sets.length && !todayLoadedRef.current
-    Promise.all([fetchExercises(), fetchUserSetHistory(userId), resumeToday ? fetchTodayWorkout(userId) : Promise.resolve(null), fetchBodyweightLogs(userId)])
-      .then(([ex, hist, today, logs]) => {
+    if (resumeToday) {
+      const applyToday = (today: TodayWorkout) => {
+        setWorkoutId(today?.id ?? null)
+        dispatch({ type: 'load-sets', sets: today?.sets ?? [] })
+      }
+      // 前回開いたときの今日の記録があれば先に出し、届いたら差し替える
+      if (loadAttempt === 0 && cached.today?.date === localDate()) applyToday(cached.today.workout)
+      setTodayPending(true)
+      withDeadline(fetchTodayWorkout(userId), TODAY_WAIT_MS)
+        .then((today) => {
+          writeCache(userId, 'today', { date: localDate(), workout: today } satisfies CachedToday)
+          if (!active) return
+          todayLoadedRef.current = true
+          applyToday(today)
+        })
+        // 読めなければ、前回の分（あれば）のまま記録を始める。あとで保存するときに今日の記録へまとめる
+        .catch(() => undefined)
+        .finally(() => { if (active) setTodayPending(false) })
+    }
+    Promise.all([fetchExercises(), fetchUserSetHistory(userId), fetchBodyweightLogs(userId)])
+      .then(([ex, hist, logs]) => {
+        writeCache(userId, 'exercises', ex)
+        writeCache(userId, 'set-history', hist)
+        writeCache(userId, 'bodyweight', logs)
         if (!active) return
         setExercises(ex)
         setHistory(hist)
         setBodyweightLogs(logs)
-        if (resumeToday) todayLoadedRef.current = true
-        if (today) {
-          setWorkoutId(today.id)
-          dispatch({ type: 'load-sets', sets: today.sets })
-        }
       })
-      .catch((e) => { if (active) setLoadError(toMessage(e)) })
+      .catch((e) => { if (active && !showingCache) setLoadError(toMessage(e)) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [userId, loadAttempt])
@@ -287,6 +333,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   }
 
   function selectExercise(exerciseId: string) {
+    if (todayPending) { setQueuedExercise(exerciseId); return }
     const bw = exercises.some((e) => e.id === exerciseId && e.is_bodyweight)
     // 自重種目は体重を足した総重量で換算する
     const loadOffset = bw ? latestBodyweight(bodyweightLogs) ?? 0 : 0
@@ -504,12 +551,21 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // 一覧入力では、種目を選んだら（今日の記録の読み込みが済んでから）その種目の行を用意する
   useEffect(() => {
     const id = state.currentExerciseId
-    if (loading || picking || mode !== 'list' || !id || listRows?.exerciseId === id) return
+    if (loading || todayPending || picking || mode !== 'list' || !id || listRows?.exerciseId === id) return
     const held = (heldRows[id] ?? []).map((r) => ({ ...r, weight: convertWeightText(r.weight, 'kg', unit) }))
     setListRowsState(rowsFromSets(state.sets, id, unit, held))
     if (heldRows[id]) setHeldRowsState(({ [id]: _, ...rest }) => rest)
     setRowErrors({})
-  }, [loading, picking, mode, state, listRows, unit, heldRows])
+  }, [loading, todayPending, picking, mode, state, listRows, unit, heldRows])
+
+  // 今日の記録を読み込んでいる間に選んだ種目は、届いてから開く
+  const selectRef = useRef(selectExercise)
+  selectRef.current = selectExercise
+  useEffect(() => {
+    if (todayPending || queuedExercise === null) return
+    setQueuedExercise(null)
+    selectRef.current(queuedExercise)
+  }, [todayPending, queuedExercise])
 
   const flushingRef = useRef<Promise<number | null> | null>(null)
   /**
@@ -780,6 +836,12 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
         })(),
         10_000,
       )
+      // 同じ日にもう一度開いたとき、今日の記録をすぐに出せるようにする
+      const wid = workoutIdRef.current
+      writeCache(userId, 'today', {
+        date: localDate(),
+        workout: wid === null ? null : { id: wid, sets: setsRef.current.filter((s) => (statusRef.current[s.id] ?? 'saved') === 'saved') },
+      } satisfies CachedToday)
       clearDraft(userId)
       if (total > 0) markWorkoutFinished(userId)
       onFinished?.()
@@ -789,7 +851,8 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     }
   }
 
-  if (loading) return <Spinner />
+  // 今日の記録が届くまで、選んだ種目（や下書きの種目）は開かない
+  if (loading || queuedExercise !== null || (todayPending && !picking)) return <Spinner />
   if (loadError) return <div className="space-y-4 p-4"><p role="alert" className="text-sm text-accent">{loadError}</p><Button onClick={() => setLoadAttempt((n) => n + 1)}>再試行</Button></div>
 
   // 一覧入力を公開した後に登録した人には、最初に入力方法を選んでもらう

@@ -15,6 +15,7 @@ vi.mock('./editorQueries', () => api)
 vi.mock('../exercises/queries', () => api)
 vi.mock('../workout-log/queries', () => api)
 vi.mock('../routines/queries', () => ({
+  cachedExerciseOrder: () => undefined, cachedExerciseVisibility: () => undefined,
   fetchExerciseOrder: async () => [], saveExerciseOrder: vi.fn(),
   fetchExerciseVisibility: async () => ({ addedIds: [], hiddenIds: [] }), saveExerciseVisibility: vi.fn(),
 }))

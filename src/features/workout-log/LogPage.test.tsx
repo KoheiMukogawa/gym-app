@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { LogPage } from './LogPage'
 import { ToastProvider } from '../../components/ui/Toast'
 import { saveDraft, loadDraft } from './persistence'
+import { readCache, writeCache } from '../../lib/localCache'
 import type { Exercise } from '../../lib/types'
 vi.mock('../routines/queries', async (original) => ({
   ...await original<typeof import('../routines/queries')>(),
@@ -201,6 +202,45 @@ describe('LogPage', () => {
     )
 
     expect(screen.getByRole('button', { name: /未保存/ })).toBeInTheDocument()
+  })
+
+  it('opens the exercise picker at once from the exercises loaded last time, then keeps them fresh', async () => {
+    writeCache(USER, 'exercises', [BENCH])
+    writeCache(USER, 'set-history', [])
+    writeCache(USER, 'bodyweight', [])
+    fetchExercises.mockReturnValue(new Promise(() => {}))
+    renderLogPage()
+    expect(await screen.findByRole('heading', { name: '今日のトレーニング' })).toBeInTheDocument()
+    expect((await screen.findAllByRole('button', { name: /ベンチプレス/ }))[0]).toBeInTheDocument()
+  })
+
+  it('still records after reopening without signal, using what was loaded last time', async () => {
+    writeCache(USER, 'exercises', [BENCH])
+    fetchExercises.mockRejectedValue(new TypeError('Load failed'))
+    fetchUserSetHistory.mockRejectedValue(new TypeError('Load failed'))
+    fetchBodyweightLogs.mockRejectedValue(new TypeError('Load failed'))
+    fetchTodayWorkout.mockRejectedValue(new TypeError('Load failed'))
+    createWorkout.mockResolvedValue({ id: 'w1' })
+    renderLogPage()
+    await userEvent.click((await screen.findAllByRole('button', { name: /ベンチプレス/ }))[0])
+    await userEvent.click(await screen.findByRole('button', { name: 'セット完了' }))
+    await waitFor(() => expect(saveSet).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText(/通信できませんでした/)).toBeNull()
+  })
+
+  it('opens an exercise chosen before today\'s sets arrive only after they do', async () => {
+    writeCache(USER, 'exercises', [BENCH])
+    let resolveToday: (today: unknown) => void = () => {}
+    fetchTodayWorkout.mockReturnValue(new Promise((resolve) => { resolveToday = resolve }))
+    renderLogPage()
+    await userEvent.click((await screen.findAllByRole('button', { name: /ベンチプレス/ }))[0])
+    expect(screen.queryByRole('button', { name: 'セット完了' })).toBeNull()
+    resolveToday({ id: 'today', sets: [{ id: 'old', exercise_id: 'bench', set_index: 1, weight_kg: 60, reps: 10 }] })
+    await userEvent.click(await screen.findByRole('button', { name: 'セット完了' }))
+    await waitFor(() => expect(saveSet).toHaveBeenCalledWith('today', expect.objectContaining({ set_index: 2 })))
+    expect(createWorkout).not.toHaveBeenCalled()
+    // 次に開いたときのために、今日の記録を端末に残している
+    expect(readCache(USER, 'today', (value): value is { workout: { id: string } } => typeof value === 'object')?.workout.id).toBe('today')
   })
 
   it('continues today\'s workout instead of starting a second one for the day', async () => {

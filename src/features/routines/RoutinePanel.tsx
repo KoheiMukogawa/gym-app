@@ -6,7 +6,7 @@ import type { Exercise, MuscleGroup } from '../../lib/types'
 import { ExercisePicker } from '../exercises/ExercisePicker'
 import { exerciseLabel } from '../exercises/catalog'
 import { createExercise } from '../exercises/queries'
-import { deleteRoutine, fetchRoutines, saveRoutine, type Routine } from './queries'
+import { cachedRoutines, deleteRoutine, fetchRoutines, saveRoutine, type Routine } from './queries'
 
 type Props = {
   userId: string
@@ -16,21 +16,24 @@ type Props = {
   onEditingChange?: (editing: boolean) => void
 }
 export function RoutinePanel({ userId, exercises, onExerciseCreated, onStart, onEditingChange }: Props) {
-  const [items, setItems] = useState<Routine[]>([])
+  // 前回読み込んだルーティンがあれば、待たずに出して裏で読み直す
+  const [cached] = useState(() => cachedRoutines(userId))
+  const [items, setItems] = useState<Routine[]>(cached ?? [])
   const [editing, setEditing] = useState<Routine | null>(null)
   const [choosing, setChoosing] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(cached === undefined)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   useLayoutEffect(() => { onEditingChange?.(editing !== null) }, [editing, onEditingChange])
-  const load = useCallback(async () => {
-    setLoading(true); setLoadError(null)
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) { setLoading(true); setLoadError(null) }
     try { setItems(await fetchRoutines(userId)) }
-    catch (e) { setLoadError(toMessage(e)) }
+    // 前回のルーティンを出せているときは、読み直しに失敗してもそのまま使う
+    catch (e) { if (!quiet) setLoadError(toMessage(e)) }
     finally { setLoading(false) }
   }, [userId])
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load(cached !== undefined) }, [load, cached])
   const nameFor = (id: string) => {
     const exercise = exercises.find((e) => e.id === id)
     return exercise ? exerciseLabel(exercise) : '見つからない種目'

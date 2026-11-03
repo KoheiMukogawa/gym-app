@@ -5,6 +5,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { bodyweightOn, type BodyweightLog } from '../../lib/bodyweight'
 import { localDate } from '../../lib/dates'
 import { toMessage } from '../../lib/errors'
+import { isArray, readCache, writeCache } from '../../lib/localCache'
 import { strengthTotal } from '../../lib/strength'
 import { useSession } from '../auth/SessionProvider'
 import type { FeedItem } from '../feed/queries'
@@ -78,6 +79,11 @@ export function Big3Column({ snapshot, goal }: { snapshot: StrengthSnapshot; goa
 function TodayWorkout({ item, bodyweight }: { item: FeedItem; bodyweight: number | null }) {
   return <WorkoutSetDetails item={item} bodyweight={bodyweight} editHref={`/history/${item.workout_id}`} />
 }
+function isSnapshot(value: unknown): value is StrengthSnapshot {
+  const lifts = (value as StrengthSnapshot | null)?.lifts
+  return typeof lifts === 'object' && lifts !== null && ['squat', 'bench', 'deadlift'].every((key) => key in lifts)
+}
+
 export function HomePage() {
   const { userId } = useSession()
   const navigate = useNavigate()
@@ -86,20 +92,28 @@ export function HomePage() {
   const year = now.getFullYear()
   const month = now.getMonth() + 1
   const { items, loading, error, retry } = useMonthWorkouts(userId, year, month)
-  const [snapshot, setSnapshot] = useState<StrengthSnapshot | null>(null)
-  const [goal, setGoal] = useState<StrengthGoal | null>(null)
+  // 前回の表示を端末から出し、読み直した結果で差し替える
+  const [snapshot, setSnapshot] = useState<StrengthSnapshot | null>(() => readCache(userId, 'big3', isSnapshot) ?? null)
+  const [goal, setGoal] = useState<StrengthGoal | null>(() => currentGoal(readCache<StrengthGoal[]>(userId, 'goals', isArray) ?? []))
   const [strengthError, setStrengthError] = useState<string | null>(null)
   const [strengthAttempt, setStrengthAttempt] = useState(0)
-  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>([])
+  const [bodyweightLogs, setBodyweightLogs] = useState<BodyweightLog[]>(() => readCache<BodyweightLog[]>(userId, 'bodyweight', isArray) ?? [])
 
   useEffect(() => {
     if (!userId) return
     let active = true
     setStrengthError(null)
     Promise.all([fetchStrengthSnapshot(userId), fetchStrengthGoals(userId)])
-      .then(([s, goals]) => { if (active) { setSnapshot(s); setGoal(currentGoal(goals)) } })
+      .then(([s, goals]) => {
+        writeCache(userId, 'big3', s)
+        writeCache(userId, 'goals', goals)
+        if (active) { setSnapshot(s); setGoal(currentGoal(goals)) }
+      })
       .catch((e) => { if (active) setStrengthError(toMessage(e)) })
-    fetchBodyweightLogs(userId).then((logs) => { if (active) setBodyweightLogs(logs) }).catch(() => {})
+    fetchBodyweightLogs(userId).then((logs) => {
+      writeCache(userId, 'bodyweight', logs)
+      if (active) setBodyweightLogs(logs)
+    }).catch(() => {})
     return () => { active = false }
   }, [userId, strengthAttempt])
 
@@ -116,12 +130,13 @@ export function HomePage() {
       </section>
       <section aria-label="BIG3" className="self-start">
         <h2 className="mb-2 text-xl font-semibold">BIG3</h2>
-        {strengthError ? <div className="space-y-2"><p role="alert" className="text-xs text-accent">{strengthError}</p><Button variant="ghost" onClick={() => setStrengthAttempt((n) => n + 1)}>再試行</Button></div>
+        {/* 前回の結果を出せているときは、読み直しに失敗してもそのまま見せる */}
+        {strengthError && !snapshot ? <div className="space-y-2"><p role="alert" className="text-xs text-accent">{strengthError}</p><Button variant="ghost" onClick={() => setStrengthAttempt((n) => n + 1)}>再試行</Button></div>
           : snapshot ? <Big3Column snapshot={snapshot} goal={goal} /> : <Spinner />}
       </section>
     </div>
 
-    <StartingBestsCard snapshot={strengthError ? null : snapshot} />
+    <StartingBestsCard snapshot={strengthError && !snapshot ? null : snapshot} />
     <InstallCard />
 
     <section aria-label="今日のトレーニング" className="space-y-2">

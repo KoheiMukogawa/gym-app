@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { SortableList } from '../../components/SortableList'
 import { ExerciseSwipeRow } from './ExerciseSwipeRow'
 import { armLabel, exerciseLabel, isBasicExercise, PICKER_GROUPS, sortExercises } from './catalog'
-import { fetchExerciseOrder, fetchExerciseVisibility, saveExerciseOrder, saveExerciseVisibility, type ExerciseVisibility } from '../routines/queries'
+import { cachedExerciseOrder, cachedExerciseVisibility, fetchExerciseOrder, fetchExerciseVisibility, saveExerciseOrder, saveExerciseVisibility, type ExerciseVisibility } from '../routines/queries'
 
 type Props = {
   exercises: Exercise[]
@@ -28,33 +28,37 @@ export function ExercisePicker({ exercises, userId, onSelect, onCreate, createLa
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [order, setOrder] = useState<string[]>([])
+  // 前回読み込んだ並び順・表示の設定があれば、待たずに出して裏で読み直す
+  const [cachedOrder] = useState(() => cachedExerciseOrder(userId ?? null))
+  const [cachedVisibility] = useState(() => cachedExerciseVisibility(userId ?? null))
+  const [order, setOrder] = useState<string[]>(cachedOrder ?? [])
   const [pendingOrder, setPendingOrder] = useState<string[] | null>(null)
   const [orderError, setOrderError] = useState<string | null>(null)
-  const [orderLoading, setOrderLoading] = useState(true)
-  const [visibility, setVisibility] = useState<ExerciseVisibility>({ addedIds: [], hiddenIds: [] })
-  const [visibilityLoading, setVisibilityLoading] = useState(true)
+  const [orderLoading, setOrderLoading] = useState(cachedOrder === undefined)
+  const [visibility, setVisibility] = useState<ExerciseVisibility>(cachedVisibility ?? { addedIds: [], hiddenIds: [] })
+  const [visibilityLoading, setVisibilityLoading] = useState(cachedVisibility === undefined)
   const [visibilityUnavailable, setVisibilityUnavailable] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const orderLock = useRef(false)
   useEffect(() => {
     let active = true
-    setOrderLoading(true)
+    setOrderLoading(cachedOrder === undefined || attempt > 0)
     if (!userId) { setOrderLoading(false); return }
     fetchExerciseOrder(userId).then((ids) => { if (active) { setOrder(ids); setOrderError(null) } })
-      .catch((e) => { if (active) setOrderError(toMessage(e)) })
+      // 前回の並び順を出せているときは、読み直しに失敗してもそのまま使う
+      .catch((e) => { if (active && (cachedOrder === undefined || attempt > 0)) setOrderError(toMessage(e)) })
       .finally(() => { if (active) setOrderLoading(false) })
     return () => { active = false }
-  }, [userId, attempt])
+  }, [userId, attempt, cachedOrder])
   useEffect(() => {
     let active = true
-    setVisibilityLoading(true)
+    setVisibilityLoading(cachedVisibility === undefined || attempt > 0)
     if (!userId) { setVisibilityLoading(false); return }
     fetchExerciseVisibility(userId).then((value) => { if (active) { setVisibility(value); setVisibilityUnavailable(false); setError(null) } })
-      .catch((e) => { if (active) { setVisibilityUnavailable(true); setError(toMessage(e)) } })
+      .catch((e) => { if (active && (cachedVisibility === undefined || attempt > 0)) { setVisibilityUnavailable(true); setError(toMessage(e)) } })
       .finally(() => { if (active) setVisibilityLoading(false) })
     return () => { active = false }
-  }, [userId, attempt])
+  }, [userId, attempt, cachedVisibility])
   const available = exercises.filter((e) => e.muscle_group === group && (e.is_preset || (!!userId && e.created_by === userId)))
   const isVisible = (e: Exercise) => !visibility.hiddenIds.includes(e.id) &&
     (isBasicExercise(e) || !e.is_preset || visibility.addedIds.includes(e.id))

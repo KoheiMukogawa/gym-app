@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '../../lib/supabase'
 import { IS_DEMO } from '../../lib/demoMode'
+import { clearUserCache } from '../../lib/localCache'
 import type { Profile } from '../../lib/types'
 
 type SessionValue = {
@@ -75,7 +76,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (IS_DEMO) return
     const { error } = await supabase.auth.signOut()
     if (error) throw error
-  }, [])
+    // 共有の端末で、次に使う人に前の人の記録を見せない
+    if (userId) clearUserCache(userId)
+  }, [userId])
 
   return (
     <SessionContext.Provider value={{ userId, profile, loading, signOut, refreshProfile }}>

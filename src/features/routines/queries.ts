@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase'
 import { InputError } from '../../lib/errors'
+import { isArray, readCache, writeCache } from '../../lib/localCache'
 
 export type Routine = { id: string; user_id: string; name: string; exercise_ids: string[]; created_at?: string }
 export type ActiveRoutine = { name: string; exerciseIds: string[]; index: number }
@@ -7,7 +8,13 @@ export type ActiveRoutine = { name: string; exerciseIds: string[]; index: number
 export async function fetchRoutines(userId: string): Promise<Routine[]> {
   const { data, error } = await supabase.from('training_routines').select('*').eq('user_id', userId).order('created_at')
   if (error) throw error
-  return (data ?? []) as Routine[]
+  const routines = (data ?? []) as Routine[]
+  writeCache(userId, 'routines', routines)
+  return routines
+}
+/** 前回読み込んだルーティン。記録画面をすぐに出すために使い、そのあと読み直す */
+export function cachedRoutines(userId: string | null): Routine[] | undefined {
+  return readCache<Routine[]>(userId, 'routines', isArray)
 }
 export async function saveRoutine(routine: Routine): Promise<Routine> {
   if (!routine.name.trim() || routine.name.trim().length > 40 || routine.exercise_ids.length < 1 ||
@@ -27,10 +34,18 @@ export async function deleteRoutine(userId: string, id: string): Promise<void> {
 export async function fetchExerciseOrder(userId: string): Promise<string[]> {
   const { data, error } = await supabase.from('exercise_preferences').select('exercise_order').eq('user_id', userId).maybeSingle()
   if (error) throw error
-  return data?.exercise_order ?? []
+  const order: string[] = data?.exercise_order ?? []
+  writeCache(userId, 'exercise-order', order)
+  return order
+}
+/** 前回読み込んだ種目の並び順 */
+export function cachedExerciseOrder(userId: string | null): string[] | undefined {
+  return readCache<string[]>(userId, 'exercise-order', isArray)
 }
 export async function saveExerciseOrder(userId: string, order: string[]): Promise<void> {
-  await savePreference(userId, { exercise_order: [...new Set(order)] })
+  const unique = [...new Set(order)]
+  await savePreference(userId, { exercise_order: unique })
+  writeCache(userId, 'exercise-order', unique)
 }
 
 export type ExerciseVisibility = { addedIds: string[]; hiddenIds: string[] }
@@ -39,14 +54,20 @@ export async function fetchExerciseVisibility(userId: string): Promise<ExerciseV
   const { data, error } = await supabase.from('exercise_preferences')
     .select('added_exercise_ids, hidden_exercise_ids').eq('user_id', userId).maybeSingle()
   if (error) throw error
-  return { addedIds: data?.added_exercise_ids ?? [], hiddenIds: data?.hidden_exercise_ids ?? [] }
+  const visibility: ExerciseVisibility = { addedIds: data?.added_exercise_ids ?? [], hiddenIds: data?.hidden_exercise_ids ?? [] }
+  writeCache(userId, 'exercise-visibility', visibility)
+  return visibility
+}
+/** 前回読み込んだ種目の表示・非表示 */
+export function cachedExerciseVisibility(userId: string | null): ExerciseVisibility | undefined {
+  return readCache(userId, 'exercise-visibility', (value): value is ExerciseVisibility =>
+    Array.isArray((value as ExerciseVisibility | null)?.addedIds) && Array.isArray((value as ExerciseVisibility).hiddenIds))
 }
 
 export async function saveExerciseVisibility(userId: string, visibility: ExerciseVisibility): Promise<void> {
-  await savePreference(userId, {
-    added_exercise_ids: [...new Set(visibility.addedIds)],
-    hidden_exercise_ids: [...new Set(visibility.hiddenIds)],
-  })
+  const saved = { addedIds: [...new Set(visibility.addedIds)], hiddenIds: [...new Set(visibility.hiddenIds)] }
+  await savePreference(userId, { added_exercise_ids: saved.addedIds, hidden_exercise_ids: saved.hiddenIds })
+  writeCache(userId, 'exercise-visibility', saved)
 }
 
 // Update only the changed fields so reordering cannot reset visibility (or vice versa).

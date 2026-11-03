@@ -4,7 +4,7 @@ import { ExerciseSwipeRow } from '../exercises/ExerciseSwipeRow'
 import { MUSCLE_GROUP_LABELS, type Exercise, type MuscleGroup } from '../../lib/types'
 import { toMessage } from '../../lib/errors'
 import { armLabel, exerciseLabel, isBasicExercise, PICKER_GROUPS, sortExercises } from '../exercises/catalog'
-import { fetchExerciseOrder, fetchExerciseVisibility, saveExerciseOrder, saveExerciseVisibility, type ExerciseVisibility } from '../routines/queries'
+import { cachedExerciseOrder, cachedExerciseVisibility, fetchExerciseOrder, fetchExerciseVisibility, saveExerciseOrder, saveExerciseVisibility, type ExerciseVisibility } from '../routines/queries'
 
 /**
  * 一覧入力の種目を選択（REC-04）。部位ごとのカードに、表示する設定の種目をすべて並べる（どれを出すかは「種目を追加」で本人が選ぶ）。
@@ -17,8 +17,10 @@ export function GroupedExercisePicker({ exercises, userId, onSelect, onManage }:
   /** 種目の追加・表示の管理（今までの種目選択の画面）を開く */
   onManage: (group: MuscleGroup) => void
 }) {
-  const [order, setOrder] = useState<string[]>([])
-  const [visibility, setVisibility] = useState<ExerciseVisibility | null>(null)
+  // 前回読み込んだ並び順・表示の設定があれば、待たずに出して裏で読み直す
+  const [cached] = useState(() => ({ order: cachedExerciseOrder(userId), visibility: cachedExerciseVisibility(userId) }))
+  const [order, setOrder] = useState<string[]>(cached.order ?? [])
+  const [visibility, setVisibility] = useState<ExerciseVisibility | null>(cached.visibility ?? null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -30,9 +32,10 @@ export function GroupedExercisePicker({ exercises, userId, onSelect, onManage }:
     setError(null)
     Promise.all([fetchExerciseOrder(userId), fetchExerciseVisibility(userId)])
       .then(([ids, value]) => { if (active) { setOrder(ids); setVisibility(value) } })
-      .catch((e) => { if (active) setError(toMessage(e)) })
+      // 前回の設定を出せているときは、読み直しに失敗してもそのまま使う
+      .catch((e) => { if (active && (!cached.visibility || attempt > 0)) setError(toMessage(e)) })
     return () => { active = false }
-  }, [userId, attempt])
+  }, [userId, attempt, cached.visibility])
 
   // 並び順は全部位で1つのリスト。並べ替えた部位の種目を先頭にし、ほかの種目の順はそのまま残す（REC-01と同じ）
   async function saveOrder(next: string[]) {

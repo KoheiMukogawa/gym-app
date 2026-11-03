@@ -946,6 +946,23 @@ test('sets recorded without signal wait on the phone as 未送信 and are sent o
   await expect(page.getByRole('button', { name: '未送信・今すぐ送る' })).toHaveCount(0)
 })
 
+test('reopening the app shows home and the exercise list from last time while the server is slow to answer', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets.length).toBe(1)
+  await page.getByRole('button', { name: '記録を終了', exact: true }).click()
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('region', { name: '今日のトレーニング' })).toContainText('ベンチプレス')
+  // From now on the database never answers (auth still works, so the session is kept).
+  await page.route('**/rest/v1/**', () => {})
+  await page.reload()
+  await expect(page.getByRole('region', { name: '今日のトレーニング' })).toContainText('ベンチプレス')
+  await expect(page.getByRole('region', { name: '今月のトレーニング' }).getByRole('button', { name: /トレーニングあり/ })).toHaveCount(1)
+  await page.getByRole('link', { name: /記録する|続きを記録/ }).click()
+  await expect(page.getByRole('button', { name: 'ベンチプレス', exact: true })).toBeVisible()
+})
+
 test('reopening the app mid-workout goes straight to recording; otherwise it opens on the home dashboard', async ({ page }) => {
   const data = await mockApi(page)
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()

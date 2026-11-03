@@ -5,6 +5,7 @@ import { Big3Column, HomePage } from './HomePage'
 import { invalidateMonthWorkouts } from '../history/useMonthWorkouts'
 import { buildStrengthSnapshot } from '../strength/strengthSnapshot'
 import type { FeedItem } from '../feed/queries'
+import { writeCache } from '../../lib/localCache'
 
 const { fetchMonthWorkouts } = vi.hoisted(() => ({ fetchMonthWorkouts: vi.fn() }))
 vi.mock('../history/queries', () => ({ fetchMonthWorkouts }))
@@ -30,6 +31,7 @@ const EXERCISES = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   invalidateMonthWorkouts()
   fetchStrengthGoals.mockResolvedValue([])
 })
@@ -42,6 +44,23 @@ describe('HomePage', () => {
     // toMessage shows a generic message for an unexpected Error.
     expect(await screen.findByText('エラーが発生しました。もう一度お試しください。')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '前のアプリから乗り換え？' })).not.toBeInTheDocument()
+  })
+
+  it('shows the calendar and BIG3 from the last launch at once, and keeps them if reloading fails', async () => {
+    const today = new Date()
+    const rows = ['squat', 'bench', 'deadlift'].map((exercise_id, i) => ({
+      exercise_id, weight_kg: [150, 100, 180][i], reps: 1, performed_at: at(today.getDate()),
+    }))
+    writeCache('u1', 'big3', buildStrengthSnapshot([...EXERCISES], [], rows))
+    writeCache('u1', `month:${today.getFullYear()}-${today.getMonth() + 1}`, [item('w-today', at(today.getDate()))])
+    fetchMonthWorkouts.mockRejectedValue(new TypeError('Load failed'))
+    fetchStrengthSnapshot.mockRejectedValue(new TypeError('Load failed'))
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    // 読み直しを待たずに出ている
+    expect(within(screen.getByRole('region', { name: '今日のトレーニング' })).getByText('ベンチプレス')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'BIG3' })).getByText('430')).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('offers the starting bests to someone with no BIG3 record', async () => {

@@ -6,6 +6,7 @@ import type { Exercise } from '../../lib/types'
 
 const api = vi.hoisted(() => ({
   fetchExerciseOrder: vi.fn(), fetchExerciseVisibility: vi.fn(), saveExerciseOrder: vi.fn(), saveExerciseVisibility: vi.fn(),
+  cachedExerciseOrder: () => undefined, cachedExerciseVisibility: () => undefined,
 }))
 vi.mock('../routines/queries', () => api)
 

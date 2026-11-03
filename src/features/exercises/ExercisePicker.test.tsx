@@ -10,6 +10,7 @@ beforeEach(() => {
   fetchVisibility.mockReset(); fetchVisibility.mockResolvedValue({ addedIds: [], hiddenIds: [] })
 })
 vi.mock('../routines/queries', () => ({
+  cachedExerciseOrder: () => undefined, cachedExerciseVisibility: () => undefined,
   fetchExerciseOrder: async () => [], saveExerciseOrder: saveOrder,
   fetchExerciseVisibility: fetchVisibility, saveExerciseVisibility: saveVisibility,
 }))
