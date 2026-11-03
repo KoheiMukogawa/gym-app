@@ -43,7 +43,7 @@ export function AppShell(){
   // 管理者に未読の意見があれば、アイコンを赤い輪で囲んでメニューに件数を出す
   const unreadFeedback=useFeedbackInbox(),hasUnread=(unreadFeedback??0)>0
   // 送った意見に運営の返信があれば、同じ赤い輪で知らせる（管理者以外も）
-  const replies=useFeedbackReplies(),hasReply=replies.length>0,marked=hasUnread||hasReply
+  const replyState=useFeedbackReplies(),replies=replyState??[],hasReply=replies.length>0,marked=hasUnread||hasReply
   // 受付中でまだ投票していない投票があれば、メニューの「投票」に印を出す
   const {polls}=usePolls(),openPolls=(polls??[]).filter(p=>awaitsVote(p)).length
   // 管理者だけ、要望を伝えやすいよう画面ID（docs/screens.md）をヘッダーに出せる
@@ -92,7 +92,7 @@ export function AppShell(){
     <main className={`flex-1 ${fullHeightDock?'':'pb-[max(5rem,calc(4rem+env(safe-area-inset-bottom)))]'}`}>{showLog&&<div hidden={location.pathname!=='/log'}><ScreenErrorBoundary key={logKey}><LogPage onFinished={()=>setLogKey(k=>k+1)} onPickingChange={setPickingExercise} onScreenChange={setLogScreen}/></ScreenErrorBoundary></div>}<ScreenErrorBoundary key={location.pathname}><Suspense fallback={<Spinner/>}><BottomDockContext.Provider value={setHistoryDockOpen}><Outlet/></BottomDockContext.Provider></Suspense></ScreenErrorBoundary></main>
     <AnnouncementsGate/>
     <InstallGate/>
-    <FeedbackReplyGate unseen={replies}/>
+    <FeedbackReplyGate unseen={replyState}/>
     <PollGate polls={polls}/>
     {/* LINEなどと同じく、ホームインジケーターの領域に少し重ねて下端に寄せる */}
     {!fullHeightDock&&<nav aria-label="メイン" className="glass-navigation fixed inset-x-5 bottom-[max(0.25rem,calc(env(safe-area-inset-bottom)-0.75rem))] z-40 mx-auto flex max-w-[calc(32rem-2.5rem)] rounded-full">{TABS.map(t=><NavLink key={t.to} to={t.to} end={t.to==='/'} className="flex h-14 min-h-14 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-xs">{({isActive})=><span className={`flex min-h-11 w-full items-center justify-center whitespace-nowrap rounded-full transition-colors ${isActive?'bg-white/10 font-semibold text-accent':'text-fg/75 hover:bg-white/5'}`}>{t.label}</span>}</NavLink>)}</nav>}

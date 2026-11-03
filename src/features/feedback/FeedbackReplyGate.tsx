@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BottomSheet } from '../../components/ui/BottomSheet'
 import { Button } from '../../components/ui/Button'
+import { useLaunchSheet } from '../../lib/launchSheets'
 import { useSession } from '../auth/SessionProvider'
 import { loadDraft } from '../workout-log/persistence'
 import { STATUS_LABELS, type MyFeedback } from './queries'
@@ -16,16 +17,19 @@ function readShown(userId: string | null): string {
 /**
  * 送った意見に運営が返信（または対応状況を更新）したら、起動後に1枚のシートで一度だけ知らせる。
  * 記録中とご意見の画面では出さない。閉じても既読にはせず、アイコンの赤い輪とメニューの印は
- * ご意見の画面を開くまで残す（管理者の新着と同じ）。
+ * ご意見の画面を開くまで残す（管理者の新着と同じ）。ほかの起動時のシートとは1回の起動で1枚まで（`useLaunchSheet`）。
+ * unseen は読み込み中は null。
  */
-export function FeedbackReplyGate({ unseen }: { unseen: MyFeedback[] }) {
+export function FeedbackReplyGate({ unseen }: { unseen: MyFeedback[] | null }) {
   const { userId } = useSession()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const [shown, setShown] = useState(() => readShown(userId))
   const recording = pathname === '/log' || (userId ? (loadDraft(userId)?.state.sets.length ?? 0) > 0 : false)
-  const fresh = unseen.filter((item) => item.replied_at! > shown)
-  if (fresh.length === 0 || recording || pathname === '/feedback') return null
+  const fresh = (unseen ?? []).filter((item) => item.replied_at! > shown)
+  const wants = fresh.length > 0 && !recording && pathname !== '/feedback'
+  const showing = useLaunchSheet('feedback-reply', unseen === null ? 'checking' : wants ? 'wants' : 'none') && wants
+  if (!showing) return null
 
   function close(to?: string) {
     const latest = fresh.map((item) => item.replied_at!).sort().at(-1)!

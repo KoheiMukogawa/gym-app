@@ -13,18 +13,19 @@ export function notifyRepliesSeen() {
  * 運営の返信のうち、本人がまだ見ていないもの。アプリを開いたとき・戻ってきたとき・見たときに取り直す。
  * 失敗しても利用者の画面は止めず、それまでの結果を残す。
  */
-export function useFeedbackReplies(): MyFeedback[] {
+export function useFeedbackReplies(): MyFeedback[] | null {
   const { userId } = useSession()
-  const [unseen, setUnseen] = useState<MyFeedback[]>([])
+  // 最初の読み込みが済むまでは null（起動時のシートが返信を確かめ終えるのを待てるように）
+  const [unseen, setUnseen] = useState<MyFeedback[] | null>(null)
   useEffect(() => {
-    setUnseen([])
+    setUnseen(null)
     if (!userId) return
     let active = true, latest = 0
     const refresh = () => {
       const request = ++latest
       Promise.resolve().then(fetchMyFeedback)
         .then((items) => { if (active && request === latest) setUnseen(items.filter(hasUnseenReply)) })
-        .catch(() => undefined)
+        .catch(() => { if (active && request === latest) setUnseen((prev) => prev ?? []) })
     }
     const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
     refresh()

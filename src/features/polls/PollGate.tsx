@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { BottomSheet } from '../../components/ui/BottomSheet'
 import { useSession } from '../auth/SessionProvider'
-import { useAnnouncementSheetIdle } from '../announcements/sheetState'
+import { useLaunchSheet } from '../../lib/launchSheets'
 import { loadDraft } from '../workout-log/persistence'
 import { PollCard } from './PollCard'
 import { awaitsVote, type Poll } from './queries'
@@ -19,18 +19,20 @@ function readShown(userId: string | null): string[] {
 
 /**
  * 受付中でまだ投票していない投票を、起動後に1枚のシートで一度だけ出す。その場で投票でき、投票すると結果に変わる。
- * 記録中・投票の画面では出さず、お知らせのシートがあればその後に出す。閉じたら次からは出さない（メニューの印は残る）。
+ * 記録中・投票の画面では出さない。ほかの起動時のシートとは1回の起動で1枚まで（`useLaunchSheet`）。
+ * 閉じたら次からは出さない（メニューの印は残る）。
  */
 export function PollGate({ polls }: { polls: Poll[] | null }) {
   const { userId } = useSession()
   const { pathname } = useLocation()
-  const announcementsIdle = useAnnouncementSheetIdle()
   const [shown, setShown] = useState(() => readShown(userId))
   // 投票した後も結果を見せるため、出した投票はシートを閉じるまで出し続ける
   const [activeId, setActiveId] = useState<string | null>(null)
   const recording = pathname === '/log' || (userId ? (loadDraft(userId)?.state.sets.length ?? 0) > 0 : false)
   const candidate = polls?.find((p) => awaitsVote(p) && !shown.includes(p.id))
-  const poll = polls?.find((p) => p.id === activeId) ?? (activeId === null && announcementsIdle && !recording && pathname !== '/polls' ? candidate : undefined)
+  const wants = activeId !== null || (!!candidate && !recording && pathname !== '/polls')
+  const allowed = useLaunchSheet('poll', polls === null ? 'checking' : wants ? 'wants' : 'none')
+  const poll = polls?.find((p) => p.id === activeId) ?? (activeId === null && allowed && wants ? candidate : undefined)
   const pollId = poll?.id ?? null
   useEffect(() => { if (activeId === null && pollId) setActiveId(pollId) }, [activeId, pollId])
   if (!poll || !userId) return null

@@ -27,6 +27,8 @@ function renderGate(path = '/') {
   render(<MemoryRouter initialEntries={[path]}><InstallGate /><InstallCard /></MemoryRouter>)
 }
 const sheet = () => screen.queryByRole('dialog', { name: 'ホーム画面に追加しましょう' })
+// 起動時のシートは、ほかのシートと調整してから（次のマイクロタスクで）出る
+const findSheet = () => screen.findByRole('dialog', { name: 'ホーム画面に追加しましょう' })
 
 beforeEach(() => { localStorage.clear(); loadDraft.mockReturnValue(null) })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
@@ -36,7 +38,7 @@ describe('add to home screen guide', () => {
     device(IPHONE)
     markSignedUp('u1')
     renderGate()
-    expect(sheet()).toHaveTextContent('ホーム画面に追加')
+    expect(await findSheet()).toHaveTextContent('ホーム画面に追加')
     expect(sheet()).toHaveTextContent('同じメールアドレスでログイン')
     await userEvent.click(screen.getByRole('button', { name: 'あとで' }))
     expect(sheet()).toBeNull()
@@ -47,7 +49,7 @@ describe('add to home screen guide', () => {
     renderGate()
     expect(sheet()).toBeNull()
     act(() => markWorkoutFinished('u1'))
-    expect(sheet()).not.toBeNull()
+    expect(await findSheet()).not.toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'あとで' }))
     act(() => markWorkoutFinished('u1'))
     expect(sheet()).toBeNull()
@@ -68,11 +70,11 @@ describe('add to home screen guide', () => {
     expect(screen.queryByRole('heading', { name: 'ホーム画面に追加' })).toBeNull()
     expect(localStorage.getItem('glog:install-card-dismissed:u1')).toBe('1')
   })
-  it('asks LINE users to open the page in a browser first', () => {
+  it('asks LINE users to open the page in a browser first', async () => {
     device(LINE)
     markSignedUp('u1')
     renderGate()
-    expect(sheet()).toHaveTextContent('Safari')
+    expect(await findSheet()).toHaveTextContent('Safari')
     expect(screen.getByRole('link', { name: 'ブラウザーで開く' })).toHaveAttribute('href', expect.stringContaining('openExternalBrowser=1'))
   })
   it('shows nothing from the home screen icon or on a PC', () => {

@@ -6,11 +6,12 @@ import { useSession } from '../auth/SessionProvider'
 import { loadDraft } from '../workout-log/persistence'
 import { ANNOUNCEMENTS, unreadAnnouncements, type Announcement } from './announcements'
 import { fetchSeenUntil, markAnnouncementsSeen } from './queries'
-import { setAnnouncementSheetState } from './sheetState'
+import { useLaunchSheet } from '../../lib/launchSheets'
 
 /**
  * 未読のお知らせを、起動後に1枚のシートで一度だけ出す。記録中は出さず、記録を終えてから出す。
  * 取得や保存の失敗は、出さない・閉じるだけで、利用者の操作を止めない。
+ * ほかの起動時のシートとは1回の起動で1枚まで（`useLaunchSheet`）。出せなかったときは次の起動で出す。
  */
 export function AnnouncementsGate({ items = ANNOUNCEMENTS }: { items?: Announcement[] }) {
   const { userId } = useSession()
@@ -30,9 +31,8 @@ export function AnnouncementsGate({ items = ANNOUNCEMENTS }: { items?: Announcem
   }, [userId, items])
 
   const recording = pathname === '/log' || (userId ? (loadDraft(userId)?.state.sets.length ?? 0) > 0 : false)
-  const showing = !closed && unread.length > 0 && !recording
-  // 投票などのシートは、お知らせを確かめ終えて、出していないときだけ出す
-  useEffect(() => { setAnnouncementSheetState(!checked ? 'checking' : showing ? 'showing' : 'idle') }, [checked, showing])
+  const wants = !closed && unread.length > 0 && !recording
+  const showing = useLaunchSheet('announcements', !checked ? 'checking' : wants ? 'wants' : 'none') && wants
   if (!showing) return null
 
   function close(to?: string) {

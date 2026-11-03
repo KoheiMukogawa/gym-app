@@ -119,13 +119,18 @@ describe('polls in the profile menu', () => {
     expect(sheet).toBeInTheDocument()
     confirm.mockRestore()
   })
-  it('waits for the new-feature sheet to be closed first', async () => {
+  it('comes before the new-feature sheet, which waits for the next launch', async () => {
     vi.mocked(fetchSeenUntil).mockResolvedValueOnce('2000-01-01T00:00:00Z')
     vi.mocked(markAnnouncementsSeen).mockResolvedValue(undefined)
     fetchPolls.mockResolvedValue([poll])
     renderShell(); await act(async () => {})
-    await userEvent.click(within(await screen.findByRole('dialog', { name: '新しい機能' })).getByRole('button', { name: '閉じる' }))
-    expect(await screen.findByRole('dialog', { name: 'マッチョ会議' })).toBeInTheDocument()
+    const pollSheet = await screen.findByRole('dialog', { name: 'マッチョ会議' })
+    expect(screen.queryByRole('dialog', { name: '新しい機能' })).toBeNull()
+    await userEvent.click(within(pollSheet).getByRole('button', { name: '閉じる' }))
+    await act(async () => {})
+    // 1回の起動で出すシートは1枚まで。お知らせは既読にせず、次の起動で出す
+    expect(screen.queryByRole('dialog', { name: '新しい機能' })).toBeNull()
+    expect(markAnnouncementsSeen).not.toHaveBeenCalled()
   })
   it('does not ask while recording', async () => {
     fetchPolls.mockResolvedValue([poll])
