@@ -1,5 +1,5 @@
 // 紹介ページの見本（/demo）では、ほかのモジュールより先に時計を止める
-import './lib/demoMode'
+import { IS_DEMO } from './lib/demoMode'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
@@ -9,6 +9,8 @@ import { installStaleBuildRecovery } from './lib/staleBuild'
 import { captureInstallPrompt } from './features/install/installEnv'
 import { prerenderedPath } from './lib/prerendered'
 import { loadPublicPages } from './features/tools/loadPublicPages'
+import { SpeedInsights } from '@vercel/speed-insights/react'
+import { beforeSend } from './lib/speedInsights'
 
 installStaleBuildRecovery()
 captureInstallPrompt()
@@ -17,6 +19,8 @@ function start() {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <ScreenErrorBoundary><App /></ScreenErrorBoundary>
+      {/* 実際の利用者の端末での表示の速さを測る。紹介ページの見本（/demo）では測らない */}
+      {!IS_DEMO && <SpeedInsights beforeSend={beforeSend} />}
     </StrictMode>,
   )
 }
