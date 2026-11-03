@@ -912,6 +912,40 @@ test('sets are deleted by swiping left like a mail app', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
+test('sets recorded without signal wait on the phone as 未送信 and are sent once the connection returns', async ({ page }) => {
+  const data = await mockApi(page)
+  await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect.poll(() => data.sets.length).toBe(1)
+  // The phone reports it is offline. (context.setOffline would also cut the Vite dev server and reload the page.)
+  const setOnline = (online: boolean) => page.evaluate((value) => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => value })
+    window.dispatchEvent(new Event(value ? 'online' : 'offline'))
+  }, online)
+  await setOnline(false)
+  await expect(page.getByRole('alert')).toContainText('つながったら自動で送ります')
+  await enterWheelValue(page, '回数', '6')
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect(page.getByRole('button', { name: '未送信・今すぐ送る' })).toHaveCount(1)
+  // The phone thinks it is online, but a weak signal drops the request.
+  const dropped = (route: import('@playwright/test').Route) => route.abort('internetdisconnected')
+  await page.route('**/rest/v1/workout_sets*', dropped)
+  await setOnline(true)
+  await enterWheelValue(page, '回数', '4')
+  await page.getByRole('button', { name: 'セット完了', exact: true }).click()
+  await expect(page.getByRole('button', { name: '未送信・今すぐ送る' })).toHaveCount(2)
+  await expect(page.getByRole('button', { name: '未保存・再試行', exact: true })).toHaveCount(0)
+  expect(data.sets).toHaveLength(1)
+  await page.screenshot({ path: 'test-results/offline-queued-sets.png' })
+  // Once the signal is back, sending one set sends the rest in order, into the same workout.
+  await page.unroute('**/rest/v1/workout_sets*', dropped)
+  await page.getByRole('button', { name: '未送信・今すぐ送る' }).first().click()
+  await expect.poll(() => data.sets.length).toBe(3)
+  expect(data.sets.map((s) => [s.set_index, s.reps]).slice(1)).toEqual([[2, 6], [3, 4]])
+  expect(new Set(data.sets.map((s) => s.workout_id)).size).toBe(1)
+  await expect(page.getByRole('button', { name: '未送信・今すぐ送る' })).toHaveCount(0)
+})
+
 test('reopening the app mid-workout goes straight to recording; otherwise it opens on the home dashboard', async ({ page }) => {
   const data = await mockApi(page)
   await page.getByRole('button', { name: 'ベンチプレス', exact: true }).click()

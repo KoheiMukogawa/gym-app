@@ -59,6 +59,8 @@ export function SetList({ sets, activeExerciseId, exerciseNames, status, onDelet
               {s.note && <span className="col-span-3 w-full whitespace-pre-wrap break-words text-xs text-muted">{s.note}</span>}
             </button>
             {st === 'failed' && <button type="button" onClick={() => onRetry(s.id)} className="min-h-14 text-xs text-accent">未保存・再試行</button>}
+            {/* 電波が戻れば自動で送る。待たずに送りたいときは押せる */}
+            {st === 'queued' && <button type="button" aria-label="未送信・今すぐ送る" onClick={() => onRetry(s.id)} className="min-h-14 shrink-0 text-xs text-muted">未送信</button>}
             {editingId === s.id && onSaveNote && onCloseNote && <div id={`set-memo-${s.id}`} className="w-full px-1 pb-1">
               <SetMemoEditor note={s.note} description={`${exerciseNames[id] ?? '種目'} · ${i + 1}set · ${load} × ${s.reps}回`}
                 onSave={note => onSaveNote(s.id, note)} onDismiss={onCloseNote} />

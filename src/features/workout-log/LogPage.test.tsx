@@ -428,14 +428,70 @@ describe('LogPage', () => {
     expect(deleteSet).not.toHaveBeenCalled()
   })
 
-  it('disables セット完了 while offline', async () => {
-    onLineSpy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+  it('records a set while offline as 未送信 and sends it once the connection is back', async () => {
+    let online = false
+    onLineSpy = vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => online)
     seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
 
     renderLogPage()
-    const button = await screen.findByRole('button', { name: /オフライン|セット完了/ })
+    expect(await screen.findByRole('alert')).toHaveTextContent('つながったら自動で送ります')
+    const button = screen.getByRole('button', { name: 'セット完了' })
+    expect(button).toBeEnabled()
+    await userEvent.click(button)
 
-    expect(button).toBeDisabled()
+    expect(await screen.findByRole('button', { name: '未送信・今すぐ送る' })).toBeInTheDocument()
+    expect(saveSet).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /未保存/ })).toBeNull()
+    expect(loadDraft(USER)?.status).toMatchObject({ [loadDraft(USER)!.state.sets[0].id]: 'queued' })
+
+    online = true
+    window.dispatchEvent(new Event('online'))
+
+    await waitFor(() => expect(saveSet).toHaveBeenCalledWith('w1', expect.objectContaining({ weight_kg: 80, reps: 8 })))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '未送信・今すぐ送る' })).toBeNull())
+  })
+
+  it('keeps a set whose save fails for lack of signal as 未送信 without an error toast, and sends the queue in order', async () => {
+    seedDraftWithExercise()
+    createWorkout.mockResolvedValue({ id: 'w1' })
+    saveSet.mockRejectedValueOnce(new TypeError('Load failed'))
+      .mockRejectedValueOnce(new TypeError('Load failed'))
+      .mockResolvedValue(undefined)
+
+    renderLogPage()
+    const button = await screen.findByRole('button', { name: 'セット完了' })
+    await userEvent.click(button)
+    await screen.findByRole('button', { name: '未送信・今すぐ送る' })
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(deleteWorkoutIfEmpty).not.toHaveBeenCalled()
+
+    // 2セット目も届かなかった
+    await userEvent.click(button)
+    await waitFor(() => expect(screen.getAllByRole('button', { name: '未送信・今すぐ送る' })).toHaveLength(2))
+
+    // 1件目を押すと、届いたので残りも続けて送る
+    await userEvent.click(screen.getAllByRole('button', { name: '未送信・今すぐ送る' })[0])
+    window.dispatchEvent(new Event('online'))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '未送信・今すぐ送る' })).toBeNull())
+    const sent = saveSet.mock.calls.slice(2).map((call) => (call[1] as { set_index: number }).set_index)
+    expect(sent).toEqual(expect.arrayContaining([1, 2]))
+  })
+
+  it('tells the user how to send queued sets before finishing without them', async () => {
+    onLineSpy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    seedDraftWithExercise()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    renderLogPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'セット完了' }))
+    await screen.findByRole('button', { name: '未送信・今すぐ送る' })
+    await userEvent.click(screen.getByRole('button', { name: '記録を終了' }))
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('まだ送れていないセットが1件')))
+    expect(navigate).not.toHaveBeenCalled()
+    expect(loadDraft(USER)).not.toBeNull()
+    confirmSpy.mockRestore()
   })
 
   it('leaves the row on screen and surfaces an error toast when deleteSet fails during undo', async () => {
@@ -608,7 +664,7 @@ describe('LogPage', () => {
     await waitFor(() => expect(deleteSet).toHaveBeenCalledTimes(1))
   })
 
-  it('presents a restored pending status as failed, with a retry control', async () => {
+  it('sends a restored pending set again on its own', async () => {
     saveDraft(USER, {
       state: {
         currentExerciseId: 'bench',
@@ -623,7 +679,9 @@ describe('LogPage', () => {
     renderLogPage()
     await screen.findByRole('button', { name: /セット完了/ })
 
-    expect(screen.getByRole('button', { name: /未保存/ })).toBeInTheDocument()
+    await waitFor(() => expect(saveSet).toHaveBeenCalledWith('w1', expect.objectContaining({ id: 's1' })))
+    await waitFor(() => expect(loadDraft(USER)?.status.s1).toBe('saved'))
+    expect(screen.queryByRole('button', { name: /未保存|未送信/ })).toBeNull()
   })
 
   it('does not double-delete when the undo control is tapped twice quickly, dropping exactly one row', async () => {

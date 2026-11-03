@@ -13,6 +13,12 @@ export type Announcement = {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: 'offline-sets',
+    publishedAt: '2026-11-03T12:35:00+09:00',
+    title: '電波が届かなくても記録できます',
+    body: 'ダイヤルで記録しているとき、地下のジムなどで電波が届かなくても「セット完了」で記録できます。送れなかったセットには「未送信」と出て、電波が戻ると自動で送ります。',
+  },
+  {
     id: 'share-app',
     publishedAt: '2026-10-31T11:40:00+09:00',
     title: '友達にGlogを教えられます',

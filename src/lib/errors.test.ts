@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { adminMessage, toMessage } from './errors'
+import { adminMessage, isNetworkError, TimeoutError, toMessage } from './errors'
 
 describe('toMessage', () => {
   it('reports a network failure in plain language', () => {
@@ -52,5 +52,24 @@ describe('adminMessage', () => {
   })
   it('falls back to the shared messages', () => {
     expect(adminMessage(new Error('boom'))).toBe('エラーが発生しました。もう一度お試しください。')
+  })
+})
+
+describe('isNetworkError', () => {
+  it('treats fetch failures and timeouts as a missing connection', () => {
+    expect(isNetworkError(new TypeError('Failed to fetch'))).toBe(true)
+    expect(isNetworkError(new TypeError('Load failed'))).toBe(true)
+    expect(isNetworkError(new TimeoutError())).toBe(true)
+  })
+
+  it('recognises the error supabase-js returns instead of throwing when fetch fails', () => {
+    const dropped = { message: 'TypeError: Failed to fetch', details: '', hint: '', code: '' }
+    expect(isNetworkError(dropped)).toBe(true)
+    expect(isNetworkError({ ...dropped, message: 'TypeError: Load failed' })).toBe(true)
+    expect(toMessage(dropped)).toBe('通信できませんでした。電波を確認して、もう一度お試しください。')
+  })
+
+  it('does not treat database rejections as a missing connection', () => {
+    expect(isNetworkError({ code: '42501', message: 'permission denied' })).toBe(false)
   })
 })

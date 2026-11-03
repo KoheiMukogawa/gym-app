@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { findPrefill, weightStep } from '../../lib/calc'
 import { localDate, validateSet } from '../../lib/dates'
-import { isOffline, toMessage } from '../../lib/errors'
+import { isNetworkError, isOffline, TimeoutError, toMessage } from '../../lib/errors'
 import type { Exercise, MuscleGroup, WorkoutSet } from '../../lib/types'
 import { Button } from '../../components/ui/Button'
 import { SetRmLabel } from './SetRmLabel'
@@ -51,12 +51,27 @@ const MODES: [LogInputMode, string, string][] = [
   ['list', '一覧', 'セットを表に並べて、重量と回数を数字で打つ'],
 ]
 
-function OfflineBanner() {
+function OfflineBanner({ queues = false }: { queues?: boolean }) {
   return (
     <p role="alert" className="bg-accent px-4 py-2 text-center text-sm text-white">
-      オフラインです。記録は保存できません。
+      {queues ? 'オフラインです。セットはこの端末に残し、つながったら自動で送ります。' : 'オフラインです。記録は保存できません。'}
     </p>
   )
+}
+
+/** 電波の弱いジムでは返事が来ないまま待たされるので、この時間で「未送信」に回す */
+const SAVE_DEADLINE_MS = 15_000
+/** 未送信のセットがある間、送り直しを試す間隔 */
+const RESEND_INTERVAL_MS = 15_000
+
+function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new TimeoutError()), ms)
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value) },
+      (error: unknown) => { clearTimeout(timer); reject(error) },
+    )
+  })
 }
 
 /**
@@ -99,17 +114,20 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     rawDispatch(action)
   }
   const [workoutId, setWorkoutIdState] = useState<string | null>(draft?.workoutId ?? null)
-  // 復元した pending は「保存できたかどうか分からない」状態なので、failed として
-  // 提示し直す。23505 の扱いにより再試行は安全にべき等なので、実際には保存できて
-  // いたセットも再試行するだけで済み、本当に失われたセットは再試行の手段を持てる。
+  // 復元した pending は「保存できたかどうか分からない」状態なので、未送信として
+  // 送り直す。23505 の扱いにより再送は安全にべき等なので、実際には保存できて
+  // いたセットも送り直すだけで済み、本当に届いていなかったセットはここで届く。
   const [statusById, setStatusById] = useState<Record<string, SetStatus>>(() => {
     const initial = draft?.status ?? {}
     const demoted: Record<string, SetStatus> = {}
     for (const [id, st] of Object.entries(initial)) {
-      demoted[id] = st === 'pending' ? 'failed' : st
+      demoted[id] = st === 'pending' ? 'queued' : st
     }
     return demoted
   })
+  // 送り直しはタイマーや online イベントの古いクロージャから走るので、最新の値を ref で読む
+  const statusRef = useRef(statusById)
+  statusRef.current = statusById
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [routine, setRoutine] = useState<ActiveRoutine | null>(draft?.routine ?? null)
   const [editingRoutine, setEditingRoutine] = useState(false)
@@ -184,7 +202,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // 現在進行中の保存（作成＋セット保存）を追跡する。終了処理がこれの完了を
   // 待ってからワークアウトの掃除に入ることで、保存中のワークアウトを
   // 削除してしまう競合を防ぐ。
-  const pendingSavesRef = useRef<Set<Promise<void>>>(new Set())
+  const pendingSavesRef = useRef<Set<Promise<unknown>>>(new Set())
   const justSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 取り消し済みだが、保存処理がまだ進行中（またはこれから再試行される）かもしれない
   // セット id の集合。persist 側はこれを見て、既に取り消されたセットを新たに
@@ -320,7 +338,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   }, [userId])
 
   const persist = useCallback(
-    (set: LoggedSet): Promise<void> => {
+    (set: LoggedSet): Promise<SetStatus | null> => {
       if (!userId) throw new Error('サインインしていません')
 
       // 送信前に既に取り消されていた（例: 再試行トーストが表示されている間に
@@ -329,16 +347,22 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
       // まだ画面に残っている別のトースト）が並行して進行中かもしれず、
       // 片方が読んだ時点で消してしまうと、もう片方が判断を誤る。
       if (abandonedIdsRef.current.has(set.id)) {
-        return Promise.resolve()
+        return Promise.resolve(null)
+      }
+
+      // 電波が無いのが分かっているときは送らずに端末に残す。つながったら sendQueued が送る
+      if (isOffline()) {
+        setStatusById((prev) => ({ ...prev, [set.id]: 'queued' }))
+        return Promise.resolve('queued')
       }
 
       setStatusById((prev) => ({ ...prev, [set.id]: 'pending' }))
 
-      const task = (async () => {
+      const task = (async (): Promise<SetStatus | null> => {
         let wid: string | null = null
         try {
-          wid = await ensureWorkout()
-          await saveSet(wid, set)
+          wid = await withDeadline(ensureWorkout(), SAVE_DEADLINE_MS)
+          await withDeadline(saveSet(wid, set), SAVE_DEADLINE_MS)
 
           if (abandonedIdsRef.current.has(set.id)) {
             // 保存が完了するまでの間に取り消されていた。取り消しの意図を
@@ -351,15 +375,21 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
                 compensationError,
               )
             }
-            return
+            return null
           }
 
           setStatusById((prev) => ({ ...prev, [set.id]: 'saved' }))
-          showJustSaved()
+          return 'saved'
         } catch (e) {
           if (abandonedIdsRef.current.has(set.id)) {
             // 取り消し済みのセットは、保存に失敗しても表示すべき行がもう無い
-            return
+            return null
+          }
+          // 電波が弱い・切れたときは、セットを端末に残してあとで自動で送る。
+          // オフラインの表示が出ているので、セットごとにトーストは出さない
+          if (isNetworkError(e)) {
+            setStatusById((prev) => ({ ...prev, [set.id]: 'queued' }))
+            return 'queued'
           }
           setStatusById((prev) => ({ ...prev, [set.id]: 'failed' }))
           // このセットの保存に失敗した時点で他に進行中の保存がなければ、
@@ -384,6 +414,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
             }
           }
           show(toMessage(e), { label: '再試行', onClick: () => void persist(set) })
+          return 'failed'
         }
       })()
 
@@ -402,13 +433,58 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     const set = nextSet(state, id, null)
     if (set === null) return
     dispatch({ type: 'complete-set', id, note: null })
-    void persist(set)
+    // 電波を待たずに、端末に記録できた時点で知らせる（送れなかったセットは行に「未送信」と出る）
+    showJustSaved()
+    void persist(set).then(resendIfSaved)
   }
+
+  // 1件届いたなら電波は戻っているので、残っている未送信のセットも続けて送る
+  function resendIfSaved(status: SetStatus | null) {
+    if (status === 'saved') void sendQueued()
+  }
+
+  // 未送信のセットを記録した順に1件ずつ送る。届かなければそこで止め、次の機会に続きから送る
+  const setsRef = useRef(state.sets)
+  setsRef.current = state.sets
+  const sendingRef = useRef<Promise<void> | null>(null)
+  const sendQueued = useCallback((): Promise<void> => {
+    if (sendingRef.current) return sendingRef.current
+    if (isOffline()) return Promise.resolve()
+    const run = (async () => {
+      for (const set of setsRef.current) {
+        if (statusRef.current[set.id] !== 'queued') continue
+        // メモは未送信の間も手元で書き換えられるので、送る直前の値を使う
+        const latest = setsRef.current.find((s) => s.id === set.id)
+        if (!latest) continue
+        if ((await persist(latest)) === 'queued') break
+      }
+    })().finally(() => { sendingRef.current = null })
+    sendingRef.current = run
+    return run
+  }, [persist])
+  const queuedCount = state.sets.filter((s) => statusById[s.id] === 'queued').length
+
+  // 前回の画面で送れなかったセットは、開いたときに送る
+  useEffect(() => { if (!loading) void sendQueued() }, [loading, sendQueued])
+
+  // つながった・アプリが前に戻った・一定時間たったときに、未送信のセットを送る
+  useEffect(() => {
+    if (loading || queuedCount === 0) return
+    const resend = () => { if (document.visibilityState !== 'hidden') void sendQueued() }
+    const timer = setInterval(resend, RESEND_INTERVAL_MS)
+    window.addEventListener('online', resend)
+    document.addEventListener('visibilitychange', resend)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('online', resend)
+      document.removeEventListener('visibilitychange', resend)
+    }
+  }, [loading, queuedCount, sendQueued])
 
   function handleRetry(setId: string) {
     const target = state.sets.find((s) => s.id === setId)
     if (!target) return
-    void persist(target)
+    void persist(target).then(resendIfSaved)
   }
 
   // 保存済みのセットはその場でメモを更新する。未保存（再試行待ち）のセットは、
@@ -658,23 +734,24 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     const incompleteCount = heldCount + (listRows?.rows.filter(isIncompleteRow).length ?? 0)
     if (incompleteCount > 0 && !window.confirm(`重量か回数が入っていないセットが${incompleteCount}件あります。記録せずに終了しますか？`)) return
 
-    // 未保存（保存に失敗した、または保存が確定していない）セットを残したまま
-    // 下書きを消してしまうと、その場に立ち会っていない限り気づく手段が無い。
-    // 件数を明示して確認する。
-    // 一覧入力の種目は上の flushList で保存済み
-    const unsavedCount = state.sets.filter((s) => s.exercise_id !== listRows?.exerciseId).filter((s) => {
-      const st = statusById[s.id] ?? 'saved'
-      return st === 'failed' || st === 'pending'
-    }).length
-    if (unsavedCount > 0) {
-      const proceed = window.confirm(
-        `未保存のセットが${unsavedCount}件あります。このまま終了するとその記録は失われます。終了しますか？`,
-      )
-      if (!proceed) return
-    }
-
     setFinishing(true)
     try {
+      // 未送信のセットは、終える前にもう一度送ってみる
+      if (queuedCount > 0) await withTimeout(sendQueued(), 10_000)
+
+      // 未保存（保存に失敗した、または保存が確定していない）セットを残したまま
+      // 下書きを消してしまうと、その場に立ち会っていない限り気づく手段が無い。
+      // 件数を明示して確認する。
+      // 一覧入力の種目は上の flushList で保存済み
+      const unsent = state.sets.filter((s) => s.exercise_id !== listRows?.exerciseId)
+        .map((s) => statusRef.current[s.id] ?? 'saved').filter((st) => st !== 'saved')
+      if (unsent.length > 0) {
+        const message = unsent.every((st) => st === 'queued')
+          ? `電波が届かず、まだ送れていないセットが${unsent.length}件あります。電波のある所でもう一度「記録を終了」を押すと送れます。\n\n送らずに終了すると、その記録は失われます。終了しますか？`
+          : `未保存のセットが${unsent.length}件あります。このまま終了するとその記録は失われます。終了しますか？`
+        if (!window.confirm(message)) return
+      }
+
       // 保存待ち・後片付けの一連の流れ全体に上限時間を設ける。通信が詰まって
       // 戻ってこない場合に画面が「終了中…」のまま動かなくなるのを防ぐため。
       // タイムアウトしても、下書きはローカルに残っているので再訪すれば復帰できる
@@ -783,7 +860,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     return (
       <div className="min-h-full">
         {modeSheet}
-        {offline && <OfflineBanner />}
+        {offline && <OfflineBanner queues />}
         <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div className="min-w-0">
             <p className="mb-1 text-xs text-muted">{new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}</p>
@@ -840,7 +917,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   return (
     <div className="flex min-h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] flex-col">
       {modeSheet}
-      {offline && <OfflineBanner />}
+      {offline && <OfflineBanner queues={!listMode} />}
       {/* 一覧入力の記録入力（REC-05）は今日の記録（REC-03）と同じく、左上の「‹」で保存して戻り、種目名を中央に置く */}
       {listMode && <header ref={recordingHeader} className="sticky top-0 z-20 grid grid-cols-[5.5rem_minmax(0,1fr)_5.5rem] items-center bg-bg px-4 py-1">
         <button type="button" data-button-key="change-exercise" aria-label="今日の記録に戻る" onClick={() => void changeExercise()} disabled={savingList || finishing}
@@ -952,8 +1029,8 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
         </SlidingDial>
         <div className="flex shrink-0 gap-2 px-4 pb-3 pt-2">
           <button type="button" data-button-key="change-exercise" onClick={() => void changeExercise()} className="min-h-14 shrink-0 self-center rounded-xl border border-border px-4 text-sm font-semibold text-fg active:bg-border">種目を変える</button>
-          <Button size="lg" data-button-key="complete-set" className="min-w-0" onClick={handleCompleteSet} disabled={offline || finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
-            {offline ? 'オフラインでは保存できません' : justSaved ? '✓ 記録しました' : 'セット完了'}
+          <Button size="lg" data-button-key="complete-set" className="min-w-0" onClick={handleCompleteSet} disabled={finishing || (isBodyweight && (bodyweight === null || editingBodyweight))}>
+            {justSaved ? '✓ 記録しました' : 'セット完了'}
           </Button>
         </div>
       </BottomInputDock>}

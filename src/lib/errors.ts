@@ -6,6 +6,27 @@ type ErrorLike = { message?: string; code?: string }
 /** Only locally authored validation messages are shown verbatim. */
 export class InputError extends Error {}
 
+/** A request that did not answer in time, as on a weak gym signal. */
+export class TimeoutError extends Error {}
+
+/**
+ * fetch itself failed: no signal, or the connection dropped. supabase-js does not throw here; it returns
+ * an error whose message is the fetch error's, such as "TypeError: Failed to fetch" (Chrome) or
+ * "TypeError: Load failed" (Safari).
+ */
+function isFetchFailure(error: unknown): boolean {
+  const FAILED = /fetch|load failed|network/i
+  if (error instanceof TypeError) return FAILED.test(error.message)
+  const message = (error as ErrorLike | null)?.message ?? ''
+  return /^(TypeError|FetchError): /.test(message) && FAILED.test(message)
+}
+
+/** True when the request failed for lack of a connection, so it can be sent again later. */
+export function isNetworkError(error: unknown): boolean {
+  if (error instanceof TimeoutError || isFetchFailure(error)) return true
+  return !navigator.onLine
+}
+
 export function toMessage(error: unknown): string {
   if (error instanceof InputError) return error.message
   const e = (error ?? {}) as ErrorLike
@@ -18,7 +39,7 @@ export function toMessage(error: unknown): string {
   if (e.message === 'Invalid login credentials') {
     return 'メールアドレスまたはパスワードが違います。'
   }
-  if (error instanceof TypeError && /fetch/i.test(e.message ?? '')) return NETWORK
+  if (error instanceof TimeoutError || isFetchFailure(error)) return NETWORK
   if (!navigator.onLine) return NETWORK
   return GENERIC
 }

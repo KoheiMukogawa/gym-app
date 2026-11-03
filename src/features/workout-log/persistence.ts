@@ -7,7 +7,8 @@ const KEY_PREFIX = 'gym-app.draft.'
 // 残っていても二度と読まれないので、気づいたときに掃除する。
 const LEGACY_KEY = 'gym-app.draft'
 
-export type SetStatus = 'pending' | 'saved' | 'failed'
+/** queued: recorded on this device and waiting for a connection to be sent */
+export type SetStatus = 'pending' | 'saved' | 'failed' | 'queued'
 
 export type Draft = {
   state: LogState
@@ -39,7 +40,7 @@ function today(): string {
 }
 
 function isSetStatus(value: unknown): value is SetStatus {
-  return value === 'pending' || value === 'saved' || value === 'failed'
+  return value === 'pending' || value === 'saved' || value === 'failed' || value === 'queued'
 }
 
 function isStatusMap(value: unknown): value is Record<string, SetStatus> {
