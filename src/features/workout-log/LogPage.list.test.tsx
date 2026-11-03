@@ -160,6 +160,91 @@ describe('LogPage list input', () => {
     expect(loadDraft(USER)).toBeNull()
   })
 
+  it('keeps typed rows on the phone without signal and sends them, edits and deletions once it is back', async () => {
+    let online = false
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => online)
+    saveDraft(USER, {
+      state: { currentExerciseId: 'bench', weight_kg: 80, reps: 8, sets: [
+        { id: 'kept', exercise_id: 'bench', set_index: 1, weight_kg: 60, reps: 10 },
+        { id: 'gone', exercise_id: 'bench', set_index: 2, weight_kg: 60, reps: 8 },
+      ] },
+      workoutId: 'w1',
+      status: {},
+    })
+    const user = userEvent.setup()
+    renderLogPage()
+    expect(await screen.findByRole('alert')).toHaveTextContent('つながったら自動で送ります')
+    // 1行目を打ち直し、2行目を消し、＋で足した行に新しいセットを打つ
+    const firstReps = await screen.findByLabelText('1セット目の回数')
+    await user.clear(firstReps)
+    await user.type(firstReps, '12')
+    await user.clear(screen.getByLabelText('2セット目の重さ'))
+    await user.clear(screen.getByLabelText('2セット目の回数'))
+    await user.click(screen.getByRole('button', { name: 'セットを追加' }))
+    await user.type(await screen.findByLabelText('2セット目の重さ'), '70')
+    await user.type(screen.getByLabelText('2セット目の回数'), '6')
+    await user.click(screen.getByRole('button', { name: '今日の記録に戻る' }))
+
+    // 電波がなくても今日の記録に戻れて、送れていないセットに「未送信」と出る
+    await screen.findByRole('region', { name: '今日の記録' })
+    expect(screen.getAllByText('未送信')).toHaveLength(2)
+    expect(saveEditableSet).not.toHaveBeenCalled()
+    expect(removeWorkoutSet).not.toHaveBeenCalled()
+    // 消した2行目に打ち直したので、その行は消さずに新しい値で上書きする
+    expect(loadDraft(USER)?.outbox).toEqual({ deletes: [], edits: ['kept', 'gone'] })
+
+    online = true
+    act(() => { window.dispatchEvent(new Event('online')) })
+    await waitFor(() => expect(saveEditableSet).toHaveBeenCalledTimes(2))
+    expect(removeWorkoutSet).not.toHaveBeenCalled()
+    expect(saveEditableSet.mock.calls.map(([wid, set]) => [wid, set.weight_kg, set.reps])).toEqual([['w1', 60, 12], ['w1', 70, 6]])
+    await waitFor(() => expect(screen.queryByText('未送信')).toBeNull())
+    expect(loadDraft(USER)?.outbox).toEqual({ deletes: [], edits: [] })
+    onLine.mockRestore()
+  })
+
+  it('removes a set swiped away without signal and deletes it once the signal is back', async () => {
+    let online = false
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockImplementation(() => online)
+    saveDraft(USER, {
+      state: { currentExerciseId: null, weight_kg: 80, reps: 8, sets: [
+        { id: 'a', exercise_id: 'bench', set_index: 1, weight_kg: 60, reps: 10 },
+        { id: 'b', exercise_id: 'bench', set_index: 2, weight_kg: 60, reps: 8 },
+      ] },
+      workoutId: 'w1',
+      status: {},
+    })
+    const user = userEvent.setup()
+    renderLogPage()
+    await user.click(await screen.findByRole('button', { name: 'ベンチプレス 2セット目を削除' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'ベンチプレス 2セット目を削除' })).toBeNull())
+    expect(deleteSet).not.toHaveBeenCalled()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(loadDraft(USER)?.outbox?.deletes).toEqual(['b'])
+    online = true
+    act(() => { window.dispatchEvent(new Event('online')) })
+    await waitFor(() => expect(removeWorkoutSet).toHaveBeenCalledWith('w1', 'b'))
+    await waitFor(() => expect(loadDraft(USER)?.outbox?.deletes).toEqual([]))
+    onLine.mockRestore()
+  })
+
+  it('names unsent changes before finishing without signal', async () => {
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    seedDraftWithExercise()
+    const user = userEvent.setup()
+    renderLogPage()
+    await user.type(await screen.findByLabelText('1セット目の重さ'), '100')
+    await user.type(screen.getByLabelText('1セット目の回数'), '5')
+    await user.click(screen.getByRole('button', { name: '今日の記録に戻る' }))
+    await screen.findByText('未送信')
+    await user.click(screen.getByRole('button', { name: 'ホームに戻る' }))
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.stringContaining('まだ送れていないセットが1件')))
+    expect(navigate).not.toHaveBeenCalled()
+    confirm.mockRestore()
+    onLine.mockRestore()
+  })
+
   it('saves nothing for an exercise opened and left without typing', async () => {
     seedDraftWithExercise()
     const user = userEvent.setup()

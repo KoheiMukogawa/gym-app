@@ -21,7 +21,7 @@ import { exerciseLabel } from '../exercises/catalog'
 import { RoutinePanel } from '../routines/RoutinePanel'
 import type { ActiveRoutine } from '../routines/queries'
 import { initialLogState, logReducer, nextSet, type LoggedSet } from './logReducer'
-import { clearDraft, loadDraft, saveDraft, type SetStatus } from './persistence'
+import { clearDraft, loadDraft, saveDraft, type Outbox, type SetStatus } from './persistence'
 import {
   createWorkout,
   deleteSet,
@@ -52,10 +52,10 @@ const MODES: [LogInputMode, string, string][] = [
   ['list', '一覧', 'セットを表に並べて、重量と回数を数字で打つ'],
 ]
 
-function OfflineBanner({ queues = false }: { queues?: boolean }) {
+function OfflineBanner() {
   return (
     <p role="alert" className="bg-accent px-4 py-2 text-center text-sm text-white">
-      {queues ? 'オフラインです。セットはこの端末に残し、つながったら自動で送ります。' : 'オフラインです。記録は保存できません。'}
+      オフラインです。セットはこの端末に残し、つながったら自動で送ります。
     </p>
   )
 }
@@ -129,15 +129,18 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // 下書きは「この画面で操作した」ときだけ保存する。今日の記録をサーバーから読み込んだだけで
   // 下書きができると、終了後に開き直しても記録の途中と判定されてしまう。
   const touchedRef = useRef(draft !== null)
+  // 送り直しや終了の確認は await の後に読むので、描画を待たずに最新になる ref を持つ
+  const stateRef = useRef(state)
   function dispatch(action: Parameters<typeof rawDispatch>[0]) {
     if (action.type !== 'load-sets') touchedRef.current = true
+    stateRef.current = logReducer(stateRef.current, action)
     rawDispatch(action)
   }
   const [workoutId, setWorkoutIdState] = useState<string | null>(draft?.workoutId ?? null)
   // 復元した pending は「保存できたかどうか分からない」状態なので、未送信として
   // 送り直す。23505 の扱いにより再送は安全にべき等なので、実際には保存できて
   // いたセットも送り直すだけで済み、本当に届いていなかったセットはここで届く。
-  const [statusById, setStatusById] = useState<Record<string, SetStatus>>(() => {
+  const [statusById, setStatusRaw] = useState<Record<string, SetStatus>>(() => {
     const initial = draft?.status ?? {}
     const demoted: Record<string, SetStatus> = {}
     for (const [id, st] of Object.entries(initial)) {
@@ -145,9 +148,21 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     }
     return demoted
   })
-  // 送り直しはタイマーや online イベントの古いクロージャから走るので、最新の値を ref で読む
+  // 送り直しはタイマーや online イベントの古いクロージャから走るので、最新の値を ref で読む。
+  // 書き換えはいつも ref から計算し、描画を待たずに ref を最新にする
   const statusRef = useRef(statusById)
-  statusRef.current = statusById
+  const setStatusById = useCallback((update: (prev: Record<string, SetStatus>) => Record<string, SetStatus>) => {
+    statusRef.current = update(statusRef.current)
+    setStatusRaw(statusRef.current)
+  }, [])
+  // 電波がなくて送れなかった削除と、一覧入力で打ち直したセット（送るときは上書き保存にする）
+  const [outbox, setOutboxState] = useState<Outbox>(draft?.outbox ?? { deletes: [], edits: [] })
+  const outboxRef = useRef(outbox)
+  const updateOutbox = useCallback((update: (prev: Outbox) => Outbox) => {
+    touchedRef.current = true
+    outboxRef.current = update(outboxRef.current)
+    setOutboxState(outboxRef.current)
+  }, [])
   const [exercises, setExercises] = useState<Exercise[]>(cached.exercises ?? [])
   const [routine, setRoutine] = useState<ActiveRoutine | null>(draft?.routine ?? null)
   const [editingRoutine, setEditingRoutine] = useState(false)
@@ -245,8 +260,8 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   // workoutId は state 化したので、作成直後の値も取りこぼさずに書き込まれる。
   useEffect(() => {
     if (!userId || !touchedRef.current) return
-    saveDraft(userId, { state, workoutId, status: statusById, routine, listRows, heldRows })
-  }, [state, workoutId, statusById, userId, routine, listRows, heldRows])
+    saveDraft(userId, { state, workoutId, status: statusById, routine, listRows, heldRows, outbox })
+  }, [state, workoutId, statusById, userId, routine, listRows, heldRows, outbox])
 
   useEffect(() => {
     const update = () => setOffline(isOffline())
@@ -469,7 +484,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
       task.finally(() => pendingSavesRef.current.delete(task))
       return task
     },
-    [userId, show, ensureWorkout],
+    [userId, show, ensureWorkout, setStatusById],
   )
 
   function handleCompleteSet() {
@@ -490,26 +505,58 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     if (status === 'saved') void sendQueued()
   }
 
-  // 未送信のセットを記録した順に1件ずつ送る。届かなければそこで止め、次の機会に続きから送る
-  const setsRef = useRef(state.sets)
-  setsRef.current = state.sets
+  // 一覧入力で打ち直したセットは、すでに保存した値を書き換えることがあるので上書き保存で送る
+  const minWeightRef = useRef(minWeightFor)
+  minWeightRef.current = minWeightFor
+  // 一覧の行は、値を消してから打ち直すと同じIDに戻ることがあるので、取り消しの印（abandonedIdsRef）は見ない。
+  // 消したセットは今日の記録から外れ、送るのは記録に残っているセットだけになる
+  const sendEdit = useCallback(async (set: LoggedSet): Promise<SetStatus | null> => {
+    if (isOffline()) { setStatusById((prev) => ({ ...prev, [set.id]: 'queued' })); return 'queued' }
+    setStatusById((prev) => ({ ...prev, [set.id]: 'pending' }))
+    try {
+      const wid = await withDeadline(ensureWorkout(), SAVE_DEADLINE_MS)
+      await withDeadline(saveEditableSet(wid, set, minWeightRef.current(set.exercise_id)), SAVE_DEADLINE_MS)
+      setStatusById((prev) => ({ ...prev, [set.id]: 'saved' }))
+      updateOutbox((o) => ({ ...o, edits: o.edits.filter((id) => id !== set.id) }))
+      return 'saved'
+    } catch (e) {
+      if (isNetworkError(e)) { setStatusById((prev) => ({ ...prev, [set.id]: 'queued' })); return 'queued' }
+      setStatusById((prev) => ({ ...prev, [set.id]: 'failed' }))
+      show(toMessage(e))
+      return 'failed'
+    }
+  }, [ensureWorkout, setStatusById, updateOutbox, show])
+  const sendOne = useCallback((set: LoggedSet) => (outboxRef.current.edits.includes(set.id) ? sendEdit(set) : persist(set)), [sendEdit, persist])
+
+  // 未送信の削除と、未送信のセット（記録した順）を送る。届かなければそこで止め、次の機会に続きから送る
   const sendingRef = useRef<Promise<void> | null>(null)
   const sendQueued = useCallback((): Promise<void> => {
     if (sendingRef.current) return sendingRef.current
     if (isOffline()) return Promise.resolve()
     const run = (async () => {
-      for (const set of setsRef.current) {
+      for (const id of outboxRef.current.deletes) {
+        const wid = workoutIdRef.current
+        try {
+          // 今日の記録がまだ無ければ、消すセットも保存されていない
+          if (wid !== null) await withDeadline(removeWorkoutSet(wid, id), SAVE_DEADLINE_MS)
+        } catch (e) {
+          if (isNetworkError(e)) return
+          console.error(`セットの削除に失敗しました (set: ${id})`, e)
+        }
+        updateOutbox((o) => ({ ...o, deletes: o.deletes.filter((d) => d !== id) }))
+      }
+      for (const set of stateRef.current.sets) {
         if (statusRef.current[set.id] !== 'queued') continue
         // メモは未送信の間も手元で書き換えられるので、送る直前の値を使う
-        const latest = setsRef.current.find((s) => s.id === set.id)
+        const latest = stateRef.current.sets.find((s) => s.id === set.id)
         if (!latest) continue
-        if ((await persist(latest)) === 'queued') break
+        if ((await sendOne(latest)) === 'queued') break
       }
     })().finally(() => { sendingRef.current = null })
     sendingRef.current = run
     return run
-  }, [persist])
-  const queuedCount = state.sets.filter((s) => statusById[s.id] === 'queued').length
+  }, [sendOne, updateOutbox])
+  const queuedCount = state.sets.filter((s) => statusById[s.id] === 'queued').length + outbox.deletes.length
 
   // 前回の画面で送れなかったセットは、開いたときに送る
   useEffect(() => { if (!loading) void sendQueued() }, [loading, sendQueued])
@@ -531,7 +578,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   function handleRetry(setId: string) {
     const target = state.sets.find((s) => s.id === setId)
     if (!target) return
-    void persist(target).then(resendIfSaved)
+    void sendOne(target).then(resendIfSaved)
   }
 
   // 保存済みのセットはその場でメモを更新する。未保存（再試行待ち）のセットは、
@@ -593,14 +640,29 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
       }
     }
     const total = state.sets.length - own.length + plan.sets.length
-    const settle = () => {
+    // queued: 電波がなくて送れず、端末に残したセット
+    const settle = (queued: ReadonlySet<string> = new Set()) => {
       dispatch({ type: 'replace-exercise-sets', exerciseId, sets: plan.sets })
       setStatusById((prev) => {
         const next = { ...prev }
         for (const s of own) delete next[s.id]
-        for (const s of plan.sets) next[s.id] = 'saved'
+        for (const s of plan.sets) next[s.id] = queued.has(s.id) ? 'queued' : 'saved'
         return next
       })
+    }
+    // 電波がないときは止めずに端末に残し、つながったら送る（ダイヤルの「未送信」と同じ）。
+    // 消した行は、保存済みかもしれないものも含めて、あとで消す
+    const keepForLater = () => {
+      const removed = own.filter((s) => !plan.sets.some((set) => set.id === s.id)).map((s) => s.id)
+      const edited = plan.upserts.map((s) => s.id)
+      // 一度消した行に打ち直したセットは、消さずに上書きする
+      const present = new Set(plan.sets.map((s) => s.id))
+      updateOutbox((o) => ({
+        deletes: [...new Set([...o.deletes, ...removed])].filter((id) => !present.has(id)),
+        edits: [...new Set([...o.edits.filter((id) => !removed.includes(id)), ...edited])],
+      }))
+      settle(new Set(edited))
+      return total
     }
     // 保存前に行を消した、ダイヤルで失敗したままのセットは、送られないよう印を付ける
     for (const s of own) if (!plan.sets.some((set) => set.id === s.id)) abandonedIdsRef.current.add(s.id)
@@ -608,16 +670,21 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
       settle()
       return Promise.resolve(total)
     }
+    if (isOffline()) return Promise.resolve(keepForLater())
     setSavingList(true)
     const task = (async () => {
       try {
         const current = workoutIdRef.current
         if (current !== null) for (const id of plan.deletes) await removeWorkoutSet(current, id)
         if (plan.upserts.length) {
-          const wid = await ensureWorkout()
-          for (const set of plan.upserts) await saveEditableSet(wid, set, minWeight)
+          const wid = await withDeadline(ensureWorkout(), SAVE_DEADLINE_MS)
+          for (const set of plan.upserts) await withDeadline(saveEditableSet(wid, set, minWeight), SAVE_DEADLINE_MS)
         }
         settle()
+        const sent = new Set(plan.upserts.map((s) => s.id))
+        if (outboxRef.current.edits.some((id) => sent.has(id))) updateOutbox((o) => ({ ...o, edits: o.edits.filter((id) => !sent.has(id)) }))
+        // 届いたなら電波は戻っているので、ほかに残っている未送信も送る
+        void sendQueued()
         // 最後のセットまで消したら、空のワークアウトもその場で消す（ダイヤルの削除と同じ）
         const wid = workoutIdRef.current
         if (total === 0 && wid !== null) {
@@ -632,6 +699,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
         }
         return total
       } catch (e) {
+        if (isNetworkError(e)) return keepForLater()
         if (!background) show(`保存できませんでした。もう一度お試しください（${toMessage(e)}）`)
         return null
       } finally {
@@ -727,16 +795,25 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     try {
       abandonedIdsRef.current.add(target.id)
       const st = statusById[target.id] ?? 'saved'
+      // 電波がなくて消せないときは、端末の表示から消して、つながったら消す
+      const deleteLater = () => updateOutbox((o) => ({ deletes: [...new Set([...o.deletes, target.id])], edits: o.edits.filter((id) => id !== target.id) }))
       if (st === 'saved') {
         try {
-          await deleteSet(target.id)
+          if (isOffline()) throw new TimeoutError()
+          await withDeadline(deleteSet(target.id), SAVE_DEADLINE_MS)
         } catch (e) {
-          // 削除できなかった場合は行を残し、記録が消えたように見せない。
-          // まだ本当には取り消されていないので、abandoned の印も取り消す。
-          abandonedIdsRef.current.delete(target.id)
-          show(toMessage(e))
-          return
+          if (isNetworkError(e)) deleteLater()
+          else {
+            // 削除できなかった場合は行を残し、記録が消えたように見せない。
+            // まだ本当には取り消されていないので、abandoned の印も取り消す。
+            abandonedIdsRef.current.delete(target.id)
+            show(toMessage(e))
+            return
+          }
         }
+      } else if (st === 'queued') {
+        // 時間切れで「未送信」にしたセットは、実は届いていることがある
+        deleteLater()
       }
       // pending / failed のセットは DB にまだコミットされていない（か既に
       // 掃除済みの）ので、ローカルの表示から外すだけでよい。まだ進行中の
@@ -751,7 +828,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
       // 履歴に「0セット」の記録が残らないように。保存中のセットがあれば
       // そちらの結果を待つべきなので、ここでは触らない。
       const wid = workoutIdRef.current
-      if (wid !== null && state.sets.every((s) => s.id === target.id) && pendingSavesRef.current.size === 0) {
+      if (wid !== null && !isOffline() && state.sets.every((s) => s.id === target.id) && pendingSavesRef.current.size === 0) {
         const cleanup = deleteWorkoutIfEmpty(wid)
           .then((deleted) => {
             if (!deleted) return
@@ -792,19 +869,18 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
 
     setFinishing(true)
     try {
-      // 未送信のセットは、終える前にもう一度送ってみる
-      if (queuedCount > 0) await withTimeout(sendQueued(), 10_000)
+      // 未送信のセットと削除は、終える前にもう一度送ってみる
+      await withTimeout(sendQueued(), 10_000)
 
       // 未保存（保存に失敗した、または保存が確定していない）セットを残したまま
       // 下書きを消してしまうと、その場に立ち会っていない限り気づく手段が無い。
-      // 件数を明示して確認する。
-      // 一覧入力の種目は上の flushList で保存済み
-      const unsent = state.sets.filter((s) => s.exercise_id !== listRows?.exerciseId)
-        .map((s) => statusRef.current[s.id] ?? 'saved').filter((st) => st !== 'saved')
-      if (unsent.length > 0) {
-        const message = unsent.every((st) => st === 'queued')
-          ? `電波が届かず、まだ送れていないセットが${unsent.length}件あります。電波のある所でもう一度「記録を終了」を押すと送れます。\n\n送らずに終了すると、その記録は失われます。終了しますか？`
-          : `未保存のセットが${unsent.length}件あります。このまま終了するとその記録は失われます。終了しますか？`
+      // 件数を明示して確認する。await の後なので、描画を待たずに最新になる ref から数える
+      const unsent = stateRef.current.sets.map((s) => statusRef.current[s.id] ?? 'saved').filter((st) => st !== 'saved')
+      const unsentDeletes = outboxRef.current.deletes.length
+      if (unsent.length + unsentDeletes > 0) {
+        const message = !unsent.every((st) => st === 'queued')
+          ? `未保存のセットが${unsent.length}件あります。このまま終了するとその記録は失われます。終了しますか？`
+          : `電波が届かず、まだ送れていない${unsentDeletes ? '変更' : 'セット'}が${unsent.length + unsentDeletes}件あります。電波のある所でもう一度「記録を終了」を押すと送れます。\n\n送らずに終了すると、その記録は失われます。終了しますか？`
         if (!window.confirm(message)) return
       }
 
@@ -840,7 +916,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
       const wid = workoutIdRef.current
       writeCache(userId, 'today', {
         date: localDate(),
-        workout: wid === null ? null : { id: wid, sets: setsRef.current.filter((s) => (statusRef.current[s.id] ?? 'saved') === 'saved') },
+        workout: wid === null ? null : { id: wid, sets: stateRef.current.sets.filter((s) => (statusRef.current[s.id] ?? 'saved') === 'saved') },
       } satisfies CachedToday)
       clearDraft(userId)
       if (total > 0) markWorkoutFinished(userId)
@@ -906,7 +982,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
             <h1 className="text-center text-lg font-semibold tabular-nums">{finishing ? '保存中…' : localDate().replaceAll('-', '/')}</h1>
             <span />
           </header>
-          <TodaySummary sets={state.sets} exerciseNames={exerciseNames} bodyweightIds={bodyweightIds} bodyweight={bodyweight}
+          <TodaySummary sets={state.sets} status={statusById} exerciseNames={exerciseNames} bodyweightIds={bodyweightIds} bodyweight={bodyweight}
             onOpen={(id) => { setRoutine(null); selectExercise(id) }} onDelete={handleDelete} deletingId={deletingId}
             held={heldRows} onDeleteHeld={(exerciseId, rowId) => setHeldRows((prev) => {
               const { [exerciseId]: rows = [], ...rest } = prev
@@ -923,7 +999,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
     return (
       <div className="min-h-full">
         {modeSheet}
-        {offline && <OfflineBanner queues />}
+        {offline && <OfflineBanner />}
         <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div className="min-w-0">
             <p className="mb-1 text-xs text-muted">{new Date().toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}</p>
@@ -980,7 +1056,7 @@ export function LogPage({ onFinished, onPickingChange, onScreenChange }: { onFin
   return (
     <div className="flex min-h-[calc(100dvh-10rem-env(safe-area-inset-bottom))] flex-col">
       {modeSheet}
-      {offline && <OfflineBanner queues={!listMode} />}
+      {offline && <OfflineBanner />}
       {/* 一覧入力の記録入力（REC-05）は今日の記録（REC-03）と同じく、左上の「‹」で保存して戻り、種目名を中央に置く */}
       {listMode && <header ref={recordingHeader} className="sticky top-0 z-20 grid grid-cols-[5.5rem_minmax(0,1fr)_5.5rem] items-center bg-bg px-4 py-1">
         <button type="button" data-button-key="change-exercise" aria-label="今日の記録に戻る" onClick={() => void changeExercise()} disabled={savingList || finishing}

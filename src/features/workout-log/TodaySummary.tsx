@@ -3,13 +3,16 @@ import { formatAddedLoad, totalLoad } from '../../lib/bodyweight'
 import { setRm } from './setRm'
 import type { LoggedSet } from './logReducer'
 import type { ListRow } from './listRows'
+import type { SetStatus } from './persistence'
 
 /**
  * 一覧入力の今日の記録（REC-03）。種目のカードの見出しか＋を押すと、その種目の記録を開く。セットは左にスワイプで削除（ダイヤルの記録画面と同じ）。
  * 回数などを打つ前に閉じた行（held）は、まだ保存していないので薄く出し、開けば続きを打てる。
  */
-export function TodaySummary({ sets, exerciseNames, bodyweightIds, bodyweight, onOpen, onDelete, deletingId, held = {}, onDeleteHeld }: {
+export function TodaySummary({ sets, status = {}, exerciseNames, bodyweightIds, bodyweight, onOpen, onDelete, deletingId, held = {}, onDeleteHeld }: {
   sets: LoggedSet[]
+  /** 電波がなくて送れていないセットに「未送信」と出す */
+  status?: Record<string, SetStatus>
   exerciseNames: Record<string, string>
   bodyweightIds: string[]
   bodyweight: number | null
@@ -49,6 +52,8 @@ export function TodaySummary({ sets, exerciseNames, bodyweightIds, bodyweight, o
                   <span className="whitespace-nowrap text-right text-xs min-[360px]:text-sm">{rm ? `${rm.value}kg` : '—'}</span>
                 </div>
                 {s.note && <p className="-mt-1 pb-1 text-center text-xs text-muted">{s.note}</p>}
+                {status[s.id] === 'queued' && <p className="-mt-1 pb-1 text-right text-xs text-muted">未送信</p>}
+                {status[s.id] === 'failed' && <p className="-mt-1 pb-1 text-right text-xs text-accent">未保存</p>}
               </div>
             </SwipeRow>
           })}

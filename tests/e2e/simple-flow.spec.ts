@@ -1390,6 +1390,41 @@ test('a new user starts from BIG3 bests entered on home and sees them in BIG3', 
   await expect(page.getByRole('heading', { name: '前のアプリから乗り換え？' })).toHaveCount(0)
 })
 
+test('list input keeps rows on the phone without signal and sends them when it is back', async ({ page }) => {
+  const data = await mockApi(page, true)
+  await page.getByRole('button', { name: 'プロフィールメニュー' }).click()
+  await page.getByRole('link', { name: 'プロフィールを編集' }).click()
+  await page.getByRole('radio', { name: /一覧/ }).check()
+  await page.getByRole('link', { name: 'Glog トップへ' }).click()
+  await page.getByRole('link', { name: /記録する/ }).click()
+  await page.getByRole('region', { name: '胸の種目' }).getByRole('button', { name: 'ベンチプレス', exact: true }).click()
+  // The phone reports it is offline, and a weak signal drops what it still tries to send.
+  const dropped = (route: import('@playwright/test').Route) => route.abort('internetdisconnected')
+  await page.route('**/rest/v1/workout_sets*', dropped)
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false })
+    window.dispatchEvent(new Event('offline'))
+  })
+  await expect(page.getByRole('alert')).toContainText('つながったら自動で送ります')
+  await page.getByLabel('1セット目の重さ', { exact: true }).fill('100')
+  await page.getByLabel('1セット目の回数', { exact: true }).fill('5')
+  await page.getByRole('button', { name: 'セットを追加' }).click()
+  await page.getByLabel('2セット目の重さ', { exact: true }).fill('100')
+  await page.getByLabel('2セット目の回数', { exact: true }).fill('3')
+  await page.getByRole('button', { name: '今日の記録に戻る', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'ベンチプレスの記録を開く' })).toBeVisible()
+  await expect(page.getByText('未送信', { exact: true })).toHaveCount(2)
+  expect(data.sets.filter((s) => s.workout_id !== 'previous')).toHaveLength(0)
+  await page.screenshot({ path: 'test-results/list-offline-queued.png' })
+  await page.unroute('**/rest/v1/workout_sets*', dropped)
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => true })
+    window.dispatchEvent(new Event('online'))
+  })
+  await expect.poll(() => data.sets.filter((s) => s.workout_id !== 'previous').map((s) => [s.set_index, s.weight_kg, s.reps])).toEqual([[1, 100, 5], [2, 100, 3]])
+  await expect(page.getByText('未送信', { exact: true })).toHaveCount(0)
+})
+
 test('list input saves typed rows when a set is added and when the exercise is changed', async ({ page }) => {
   const data = await mockApi(page, true)
   await page.getByRole('button', { name: 'プロフィールメニュー' }).click()

@@ -10,6 +10,9 @@ const LEGACY_KEY = 'gym-app.draft'
 /** queued: recorded on this device and waiting for a connection to be sent */
 export type SetStatus = 'pending' | 'saved' | 'failed' | 'queued'
 
+/** 電波がなくて送れなかったもの。deletes は消すセット、edits は上書き保存で送るセット（一覧入力で打ち直したもの） */
+export type Outbox = { deletes: string[]; edits: string[] }
+
 export type Draft = {
   state: LogState
   workoutId: string | null
@@ -19,6 +22,7 @@ export type Draft = {
   listRows?: ListRows | null
   /** 一覧入力で、回数などを打つ前に閉じた行（種目ごと、重さはkg） */
   heldRows?: Record<string, ListRow[]>
+  outbox?: Outbox
 }
 
 type StoredDraft = Draft & {
@@ -66,7 +70,7 @@ function isRowList(rows: unknown): rows is ListRow[] {
 
 export function saveDraft(userId: string, draft: Draft): void {
   // 何も始まっていない状態を保存すると、次回起動時に空の下書きを復元してしまう
-  if (draft.state.currentExerciseId === null && draft.state.sets.length === 0 && !Object.keys(draft.heldRows ?? {}).length) {
+  if (draft.state.currentExerciseId === null && draft.state.sets.length === 0 && !Object.keys(draft.heldRows ?? {}).length && !draft.outbox?.deletes.length) {
     clearDraft(userId)
     return
   }
@@ -108,9 +112,12 @@ export function loadDraft(userId: string): Draft | null {
     const validRows = listRows && typeof listRows.exerciseId === 'string' && isRowList(listRows.rows)
     const heldRows = parsed.heldRows as Record<string, ListRow[]> | undefined
     const validHeld = typeof heldRows === 'object' && heldRows !== null && Object.values(heldRows).every(isRowList)
+    const outbox = parsed.outbox as Outbox | undefined
+    const isIds = (ids: unknown) => Array.isArray(ids) && ids.every((id) => typeof id === 'string')
+    const validOutbox = isIds(outbox?.deletes) && isIds(outbox?.edits)
     return {
       state: parsed.state, workoutId, status: parsed.status, ...(validRoutine ? { routine } : {}), ...(validRows ? { listRows } : {}),
-      ...(validHeld ? { heldRows } : {}),
+      ...(validHeld ? { heldRows } : {}), ...(validOutbox ? { outbox } : {}),
     }
   } catch {
     return null
