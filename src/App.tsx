@@ -27,6 +27,7 @@ const ExportPage = lazy(() => import('./features/export/ExportPage').then((m) =>
 const BodyPage = lazy(() => import('./features/body/BodyPage').then((m) => ({ default: m.BodyPage })))
 const TermsPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.TermsPage })))
 const PrivacyPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.PrivacyPage })))
+const SupportPage = lazy(() => import('./features/legal/LegalPages').then((m) => ({ default: m.SupportPage })))
 const DeleteAccountPage = lazy(() => import('./features/account/DeleteAccountPage').then((m) => ({ default: m.DeleteAccountPage })))
 const FeedbackPage = lazy(() => import('./features/feedback/FeedbackPage').then((m) => ({ default: m.FeedbackPage })))
 const PollsPage = lazy(() => import('./features/polls/PollsPage').then((m) => ({ default: m.PollsPage })))
@@ -95,6 +96,7 @@ export default function App() {
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/terms" element={<Suspense fallback={<Spinner />}><TermsPage /></Suspense>} />
             <Route path="/privacy" element={<Suspense fallback={<Spinner />}><PrivacyPage /></Suspense>} />
+            <Route path="/support" element={<Suspense fallback={<Spinner />}><SupportPage /></Suspense>} />
             {PUBLIC_PAGES.map((page) => <Route key={page.path} path={page.path} element={<PublicRoute path={page.path} />} />)}
             <Route element={<RequireAuth />}>
               <Route element={<AppShell />}>

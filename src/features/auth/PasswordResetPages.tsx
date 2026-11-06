@@ -14,7 +14,7 @@ const inputClass = 'mt-1 min-h-14 w-full rounded-xl border border-border bg-surf
 
 function AuthScreen({ title, children }: { title: string; children: ReactNode }) {
   return <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-6 py-8">
-    <Link to="/" className="mb-8 text-4xl font-bold tracking-tight">Glog</Link>
+    <Link to="/" className="mb-8 text-4xl font-bold tracking-tight">BARBELL CLUB</Link>
     <h1 className="mb-6 text-xl font-semibold">{title}</h1>
     {children}
   </main>

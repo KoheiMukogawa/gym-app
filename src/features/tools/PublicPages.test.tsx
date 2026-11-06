@@ -26,7 +26,7 @@ describe('public calculators', () => {
     expect(screen.getByRole('table', { name: '推定1RMに対する重量と回数の目安' })).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('体重（任意）'), '70')
     expect(screen.getByText('体重比').nextSibling).toHaveTextContent('1.42倍')
-    expect(screen.getByRole('link', { name: '無料でGlogに記録する' })).toHaveAttribute('href', '/signup?from=calc-1rm')
+    expect(screen.getByRole('link', { name: '無料でBARBELL CLUBに記録する' })).toHaveAttribute('href', '/signup?from=calc-1rm')
     expect(sink).toHaveBeenCalledTimes(1)
     expect(sink).toHaveBeenCalledWith({ name: 'calculator_used', calculator: '1rm' })
     expect(JSON.parse(localStorage.getItem('glog:first-touch')!)).toMatchObject({ source: 'calc-1rm' })

@@ -122,7 +122,7 @@ export function LandingPage() {
 
   return <main className="landing-page">
     <header className="landing-header landing-container">
-      <Link to="/" className="landing-brand" aria-label="Glog トップへ">Glog</Link>
+      <Link to="/" className="landing-brand" aria-label="BARBELL CLUB トップへ">BARBELL CLUB</Link>
       <Link to="/signup" className="landing-signup">無料で始める</Link>
     </header>
 
@@ -130,7 +130,7 @@ export function LandingPage() {
       <figure ref={stage} className="landing-tour-phone" aria-label="アプリの画面（実際のアプリを見本のデータで動かしています）">
         <div className="landing-tour-stage"><LandingPhone screen={screen} progress={progress} showSplash={splash} splash={<>
           <img src="/glog-icon-512.png" alt="" width={112} height={112} className="landing-splash-icon" />
-          <p className="landing-splash-name">Glog</p>
+          <p className="landing-splash-name">BARBELL CLUB</p>
           <h1 id="landing-title">必要十分な機能を<br />直感的な操作で</h1>
         </>} /></div>
       </figure>
@@ -170,7 +170,7 @@ export function LandingPage() {
     </section>
 
     <section className="landing-finish landing-container" aria-labelledby="finish-title">
-      <h2 id="finish-title">Glogを使ってみる</h2>
+      <h2 id="finish-title">BARBELL CLUBを使ってみる</h2>
       <p>登録は、名前とメールアドレス、<br className="landing-narrow-break" />パスワードだけです。</p>
       <Link to="/signup" className="landing-cta">無料で始める</Link>
       <Link to="/login" className="landing-existing">アカウントをお持ちの方はログイン</Link>
@@ -178,7 +178,7 @@ export function LandingPage() {
 
     <footer className="landing-footer landing-container">
       <div className="landing-footer-top">
-        <span className="landing-footer-brand">Glog</span>
+        <span className="landing-footer-brand">BARBELL CLUB</span>
         <nav aria-label="ほかのページ">
           <Link to="/calculators/1rm">1RM計算</Link><Link to="/calculators/dots">DOTS計算</Link>
           <Link to="/terms">利用規約</Link><Link to="/privacy">プライバシーポリシー</Link>

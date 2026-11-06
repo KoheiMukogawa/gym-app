@@ -18,7 +18,7 @@ function Steps({ items }: { items: ReactNode[] }) {
 }
 
 // On iPhone the home screen app keeps its own sign-in, separate from the browser.
-const openAndSignIn = <>ホーム画面の<strong>Glogのアイコン</strong>から開きます。ログイン画面が出たら、同じメールアドレスでログインしてください</>
+const openAndSignIn = <>ホーム画面の<strong>BARBELL CLUBのアイコン</strong>から開きます。ログイン画面が出たら、同じメールアドレスでログインしてください</>
 const addSteps = (where: ReactNode) => [
   <>{where}の共有ボタン <ShareIcon /> をタップ<span className="mt-1 block text-xs text-muted">見当たらないときは「…」をタップすると出てきます</span></>,
   <>メニューの下のほうにある<strong>「ホーム画面に追加」</strong>を選び、右上の<strong>「追加」</strong>をタップ</>,
@@ -53,7 +53,7 @@ function Body({ env, onAdded }: { env: InstallEnv; onAdded: () => void }) {
     {hasInstallPrompt() && <p className="text-xs text-muted">うまくいかないときは、次の手順で追加できます。</p>}
     <Steps items={[
       <>右上のメニュー（︙）から<strong>「ホーム画面に追加」</strong>または<strong>「アプリをインストール」</strong>を選ぶ</>,
-      <>ホーム画面の<strong>Glogのアイコン</strong>から開きます</>,
+      <>ホーム画面の<strong>BARBELL CLUBのアイコン</strong>から開きます</>,
     ]} />
   </>
 }

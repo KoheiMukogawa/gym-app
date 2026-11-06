@@ -35,6 +35,7 @@
 | ACCOUNT-01 | 退会 | `/account/delete` |
 | LEGAL-01 | 利用規約 | `/terms` |
 | LEGAL-02 | プライバシーポリシー | `/privacy` |
+| LEGAL-03 | サポート | `/support` |
 | ADMIN-01 | 届いた意見 | `/admin/feedback` |
 | ADMIN-02 | 利用状況 | `/admin/usage` |
 | ADMIN-03 | 届いた通報 | `/admin/reports` |

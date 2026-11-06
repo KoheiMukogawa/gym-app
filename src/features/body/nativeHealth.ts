@@ -4,7 +4,7 @@ import type { BodyweightLog } from '../../lib/bodyweight'
 
 // iPhoneアプリ版だけのヘルスケア連携（設計 docs/superpowers/specs/2026-11-06-healthkit-design.md）。
 // アプリの中の部品（ios/App/App/HealthPlugin.swift）がヘルスケアのサンプルを返し、ここで日ごとにまとめて
-// 本人の bodyweight_logs に書く。Glogに記録がある日は上書きしない（ショートカット連携の keep と同じ）。
+// 本人の bodyweight_logs に書く。BARBELL CLUBに記録がある日は上書きしない（ショートカット連携の keep と同じ）。
 
 export type HealthSample = { time: number; value: number }
 type HealthPluginApi = {
@@ -83,7 +83,7 @@ const RECENT_OVERLAP_MS = 7 * 24 * 60 * 60 * 1000
 const CHUNK = 500
 
 /**
- * ヘルスケアの記録を読み、Glogにまだない日だけ加える。since を省くと全期間を読む。
+ * ヘルスケアの記録を読み、BARBELL CLUBにまだない日だけ加える。since を省くと全期間を読む。
  * 終わったら端末の状態（連携中・最終の読み込み）を更新し、画面に知らせる。
  */
 export async function syncFromHealth(userId: string, since: string | null = null): Promise<SyncResult> {

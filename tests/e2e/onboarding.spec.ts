@@ -34,7 +34,7 @@ test('landing showcases graphs, AI export and personal rankings on phones and de
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1, name: /必要十分な機能を\s*直感的な操作で/ })).toBeVisible()
   // The phone runs the real app on sample data (/demo in an iframe), so it always matches the app.
-  const app = page.frameLocator('iframe[title="Glogのアプリの画面（見本）"]')
+  const app = page.frameLocator('iframe[title="BARBELL CLUBのアプリの画面（見本）"]')
   const tabs = app.getByRole('navigation', { name: 'メイン' })
   // The phone is scaled with a CSS transform, which Playwright's pointer clicks inside an iframe
   // do not follow; a DOM click is what a tap does here.

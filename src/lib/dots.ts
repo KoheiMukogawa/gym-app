@@ -18,7 +18,7 @@ export function dotsScore(totalKg: number, bodyweightKg: number, formula: DotsFo
   return (totalKg * 500) / (a + c1 * b + c2 * b ** 2 + c3 * b ** 3 + c4 * b ** 4)
 }
 
-/** Glog独自の目安。DOTSに公式のレベル区分はない。下限（以上）と表示用の範囲・名前。 */
+/** BARBELL CLUB独自の目安。DOTSに公式のレベル区分はない。下限（以上）と表示用の範囲・名前。 */
 export const DOTS_LEVELS = [
   [0, '200未満', '初心者'],
   [200, '200〜300未満', '初級'],

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
 test.use({ userAgent: IPHONE })
 
-test('a new iPhone user is shown how to add Glog to the home screen, and can find it again', async ({ page }) => {
+test('a new iPhone user is shown how to add BARBELL CLUB to the home screen, and can find it again', async ({ page }) => {
   const uid = '77777777-7777-4777-8777-777777777777', now = Date.now()
   const user = { id: uid, aud: 'authenticated', role: 'authenticated', email: 'new@example.com', app_metadata: {}, user_metadata: {}, created_at: new Date(now).toISOString() }
   const session = { access_token: 'a', refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(now / 1000) + 3600, user }

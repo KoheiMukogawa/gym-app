@@ -15,7 +15,7 @@ export async function shareApp(): Promise<ShareResult> {
     try {
       // 文章は付けない。Macの「コピー」などはURLの直後に文章をつなげ、貼るとURLが壊れるため。
       // 送った先の見出しと画像は紹介ページのOGPから出る
-      await navigator.share({ title: 'Glog', url: SHARE_URL })
+      await navigator.share({ title: 'BARBELL CLUB', url: SHARE_URL })
       return 'shared'
     } catch (e) {
       // 共有シートを閉じただけなら何もしない。それ以外の失敗はコピーに切り替える

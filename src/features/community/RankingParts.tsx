@@ -35,7 +35,7 @@ export function DotsNotice({ me }: { me: Member | undefined }) {
           <thead><tr className="border-b border-border text-xs text-muted"><th scope="col" className="pb-2 font-normal">スコア</th><th scope="col" className="pb-2 font-normal">レベル</th></tr></thead>
           <tbody>{DOTS_LEVELS.map(([, range, level]) => <tr key={range} className="border-b border-border last:border-0"><th scope="row" className="py-2 pr-3 font-normal tabular-nums">{range}</th><td className="py-2">{level}</td></tr>)}</tbody>
         </table>
-        <p className="text-xs leading-relaxed text-muted">DOTSに公式のレベル区分はありません。現在地や成長を知るための参考としてご覧ください。Glogでは推定1RMを使ってスコアを計算しています。</p>
+        <p className="text-xs leading-relaxed text-muted">DOTSに公式のレベル区分はありません。現在地や成長を知るための参考としてご覧ください。BARBELL CLUBでは推定1RMを使ってスコアを計算しています。</p>
       </div>
     </details>
     {me?.dots_opt_in && me.dots === null

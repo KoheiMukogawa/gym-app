@@ -95,7 +95,7 @@ export function LandingPhone({ screen, progress, splash, showSplash = false }: {
             <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".75" y=".75" width="22" height="11.5" rx="3" fill="none" stroke="currentColor" strokeWidth="1.5"/><rect x="2.5" y="2.5" width="18.5" height="8" rx="1.5"/><path d="M24 4.2c1.2.4 2 1.5 2 2.8s-.8 2.4-2 2.8V4.2Z"/></svg>
           </span>
         </div>
-        <iframe ref={frame} src={src} title="Glogのアプリの画面（見本）" style={{ width: SCREEN.width, height: SCREEN.height - STATUS_BAR }} />
+        <iframe ref={frame} src={src} title="BARBELL CLUBのアプリの画面（見本）" style={{ width: SCREEN.width, height: SCREEN.height - STATUS_BAR }} />
         <div className="landing-device-dim" data-dim={dim || undefined} aria-hidden="true" />
         {/* 起動画面は中身から暗くなって消え、その後ろからホーム画面が出る */}
         {splash && <div className="landing-splash" data-hidden={(!showSplash && ready) || undefined} style={{ top: STATUS_BAR }}>

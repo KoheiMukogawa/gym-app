@@ -51,7 +51,7 @@ export function DotsPage({ signedIn = false }: { signedIn?: boolean }) {
               <dd className="mt-1 text-xl font-bold leading-9">{level[2]}</dd>
             </div>
           </dl>
-          <SaveCta signedIn={signedIn} source="calc-dots">Glogに記録すると、推定1RMと体重からDOTSを自動で計算し、仲間とのランキングで比べられます。</SaveCta>
+          <SaveCta signedIn={signedIn} source="calc-dots">BARBELL CLUBに記録すると、推定1RMと体重からDOTSを自動で計算し、仲間とのランキングで比べられます。</SaveCta>
         </>}
       </div>
     </section>
@@ -62,13 +62,13 @@ export function DotsPage({ signedIn = false }: { signedIn?: boolean }) {
         <thead><tr className="border-b border-border text-xs text-muted"><th scope="col" className="pb-2 font-normal">DOTS（BIG3トータル）</th><th scope="col" className="pb-2 font-normal">目安</th></tr></thead>
         <tbody>{DOTS_LEVELS.map(([, range, name]) => <tr key={range} className="border-b border-border last:border-0"><th scope="row" className="py-2 pr-3 font-normal tabular-nums">{range}</th><td className="py-2">{name}</td></tr>)}</tbody>
       </table>
-      <p className="text-xs leading-relaxed text-muted">DOTSに公式のレベル区分はありません。この表はGlog独自の目安で、統計に基づく順位（パーセンタイル）ではありません。</p>
+      <p className="text-xs leading-relaxed text-muted">DOTSに公式のレベル区分はありません。この表はBARBELL CLUB独自の目安で、統計に基づく順位（パーセンタイル）ではありません。</p>
     </section>
 
     <section aria-labelledby="method-title" className="space-y-3">
       <h2 id="method-title" className="text-lg font-semibold">計算方法</h2>
       <p className="rounded-xl border border-border bg-surface p-4 text-center font-semibold">DOTS = トータル × 500 ÷ (a + b·体重 + c·体重² + d·体重³ + e·体重⁴)</p>
-      <p className="text-sm leading-relaxed text-muted">係数 a〜e は男性用・女性用で異なり、OpenPowerliftingの実装と同じ値を使っています。体重は男性用40〜210kg、女性用40〜150kgの範囲に収めて計算します。GlogのDOTSランキングも同じ式です。</p>
+      <p className="text-sm leading-relaxed text-muted">係数 a〜e は男性用・女性用で異なり、OpenPowerliftingの実装と同じ値を使っています。体重は男性用40〜210kg、女性用40〜150kgの範囲に収めて計算します。BARBELL CLUBのDOTSランキングも同じ式です。</p>
       <p className="text-xs leading-relaxed text-muted">参考: <a href="https://www.openpowerlifting.org/" className="underline" rel="noopener">OpenPowerlifting</a></p>
     </section>
 

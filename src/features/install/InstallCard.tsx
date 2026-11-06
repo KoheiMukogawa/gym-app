@@ -3,7 +3,7 @@ import { useSession } from '../auth/SessionProvider'
 import { canGuideInstall, currentInstallEnv } from './installEnv'
 import { cardDismissed, dismissCard, openInstallGuide } from './installGuide'
 
-/** For people still using Glog in the browser on a phone. */
+/** For people still using BARBELL CLUB in the browser on a phone. */
 export function InstallCard() {
   const { userId } = useSession()
   const [hidden, setHidden] = useState(() => !userId || !canGuideInstall(currentInstallEnv()) || cardDismissed(userId))

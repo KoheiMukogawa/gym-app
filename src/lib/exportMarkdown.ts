@@ -46,7 +46,7 @@ export function buildWorkoutMarkdown(input: {
   const trainedDays = new Set(days.map((item) => localDate(item.performed_at))).size
 
   const lines: string[] = [
-    '# Glog トレーニング記録',
+    '# BARBELL CLUB トレーニング記録',
     '',
     `- 期間: ${from} 〜 ${to}`,
     `- 出力日: ${localDate(input.generatedAt ?? new Date())}`,

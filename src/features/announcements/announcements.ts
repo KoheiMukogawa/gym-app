@@ -13,6 +13,12 @@ export type Announcement = {
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
+    id: 'app-name',
+    publishedAt: '2026-11-07T00:24:00+09:00',
+    title: 'アプリの名前がBARBELL CLUBになりました',
+    body: '投票の結果、アプリの名前が「Glog」から「BARBELL CLUB」に変わりました。記録や設定はそのままです。ホーム画面のアイコンの名前は、追加し直すと新しい名前になります。',
+  },
+  {
     id: 'offline-sets',
     publishedAt: '2026-11-03T12:35:00+09:00',
     title: '電波が届かなくても記録できます',
@@ -21,8 +27,8 @@ export const ANNOUNCEMENTS: Announcement[] = [
   {
     id: 'share-app',
     publishedAt: '2026-10-31T11:40:00+09:00',
-    title: '友達にGlogを教えられます',
-    body: '右上のアイコンのメニューにある「友達にGlogを教える」から、LINEやメッセージでGlogの紹介ページを送れます。',
+    title: '友達にBARBELL CLUBを教えられます',
+    body: '右上のアイコンのメニューにある「友達にBARBELL CLUBを教える」から、LINEやメッセージでBARBELL CLUBの紹介ページを送れます。',
   },
   {
     id: 'profile-photo',

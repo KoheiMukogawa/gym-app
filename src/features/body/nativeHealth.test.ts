@@ -31,7 +31,7 @@ describe('dailyBodyMetrics', () => {
     ])
   })
 
-  it('skips days without weight and values outside what Glog stores', () => {
+  it('skips days without weight and values outside what BARBELL CLUB stores', () => {
     expect(dailyBodyMetrics(
       [{ time: at(1, 8), value: 19.9 }, { time: at(2, 8), value: 300.04 }, { time: at(3, 8), value: 65 }, { time: at(3, 9), value: Number.NaN }],
       [{ time: at(3, 8), value: 70.2 }, { time: at(7, 8), value: 12 }],
@@ -50,7 +50,7 @@ describe('healthPlugin', () => {
 })
 
 describe('syncFromHealth', () => {
-  it('reads all history, adds only days Glog does not have, and remembers the sync', async () => {
+  it('reads all history, adds only days BARBELL CLUB does not have, and remembers the sync', async () => {
     readBodyMetrics.mockResolvedValue({ weights: [{ time: at(5, 8), value: 71 }, { time: at(6, 8), value: 70 }], fats: [] })
     select.mockResolvedValue({ data: [{ recorded_on: '2026-11-06' }], error: null })
     const heard = vi.fn()

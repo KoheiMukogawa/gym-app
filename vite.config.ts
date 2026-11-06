@@ -14,8 +14,8 @@ export default defineConfig(({ isSsrBuild, mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['glog-icon-32.png', 'glog-icon-180.png', 'glog-icon-192.png', 'glog-icon-512.png', 'glog-icon-maskable.png'],
       manifest: {
-        name: 'Glog',
-        short_name: 'Glog',
+        name: 'BARBELL CLUB',
+        short_name: 'BARBELL CLUB',
         description: '部位から選んで、すぐに筋トレを記録する',
         lang: 'ja',
         start_url: '/',

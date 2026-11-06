@@ -82,7 +82,7 @@ describe('profile menu', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     renderShell()
     await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
-    await userEvent.click(screen.getByRole('button', { name: '友達にGlogを教える' }))
+    await userEvent.click(screen.getByRole('button', { name: '友達にBARBELL CLUBを教える' }))
     expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\/\?utm_source=share$/))
     expect(await screen.findByText('紹介ページのリンクをコピーしました')).toBeInTheDocument()
   })

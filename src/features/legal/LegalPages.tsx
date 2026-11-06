@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { parseMarkdown, type Block, type Inline } from './markdown'
 import privacy from './privacy-policy.md?raw'
 import terms from './terms-of-service.md?raw'
+import support from './support.md?raw'
 
 function Text({ parts }: { parts: Inline[] }) {
   return <>{parts.map((part, i) => typeof part === 'string' ? part : <strong key={i} className="font-semibold text-fg">{part.bold}</strong>)}</>
@@ -36,7 +37,7 @@ function BlockView({ block }: { block: Block }) {
 function LegalPage({ source }: { source: string }) {
   const blocks = useMemo(() => parseMarkdown(source), [source])
   return <main className="mx-auto max-w-lg px-6 pb-12">
-    <Link to="/" aria-label="Glog トップへ" className="flex min-h-20 items-center text-3xl font-bold tracking-tight">Glog</Link>
+    <Link to="/" aria-label="BARBELL CLUB トップへ" className="flex min-h-20 items-center text-3xl font-bold tracking-tight">BARBELL CLUB</Link>
     <article className="space-y-4 text-sm leading-relaxed text-muted">
       {blocks.map((block, i) => <BlockView key={i} block={block} />)}
     </article>
@@ -45,3 +46,5 @@ function LegalPage({ source }: { source: string }) {
 
 export function PrivacyPage() { return <LegalPage source={privacy} /> }
 export function TermsPage() { return <LegalPage source={terms} /> }
+/** App Store Connect のサポートURL。ログインしなくても開ける。 */
+export function SupportPage() { return <LegalPage source={support} /> }

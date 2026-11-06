@@ -20,7 +20,7 @@ export class ScreenErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.error) return this.props.children
     return <section role="alert" className="mx-auto max-w-lg space-y-4 px-5 py-10">
-      <p className="text-3xl font-bold tracking-tight">Glog</p>
+      <p className="text-3xl font-bold tracking-tight">BARBELL CLUB</p>
       <h1 className="text-lg font-semibold">画面を表示できませんでした</h1>
       <p className="text-sm leading-relaxed text-muted">通信状況をご確認のうえ、再読み込みしてください。アプリの更新直後にも起こることがあります。</p>
       <Button onClick={() => window.location.reload()}>再読み込み</Button>

@@ -109,7 +109,7 @@ function OwnedHealthSyncPanel({ refreshVersion, onBusyChange, onReload }: Omit<P
         className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}><path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" /></svg>
     </button>
     {open && <div id="health-sync-panel" className="flex min-w-0 flex-col gap-4 pb-4 pt-2">
-      <p className="text-sm text-muted">iPhoneの体重・体脂肪率を、ショートカット経由でGlogへ取り込みます。</p>
+      <p className="text-sm text-muted">iPhoneの体重・体脂肪率を、ショートカット経由でBARBELL CLUBへ取り込みます。</p>
       {loading ? <p className="text-sm" role="status">接続状態を確認中…</p> : status &&
         <p className="text-sm font-semibold" role="status">{status.enabled ? syncedWithCurrentKey ? '連携中' : '初回同期待ち' : '未接続'}</p>}
       {error && <div className="flex flex-col gap-2">

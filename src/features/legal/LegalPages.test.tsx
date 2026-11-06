@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { PrivacyPage, TermsPage } from './LegalPages'
+import { PrivacyPage, SupportPage, TermsPage } from './LegalPages'
 
 const renderIn = (page: React.ReactNode) => render(<MemoryRouter>{page}</MemoryRouter>)
 
@@ -15,13 +15,21 @@ describe('legal pages', () => {
     expect(within(services).getByRole('columnheader', { name: '情報の保存場所' })).toBeInTheDocument()
     expect(within(services).getByRole('cell', { name: '日本（東京リージョン）' })).toBeInTheDocument()
     expect(screen.getAllByText(/glog\.app\.help@gmail\.com/).length).toBeGreaterThan(0)
-    expect(screen.getByRole('link', { name: 'Glog トップへ' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'BARBELL CLUB トップへ' })).toHaveAttribute('href', '/')
     expect(screen.getByText(/ご意見・不具合の報告: 送った内容と、送信時のブラウザの情報/)).toBeInTheDocument()
     expect(screen.getByText(/送ったご意見、投票で選んだ選択肢は、ほかの利用者には表示されません/)).toBeInTheDocument()
     expect(screen.getByText(/投票: 選んだ選択肢と投票した日時/)).toBeInTheDocument()
-    expect(screen.getByText('改定日: 2026年11月6日')).toBeInTheDocument()
+    expect(screen.getByText('改定日: 2026年11月7日')).toBeInTheDocument()
     expect(screen.getByText(/新しい機能のお知らせを確認した日時/)).toBeInTheDocument()
     expect(screen.getByText('本サービスの改善のため、運営者は、記録した人数やセット数、継続して記録している人の割合、新規登録のきっかけごとの人数などの集計値を確認します。')).toBeInTheDocument()
+  })
+
+  it('shows the support page with the contact and common questions', () => {
+    renderIn(<SupportPage />)
+    expect(screen.getByRole('heading', { level: 1, name: 'サポート' })).toBeInTheDocument()
+    expect(screen.getByText(/glog\.app\.help@gmail\.com/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'アカウントを削除したい' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: '不適切な名前や画像を見つけた' })).toBeInTheDocument()
   })
 
   it('shows the terms with numbered rules', () => {

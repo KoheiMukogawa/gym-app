@@ -9,12 +9,12 @@ export function PublicLayout({ page, source, children }: { page: PublicPage; sou
   useEffect(() => {
     document.title = page.title
     rememberFirstTouch(source)
-    return () => { document.title = 'Glog（グログ）｜筋トレ・ジム記録アプリ' }
+    return () => { document.title = 'BARBELL CLUB（バーベルクラブ）｜筋トレ・ジム記録アプリ' }
   }, [page.title, source])
 
   return <div className="min-h-dvh">
     <header className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
-      <Link to="/" className="flex min-h-14 items-center text-2xl font-bold tracking-tight">Glog</Link>
+      <Link to="/" className="flex min-h-14 items-center text-2xl font-bold tracking-tight">BARBELL CLUB</Link>
       <nav aria-label="サイト内" className="flex items-center gap-1 text-sm">
         <Link to="/calculators" className="flex min-h-14 items-center px-3 text-muted">計算ツール</Link>
         <Link to="/login" className="flex min-h-14 items-center px-3 text-muted">ログイン</Link>
@@ -37,7 +37,7 @@ export function PublicLayout({ page, source, children }: { page: PublicPage; sou
         <li><Link to="/terms" className="flex min-h-14 items-center">利用規約</Link></li>
         <li><Link to="/privacy" className="flex min-h-14 items-center">プライバシーポリシー</Link></li>
       </ul>
-      <p>Glog — 筋トレの記録を、次の成長へ。</p>
+      <p>BARBELL CLUB — 筋トレの記録を、次の成長へ。</p>
     </footer>
   </div>
 }
@@ -65,7 +65,7 @@ export function SaveCta({ signedIn, source, children }: { signedIn: boolean; sou
     <p className="text-sm leading-relaxed">{children}</p>
     {signedIn
       ? <Link to="/log" className="flex min-h-14 items-center justify-center rounded-xl bg-accent font-semibold text-white">記録する</Link>
-      : <Link to={`/signup?from=${source}`} className="flex min-h-14 items-center justify-center rounded-xl bg-accent font-semibold text-white">無料でGlogに記録する</Link>}
+      : <Link to={`/signup?from=${source}`} className="flex min-h-14 items-center justify-center rounded-xl bg-accent font-semibold text-white">無料でBARBELL CLUBに記録する</Link>}
   </aside>
 }
 

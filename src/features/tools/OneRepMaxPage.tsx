@@ -62,7 +62,7 @@ export function OneRepMaxPage({ signedIn = false }: { signedIn?: boolean }) {
               <td className="py-2 text-right tabular-nums">{row.reps === null ? '10回超' : `${row.reps}回`}</td>
             </tr>)}</tbody>
           </table>
-          <SaveCta signedIn={signedIn} source="calc-1rm">Glogに記録すると、セットごとの推定1RMが自動で計算され、種目別のグラフで伸びを確かめられます。</SaveCta>
+          <SaveCta signedIn={signedIn} source="calc-1rm">BARBELL CLUBに記録すると、セットごとの推定1RMが自動で計算され、種目別のグラフで伸びを確かめられます。</SaveCta>
         </>}
       </div>
     </section>
@@ -71,7 +71,7 @@ export function OneRepMaxPage({ signedIn = false }: { signedIn?: boolean }) {
       <h2 id="method-title" className="text-lg font-semibold">計算方法</h2>
       <p className="text-sm leading-relaxed text-muted">Brzycki式を使っています。</p>
       <p className="rounded-xl border border-border bg-surface p-4 text-center font-semibold tabular-nums">1RM = 重量 × 36 ÷ (37 − 回数)</p>
-      <p className="text-sm leading-relaxed text-muted">例: 80kgを8回挙げた場合、80 × 36 ÷ (37 − 8) = 約99.3kg。1回の記録はその重量をそのまま1RMとします。回数の目安は同じ式を回数について解いた値を切り捨てたものです。Glogアプリの推定1RM・グラフ・ランキングも同じ式で計算しています。</p>
+      <p className="text-sm leading-relaxed text-muted">例: 80kgを8回挙げた場合、80 × 36 ÷ (37 − 8) = 約99.3kg。1回の記録はその重量をそのまま1RMとします。回数の目安は同じ式を回数について解いた値を切り捨てたものです。BARBELL CLUBアプリの推定1RM・グラフ・ランキングも同じ式で計算しています。</p>
       <p className="text-xs leading-relaxed text-muted">出典: Brzycki, M. (1993). Strength Testing—Predicting a One-Rep Max from Reps-to-Fatigue. <i>Journal of Physical Education, Recreation &amp; Dance</i>, 64(1), 88–90.</p>
     </section>
 

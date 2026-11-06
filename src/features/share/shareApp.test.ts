@@ -17,7 +17,7 @@ describe('shareApp', () => {
     const share = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(nav, 'share', { value: share, configurable: true })
     await expect(shareApp()).resolves.toBe('shared')
-    expect(share).toHaveBeenCalledWith({ title: 'Glog', url: SHARE_URL })
+    expect(share).toHaveBeenCalledWith({ title: 'BARBELL CLUB', url: SHARE_URL })
   })
 
   it('does nothing more when the share sheet is closed', async () => {

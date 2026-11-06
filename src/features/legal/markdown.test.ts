@@ -5,10 +5,10 @@ import terms from './terms-of-service.md?raw'
 
 describe('parseMarkdown', () => {
   it('reads headings and keeps line breaks inside a paragraph', () => {
-    expect(parseMarkdown('# 題\n\n## 第1条\n\nGlog運営事務局\n連絡先: a@example.com')).toEqual([
+    expect(parseMarkdown('# 題\n\n## 第1条\n\nBARBELL CLUB運営事務局\n連絡先: a@example.com')).toEqual([
       { type: 'heading', level: 1, text: ['題'] },
       { type: 'heading', level: 2, text: ['第1条'] },
-      { type: 'paragraph', lines: [['Glog運営事務局'], ['連絡先: a@example.com']] },
+      { type: 'paragraph', lines: [['BARBELL CLUB運営事務局'], ['連絡先: a@example.com']] },
     ])
   })
 

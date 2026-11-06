@@ -17,7 +17,7 @@ test('a visitor finds the calculators from the introduction, gets a result, and 
   await page.getByLabel('体重', { exact: true }).fill('80')
   await page.getByLabel('BIG3トータル').fill('500')
   await expect(page.locator('dt', { hasText: /^DOTS$/ }).locator('+ dd')).toHaveText('344.8')
-  await page.getByRole('link', { name: '無料でGlogに記録する' }).click()
+  await page.getByRole('link', { name: '無料でBARBELL CLUBに記録する' }).click()
   await expect(page).toHaveURL(/\/signup\?from=calc-dots$/)
   await expect(page.getByRole('heading', { name: 'プロフィールを作って始める' })).toBeVisible()
   // The first public page visited is what sign-up will report as its source.

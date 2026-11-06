@@ -3,14 +3,14 @@ import { Button } from '../../components/ui/Button'
 import { toMessage } from '../../lib/errors'
 import { HEALTH_SYNCED_EVENT, healthPlugin, readHealthState, syncFromHealth, writeHealthState, type SyncResult } from './nativeHealth'
 
-const SETTINGS_PATH = 'iPhoneの「設定」→「ヘルスケア」→「データアクセスとデバイス」→「Glog」'
+const SETTINGS_PATH = 'iPhoneの「設定」→「ヘルスケア」→「データアクセスとデバイス」→「BARBELL CLUB」'
 const NO_DATA = `ヘルスケアに体重の記録が見つかりませんでした。読み取りを許可していない場合は、${SETTINGS_PATH}で許可してから「今すぐ読み込む」を押してください。`
 
 function resultMessage({ found, inserted }: SyncResult): string {
   if (found === 0) return NO_DATA
   const kept = found - inserted
   if (inserted === 0) return '新しい記録はありませんでした。'
-  return `${inserted}日分の記録を読み込みました。${kept > 0 ? `Glogに記録があった${kept}日はそのままです。` : ''}`
+  return `${inserted}日分の記録を読み込みました。${kept > 0 ? `BARBELL CLUBに記録があった${kept}日はそのままです。` : ''}`
 }
 
 function healthMessage(error: unknown): string {
@@ -76,7 +76,7 @@ export function NativeHealthSync({ userId, onBusyChange, onReload }: Props) {
       <h2 id="native-health-heading" className="text-sm font-semibold">ヘルスケア連携</h2>
       <p className="mt-1 text-xs leading-relaxed text-muted">{state.enabled
         ? `アプリを開いたときに、ヘルスケアの体重と体脂肪率を読み込みます。${state.lastSyncedAt ? `最後に読み込んだのは${formatTime(state.lastSyncedAt)}です。` : ''}`
-        : 'iPhoneのヘルスケアから体重と体脂肪率を読み込みます。Glogに記録がある日はそのままです。'}</p>
+        : 'iPhoneのヘルスケアから体重と体脂肪率を読み込みます。BARBELL CLUBに記録がある日はそのままです。'}</p>
     </div>
     {message && <p role="status" className="text-sm leading-relaxed">{message}</p>}
     {error && <p role="alert" className="text-sm leading-relaxed text-accent">{error}</p>}

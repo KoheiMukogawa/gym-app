@@ -29,7 +29,7 @@ it('asks for permission, imports everything and turns the sync on', async () => 
   await userEvent.click(screen.getByRole('button', { name: 'ヘルスケアと連携する' }))
   expect(requestAuthorization).toHaveBeenCalled()
   expect(syncFromHealth).toHaveBeenCalledWith('u1')
-  expect(await screen.findByRole('status')).toHaveTextContent('28日分の記録を読み込みました。Glogに記録があった2日はそのままです。')
+  expect(await screen.findByRole('status')).toHaveTextContent('28日分の記録を読み込みました。BARBELL CLUBに記録があった2日はそのままです。')
   expect(screen.getByRole('button', { name: '今すぐ読み込む' })).toBeInTheDocument()
   expect(onBusyChange.mock.calls).toEqual([[true], [false]])
 })

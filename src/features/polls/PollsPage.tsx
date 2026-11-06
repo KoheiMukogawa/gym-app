@@ -9,7 +9,7 @@ export function PollsPage() {
   const { polls, error, refresh } = usePolls()
   return <div className="space-y-4 p-4">
     <PageHeader title="投票">
-      <p className="text-sm leading-relaxed text-muted">アプリのこれからを、Glogを使っているマッチョ達と決めます。</p>
+      <p className="text-sm leading-relaxed text-muted">アプリのこれからを、BARBELL CLUBを使っているマッチョ達と決めます。</p>
     </PageHeader>
     {error && <div className="space-y-3"><p role="alert" className="text-sm text-accent">投票を読み込めませんでした（{error}）</p>
       <Button variant="ghost" onClick={refresh}>再試行</Button></div>}
