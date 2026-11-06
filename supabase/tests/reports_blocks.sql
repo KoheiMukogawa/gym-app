@@ -21,6 +21,9 @@ do $$ begin
   -- 新しく足した語も、そろえた形で保存される
   insert into public.banned_words(word) values ('テスト禁止ワード');
   if not exists (select 1 from public.banned_words where word = 'てすと禁止わーど') then raise exception 'word not normalized'; end if;
+  -- 名前の境目に当たる語は入れていない（「ちん こうへい」「カチンコチン」）
+  if public.has_banned_word('ちんこうへい') or public.has_banned_word('かチンコちん') or not public.has_banned_word('オマンコ') then
+    raise exception 'word list hits a name boundary'; end if;
 end $$;
 
 -- Privileges: anon runs nothing; helpers and tables are closed to signed-in people too.
@@ -71,6 +74,12 @@ insert into public.banned_words(word) values ('通報する');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'a7000000-0000-4000-8000-00000000000a', true);
 update public.community_profiles set dots_opt_in = false where user_id = 'a7000000-0000-4000-8000-00000000000a';
+-- The profile screen saves with insert … on conflict: an unchanged name must still save (icon, bio, ranking).
+select public.save_glog_profile('通報する人', 'barbell', 'デッドリフトが好き', true);
+do $$ begin
+  begin perform public.save_glog_profile('通報する人2', 'barbell', '', true); raise exception 'changed banned name saved';
+  exception when raise_exception then if sqlerrm <> '使えない言葉が含まれています' then raise; end if; end;
+end $$;
 reset role;
 delete from public.banned_words where word = '通報する';
 set local role authenticated;
