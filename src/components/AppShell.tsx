@@ -9,6 +9,7 @@ import { loadDraft } from '../features/workout-log/persistence'
 import { useFeedbackInbox } from '../features/feedback/useFeedbackInbox'
 import { useFeedbackReplies } from '../features/feedback/useFeedbackReplies'
 import { useReportInbox } from '../features/safety/useReportInbox'
+import { useHealthAutoSync } from '../features/body/useHealthAutoSync'
 import { FeedbackReplyGate } from '../features/feedback/FeedbackReplyGate'
 import { AnnouncementsGate } from '../features/announcements/AnnouncementsGate'
 import { PollGate } from '../features/polls/PollGate'
@@ -45,6 +46,8 @@ export function AppShell(){
   const unreadFeedback=useFeedbackInbox(),hasUnread=(unreadFeedback??0)>0
   // 管理者に未対応の通報があれば、同じ赤い輪で知らせる（24時間以内の対応を目安にするため）
   const openReports=useReportInbox(),hasReports=(openReports??0)>0
+  // iPhoneアプリ版でヘルスケアと連携中なら、開いたとき・前に戻ったときに読み込む
+  useHealthAutoSync(userId)
   // 送った意見に運営の返信があれば、同じ赤い輪で知らせる（管理者以外も）
   const replyState=useFeedbackReplies(),replies=replyState??[],hasReply=replies.length>0,marked=hasUnread||hasReports||hasReply
   // 受付中でまだ投票していない投票があれば、メニューの「投票」に印を出す

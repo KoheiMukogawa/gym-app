@@ -5,6 +5,8 @@ import { Button } from '../../components/ui/Button'
 import { toMessage } from '../../lib/errors'
 import { fetchHealthSyncStatus, healthSyncEndpoint, issueHealthSyncToken, revokeHealthSyncToken, type HealthSyncStatus } from './healthSyncQueries'
 import { healthSyncShortcut } from './healthSyncShortcut'
+import { IS_NATIVE } from '../../lib/native'
+import { NativeHealthSync } from './NativeHealthSync'
 
 type Props = { userId: string | null; refreshVersion: number; onBusyChange?: (busy: boolean) => void; onReload?: () => void }
 type Action = 'issue' | 'revoke'
@@ -202,6 +204,8 @@ function SetupStep({ number, title, done = false, children }: { number: number; 
 /** The shortcut setup is not public yet. Keep the implementation for reopening later. */
 export function HealthSyncEntry(props: Props) {
   if (!props.userId) return null
+  // iPhoneアプリ版は、アプリが直接ヘルスケアを読む（ショートカットもキーも使わない）
+  if (IS_NATIVE) return <NativeHealthSync key={props.userId} userId={props.userId} onBusyChange={props.onBusyChange} onReload={props.onReload} />
   return <section className="border-t border-border" aria-label="ヘルスケア連携">
     <p className="flex min-h-14 items-center justify-between gap-2 text-sm font-medium text-muted">
       ヘルスケア連携<span className="rounded-full border border-border px-2 py-0.5 text-xs">近日公開</span>
