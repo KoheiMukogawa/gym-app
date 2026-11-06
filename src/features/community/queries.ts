@@ -70,6 +70,6 @@ export function formatMetric(value: number | null, metric: RankMetric): string {
 export function communityMessage(error: unknown): string {
   const e = error as { code?: string; message?: string } | null
   if (['PGRST202', 'PGRST205', '42P01'].includes(e?.code ?? '')) return 'コミュニティ機能の準備中です。データベースの更新が必要です。'
-  const known = ['ログインが必要です', '先にプロフィールを保存してください', '招待コードが見つかりません', 'コミュニティに参加していません', '作成者はコミュニティの削除を選んでください', 'この操作はできません', 'プロフィールの入力内容を確認してください', 'DOTSの係数を選んでください']
+  const known = ['ログインが必要です', '先にプロフィールを保存してください', '招待コードが見つかりません', 'コミュニティに参加していません', '作成者はコミュニティの削除を選んでください', 'この操作はできません', 'プロフィールの入力内容を確認してください', 'DOTSの係数を選んでください', '使えない言葉が含まれています']
   return known.includes(e?.message ?? '') ? e!.message! : toMessage(error)
 }

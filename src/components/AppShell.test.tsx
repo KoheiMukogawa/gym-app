@@ -14,6 +14,8 @@ vi.mock('../features/auth/SessionProvider', () => ({ useSession: () => ({ userId
 vi.mock('../features/workout-log/persistence', () => ({ loadDraft }))
 vi.mock('../features/feedback/queries', async (original) => ({ ...await original<typeof import('../features/feedback/queries')>(), fetchIsAdmin, fetchUnreadFeedbackCount, fetchMyFeedback, markRepliesSeen }))
 vi.mock('../lib/supabase', () => ({ supabase: {} }))
+const { fetchOpenReportCount } = vi.hoisted(() => ({ fetchOpenReportCount: vi.fn() }))
+vi.mock('../features/safety/queries', async (original) => ({ ...await original<typeof import('../features/safety/queries')>(), fetchOpenReportCount }))
 const { fetchPolls } = vi.hoisted(() => ({ fetchPolls: vi.fn() }))
 const { votePoll } = vi.hoisted(() => ({ votePoll: vi.fn() }))
 vi.mock('../features/polls/queries', async (original) => ({ ...await original<typeof import('../features/polls/queries')>(), fetchPolls, votePoll }))
@@ -36,7 +38,7 @@ function renderShell(path = '/') {
     <Route path="/history" element={<Link to="/log">記録に戻る</Link>} />
   </Route></Routes></MemoryRouter></ToastProvider>)
 }
-beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); fetchPolls.mockResolvedValue([]); loadDraft.mockReturnValue(null); fetchIsAdmin.mockResolvedValue(false); fetchMyFeedback.mockResolvedValue([]); markRepliesSeen.mockResolvedValue(undefined); saveShowScreenIds(false) })
+beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); fetchPolls.mockResolvedValue([]); loadDraft.mockReturnValue(null); fetchIsAdmin.mockResolvedValue(false); fetchOpenReportCount.mockResolvedValue(0); fetchMyFeedback.mockResolvedValue([]); markRepliesSeen.mockResolvedValue(undefined); saveShowScreenIds(false) })
 describe('deferred recording screen', () => {
   it('does not mount on home, and keeps input after tab navigation', async () => {
     const user = userEvent.setup()
@@ -183,6 +185,24 @@ describe('feedback in the profile menu', () => {
     expect(button).not.toHaveAttribute('data-unread')
     await userEvent.click(button)
     expect(screen.getByRole('link', { name: '届いた意見' })).toBeInTheDocument()
+  })
+  it('rings the icon for open reports and links an admin to them', async () => {
+    fetchIsAdmin.mockResolvedValue(true); fetchUnreadFeedbackCount.mockResolvedValue(0); fetchOpenReportCount.mockResolvedValueOnce(2).mockResolvedValueOnce(0)
+    renderShell(); await flush()
+    const button = screen.getByRole('button', { name: 'プロフィールメニュー（未対応の通報があります）' })
+    expect(button).toHaveAttribute('data-unread')
+    await userEvent.click(button)
+    const link = screen.getByRole('link', { name: /届いた通報/ })
+    expect(link).toHaveAttribute('href', '/admin/reports')
+    expect(link).toHaveTextContent('未対応 2')
+    act(() => { window.dispatchEvent(new Event('glog-reports-resolved')) }); await flush()
+    expect(screen.getByRole('button', { name: 'プロフィールメニュー' })).not.toHaveAttribute('data-unread')
+  })
+  it('never asks non-admins for reports', async () => {
+    renderShell(); await flush()
+    expect(fetchOpenReportCount).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'プロフィールメニュー' }))
+    expect(screen.queryByRole('link', { name: /届いた通報/ })).not.toBeInTheDocument()
   })
   it('drops the ring once the notes are read', async () => {
     fetchIsAdmin.mockResolvedValue(true); fetchUnreadFeedbackCount.mockResolvedValueOnce(1).mockResolvedValueOnce(0)

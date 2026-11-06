@@ -11,6 +11,7 @@ import { toMessage } from '../../lib/errors'
 import { Link } from 'react-router-dom'
 import { useLogInputMode } from '../workout-log/inputMode'
 import { PageHeader } from '../../components/PageHeader'
+import { BlockedUsers } from '../safety/BlockedUsers'
 export function ProfilePage() {
   const { userId,profile:account,refreshProfile }=useSession()
   const inputMode=useLogInputMode(userId)
@@ -59,6 +60,7 @@ export function ProfilePage() {
       {([['dial','ダイヤル','1セットずつダイヤルで合わせて「セット完了」'],['list','一覧','セットを表に並べて、重量と回数を数字で打つ']] as const).map(([value,label,description])=><label key={value} className="flex min-h-14 items-center gap-3 rounded-xl border border-border px-4 py-2 text-sm"><input type="radio" name="log-input-mode" checked={inputMode.mode===value} onChange={()=>inputMode.setMode(value)} className="h-5 w-5 accent-accent"/><span><span className="block font-semibold">{label}</span><span className="block text-xs text-muted">{description}</span></span></label>)}
       <p className="text-xs leading-relaxed text-muted">この端末に保存します。</p>
     </section>
+    <BlockedUsers />
     <section className="space-y-1 rounded-2xl border border-border bg-surface p-4">
       <h2 className="font-semibold">アカウント</h2>
       <p className="pt-1 text-xs leading-relaxed text-muted">退会すると、記録とプロフィールはすべて削除されます。</p>

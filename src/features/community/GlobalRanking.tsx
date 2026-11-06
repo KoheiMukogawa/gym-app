@@ -17,7 +17,7 @@ export function GlobalRanking(){
  return <section className="space-y-3" aria-label="全体ランキング"><MetricTabs value={mode} onChange={setMode}/>
  {mode==='total'&&<LiftFilter value={lift} onChange={setLift}/>}
  {loading?<Spinner/>:error?<div><p role="alert">{error}</p><Button onClick={()=>setAttempt(n=>n+1)}>再試行</Button></div>:<RankingParticipation mode={mode} global onJoined={()=>setAttempt(n=>n+1)}>{!rows.length?<p className="min-h-64 py-6 text-center text-sm text-muted">参加者はまだいません</p>:<ol className="divide-y divide-border">{rows.map(m=><li key={m.user_id}><button type="button" className={`flex min-h-20 w-full items-center gap-3 px-2 text-left ${m.user_id===userId?'bg-surface':''}`} onClick={()=>setPerson(m.user_id)}><span className="w-6 text-sm text-muted">{m.rank??'—'}</span><Avatar icon={m.icon} name={m.display_name} size="h-12 w-12"/><span className="min-w-0 flex-1 break-words text-base">{m.display_name}{m.user_id===userId&&<span className="ml-2 text-xs text-muted">自分</span>}</span><strong className="shrink-0 tabular-nums">{formatMetric(m.value,mode)}</strong></button></li>)}</ol>}</RankingParticipation>}
- {detail&&<MemberDetail member={detail} onClose={()=>setPerson(null)}/>}
+ {detail&&<MemberDetail member={detail} onClose={()=>setPerson(null)} onBlocked={id=>setMembers(list=>list.filter(m=>m.user_id!==id))}/>}
  {/* 説明はランキングの下。まず順位が目に入るようにする。 */}
  <div className="space-y-1 border-t border-border pt-3">
   {mode==='total'&&lift&&<p className="text-xs text-muted">その種目の最高推定1RMで比較します。記録がない人は — です。</p>}

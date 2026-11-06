@@ -102,7 +102,7 @@ export function CommunityPanel() {
         <span className="w-6 text-sm text-muted">{m.rank ?? '—'}</span><Avatar icon={m.icon} name={m.display_name} size="h-12 w-12"/><span className="min-w-0 flex-1 break-words text-base">{m.display_name}{m.user_id === userId && <span className="ml-2 text-xs text-muted">自分</span>}</span>
         <span className="shrink-0 text-lg font-semibold tabular-nums">{formatMetric(m.value, mode)}</span>
       </button>)}</div>}</RankingParticipation>}
-      {detail && <MemberDetail member={detail} onClose={() => setPerson(null)} showHistory />}
+      {detail && <MemberDetail member={detail} onClose={() => setPerson(null)} onBlocked={(id) => setMembers((list) => list.filter((m) => m.user_id !== id))} showHistory />}
       <div className="space-y-1 border-t border-border pt-3">
         {mode === 'total' && <p className="text-xs text-muted">{lift ? 'その種目の最高推定1RM' : '各種目の最高推定1RMの合計'} · 自己申告の記録</p>}
         {mode === 'growth' && <p className="text-xs text-muted">月初からの自己ベスト合計の増加（日本時間）。月初以前に3種目の記録が必要です。</p>}

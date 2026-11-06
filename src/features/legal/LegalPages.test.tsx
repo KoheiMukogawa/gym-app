@@ -19,7 +19,7 @@ describe('legal pages', () => {
     expect(screen.getByText(/ご意見・不具合の報告: 送った内容と、送信時のブラウザの情報/)).toBeInTheDocument()
     expect(screen.getByText(/送ったご意見、投票で選んだ選択肢は、ほかの利用者には表示されません/)).toBeInTheDocument()
     expect(screen.getByText(/投票: 選んだ選択肢と投票した日時/)).toBeInTheDocument()
-    expect(screen.getByText('改定日: 2026年11月3日')).toBeInTheDocument()
+    expect(screen.getByText('改定日: 2026年11月6日')).toBeInTheDocument()
     expect(screen.getByText(/新しい機能のお知らせを確認した日時/)).toBeInTheDocument()
     expect(screen.getByText('本サービスの改善のため、運営者は、記録した人数やセット数、継続して記録している人の割合、新規登録のきっかけごとの人数などの集計値を確認します。')).toBeInTheDocument()
   })

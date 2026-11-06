@@ -37,6 +37,7 @@
 | LEGAL-02 | プライバシーポリシー | `/privacy` |
 | ADMIN-01 | 届いた意見 | `/admin/feedback` |
 | ADMIN-02 | 利用状況 | `/admin/usage` |
+| ADMIN-03 | 届いた通報 | `/admin/reports` |
 
 ## 記録入力と履歴編集の共通ルール
 

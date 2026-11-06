@@ -15,6 +15,7 @@ const EXACT: Record<string, string> = {
   '/account/delete': 'ACCOUNT-01',
   '/admin/feedback': 'ADMIN-01',
   '/admin/usage': 'ADMIN-02',
+  '/admin/reports': 'ADMIN-03',
 }
 
 /**

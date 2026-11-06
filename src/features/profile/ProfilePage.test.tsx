@@ -7,6 +7,8 @@ vi.mock('../../lib/supabase', () => ({ supabase: { rpc } }))
 vi.mock('../auth/SessionProvider', () => ({ useSession: () => ({ userId: 'me', profile: { display_name: '自分' }, refreshProfile }) }))
 vi.mock('../community/queries', async (original) => ({ ...await original<typeof import('../community/queries')>(), profile }))
 vi.mock('../feedback/queries', () => ({ fetchIsAdmin: vi.fn().mockResolvedValue(false), fetchUnreadFeedbackCount: vi.fn() }))
+// ブロックした人の一覧は BlockedUsers のテストで確かめる（ここではRPCの呼び出し順だけを見る）
+vi.mock('../safety/BlockedUsers', () => ({ BlockedUsers: () => null }))
 const photo = vi.hoisted(() => ({ prepareImage: vi.fn(), cropAvatar: vi.fn(), uploadPhoto: vi.fn(), removePhoto: vi.fn() }))
 // jsdom does not implement the modal top layer.
 Object.defineProperties(HTMLDialogElement.prototype, {

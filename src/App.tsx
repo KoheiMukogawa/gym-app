@@ -32,6 +32,7 @@ const FeedbackPage = lazy(() => import('./features/feedback/FeedbackPage').then(
 const PollsPage = lazy(() => import('./features/polls/PollsPage').then((m) => ({ default: m.PollsPage })))
 const AdminFeedbackPage = lazy(() => import('./features/feedback/AdminFeedbackPage').then((m) => ({ default: m.AdminFeedbackPage })))
 const StartingBestsPage = lazy(() => import('./features/strength/StartingBestsPage').then((m) => ({ default: m.StartingBestsPage })))
+const AdminReportsPage = lazy(() => import('./features/safety/AdminReportsPage').then((m) => ({ default: m.AdminReportsPage })))
 const UsagePage = lazy(() => import('./features/admin/UsagePage').then((m) => ({ default: m.UsagePage })))
 
 // 以前のBIG3のURL（/strength?view=...）は /big3 に移した。
@@ -115,6 +116,7 @@ export default function App() {
                 <Route path="/polls" element={<PollsPage />} />
                 <Route path="/admin/feedback" element={<AdminFeedbackPage />} />
                 <Route path="/admin/usage" element={<UsagePage />} />
+                <Route path="/admin/reports" element={<AdminReportsPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

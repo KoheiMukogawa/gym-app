@@ -8,6 +8,7 @@ import { LogPage } from '../features/workout-log/LogPage'
 import { loadDraft } from '../features/workout-log/persistence'
 import { useFeedbackInbox } from '../features/feedback/useFeedbackInbox'
 import { useFeedbackReplies } from '../features/feedback/useFeedbackReplies'
+import { useReportInbox } from '../features/safety/useReportInbox'
 import { FeedbackReplyGate } from '../features/feedback/FeedbackReplyGate'
 import { AnnouncementsGate } from '../features/announcements/AnnouncementsGate'
 import { PollGate } from '../features/polls/PollGate'
@@ -42,8 +43,10 @@ export function AppShell(){
   useEffect(()=>{const update=()=>{void refreshProfile().catch(()=>{})};window.addEventListener('glog-profile-updated',update);return()=>window.removeEventListener('glog-profile-updated',update)},[refreshProfile])
   // 管理者に未読の意見があれば、アイコンを赤い輪で囲んでメニューに件数を出す
   const unreadFeedback=useFeedbackInbox(),hasUnread=(unreadFeedback??0)>0
+  // 管理者に未対応の通報があれば、同じ赤い輪で知らせる（24時間以内の対応を目安にするため）
+  const openReports=useReportInbox(),hasReports=(openReports??0)>0
   // 送った意見に運営の返信があれば、同じ赤い輪で知らせる（管理者以外も）
-  const replyState=useFeedbackReplies(),replies=replyState??[],hasReply=replies.length>0,marked=hasUnread||hasReply
+  const replyState=useFeedbackReplies(),replies=replyState??[],hasReply=replies.length>0,marked=hasUnread||hasReports||hasReply
   // 受付中でまだ投票していない投票があれば、メニューの「投票」に印を出す
   const {polls}=usePolls(),openPolls=(polls??[]).filter(p=>awaitsVote(p)).length
   // 管理者だけ、要望を伝えやすいよう画面ID（docs/screens.md）をヘッダーに出せる
@@ -61,7 +64,7 @@ export function AppShell(){
   return <div ref={setRoot} className="mx-auto flex min-h-dvh max-w-lg flex-col">
     <ButtonIdOverlay screenId={screenId} root={root}/>
     <header className="flex items-center justify-between px-4 py-2"><div className="flex items-center gap-2"><Link to="/" aria-label="Glog トップへ" className="flex min-h-14 items-center text-3xl font-bold tracking-tight">Glog</Link>{screenId&&<button type="button" data-id-copy aria-label={`画面ID ${screenId}をコピー`} onClick={()=>void copyId(screenId).then(ok=>show(ok?`${screenId} をコピーしました`:'コピーできませんでした'))} className="rounded border border-border px-1.5 py-0.5 font-mono text-xs text-muted active:bg-border">{screenId}</button>}</div>
-      <div ref={menu} className="relative"><button className="flex min-h-14 min-w-14 items-center justify-center" aria-label={hasUnread?'プロフィールメニュー（新着の意見があります）':hasReply?'プロフィールメニュー（ご意見に返信があります）':'プロフィールメニュー'} data-unread={marked||undefined} aria-expanded={open} onClick={()=>setOpen(v=>!v)}><span className={`relative inline-flex rounded-full ${marked?'ring-2 ring-accent ring-offset-2 ring-offset-bg':''}`}><Avatar icon={profile?.icon} name={profile?.display_name}/>{marked&&<span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-bg bg-accent"/>}</span></button>
+      <div ref={menu} className="relative"><button className="flex min-h-14 min-w-14 items-center justify-center" aria-label={hasUnread?'プロフィールメニュー（新着の意見があります）':hasReports?'プロフィールメニュー（未対応の通報があります）':hasReply?'プロフィールメニュー（ご意見に返信があります）':'プロフィールメニュー'} data-unread={marked||undefined} aria-expanded={open} onClick={()=>setOpen(v=>!v)}><span className={`relative inline-flex rounded-full ${marked?'ring-2 ring-accent ring-offset-2 ring-offset-bg':''}`}><Avatar icon={profile?.icon} name={profile?.display_name}/>{marked&&<span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-bg bg-accent"/>}</span></button>
         {open&&<div className="absolute right-0 z-50 max-h-[calc(100dvh-5rem)] w-72 overflow-y-auto rounded-2xl border border-border bg-surface p-2 shadow-xl">
           <Link to="/profile" aria-label="プロフィールを編集" className="flex min-h-16 items-center gap-3 rounded-xl px-3 hover:bg-white/5"><Avatar icon={profile?.icon} name={profile?.display_name}/><span className="min-w-0"><strong className="block truncate text-sm">{profile?.display_name||'プロフィール'}</strong><span className="mt-0.5 block text-xs text-muted">プロフィールを編集</span></span></Link>
           <section aria-labelledby="menu-settings"><h2 id="menu-settings" className={MENU_HEADING}>データとアプリ</h2>
@@ -75,6 +78,7 @@ export function AppShell(){
           </section>
           {unreadFeedback!==null&&<section aria-labelledby="menu-admin" className="border-t border-border"><h2 id="menu-admin" className={MENU_HEADING}>管理</h2>
             <Link to="/admin/feedback" className={`${MENU_ITEM} gap-2`}>届いた意見{hasUnread&&<span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white">新着 {unreadFeedback}</span>}</Link>
+            <Link to="/admin/reports" className={`${MENU_ITEM} gap-2`}>届いた通報{hasReports&&<span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-white">未対応 {openReports}</span>}</Link>
             <Link to="/admin/usage" className={MENU_ITEM}>利用状況</Link>
             <button type="button" role="switch" aria-checked={showScreenIds} className={`${MENU_ITEM} justify-between`} onClick={()=>{const next=!showScreenIds;setShowScreenIds(next);saveShowScreenIds(next)}}><span>画面IDを表示</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${showScreenIds?'bg-accent text-white':'border border-border text-muted'}`}>{showScreenIds?'オン':'オフ'}</span></button>
           </section>}
