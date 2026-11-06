@@ -4,12 +4,13 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig(({ isSsrBuild }) => ({
+export default defineConfig(({ isSsrBuild, mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
     // The prerender build (scripts/prerender.mjs) only renders public pages; no service worker.
-    !isSsrBuild && VitePWA({
+    // The iPhone app (mode native, Capacitor) ships its files inside the app and WKWebView has no service worker.
+    !isSsrBuild && mode !== 'native' && VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['glog-icon-32.png', 'glog-icon-180.png', 'glog-icon-192.png', 'glog-icon-512.png', 'glog-icon-maskable.png'],
       manifest: {

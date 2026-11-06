@@ -7,6 +7,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useToast } from '../../components/ui/Toast'
 import { useSession } from './SessionProvider'
 import { useCaptcha } from './captcha'
+import { linkOrigin } from '../../lib/native'
 
 const RESET_PASSWORD_PATH = '/reset-password'
 const inputClass = 'mt-1 min-h-14 w-full rounded-xl border border-border bg-surface px-4 text-fg'
@@ -30,7 +31,7 @@ export function ForgotPasswordPage() {
     if (submitting) return
     setError(null); setSubmitting(true)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + RESET_PASSWORD_PATH, captchaToken: captcha.token })
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: linkOrigin() + RESET_PASSWORD_PATH, captchaToken: captcha.token })
       if (error) throw error
       setSent(true)
     } catch (e) { setError(toMessage(e)) }

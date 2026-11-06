@@ -7,6 +7,8 @@
     "dev": "node scripts/dev-phone.mjs",
     "dev:pc": "vite",
     "build": "tsc -b && vite build && vite build --ssr src/prerender.tsx --outDir dist-ssr && node scripts/prerender.mjs",
+    "build:ios": "tsc -b && vite build --mode native && cap sync ios",
+    "ios": "npm run build:ios && cap open ios",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
@@ -15,6 +17,8 @@
     "test:e2e:mock": "playwright test --config playwright.mock.config.ts"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
     "@supabase/supabase-js": "^2.112.3",
     "@vercel/speed-insights": "^2.0.0",
     "react": "^19.2.8",
@@ -23,6 +27,7 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",

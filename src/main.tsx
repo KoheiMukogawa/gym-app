@@ -11,6 +11,7 @@ import { prerenderedPath } from './lib/prerendered'
 import { loadPublicPages } from './features/tools/loadPublicPages'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { beforeSend } from './lib/speedInsights'
+import { IS_NATIVE } from './lib/native'
 
 installStaleBuildRecovery()
 captureInstallPrompt()
@@ -20,7 +21,8 @@ function start() {
     <StrictMode>
       <ScreenErrorBoundary><App /></ScreenErrorBoundary>
       {/* 実際の利用者の端末での表示の速さを測る。紹介ページの見本（/demo）では測らない */}
-      {!IS_DEMO && <SpeedInsights beforeSend={beforeSend} />}
+      {/* アプリ版はVercelから配信しないので、送り先がない */}
+      {!IS_DEMO && !IS_NATIVE && <SpeedInsights beforeSend={beforeSend} />}
     </StrictMode>,
   )
 }
